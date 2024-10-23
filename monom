@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# This file the the file that sourced from your users rc / profile file.
+
+# It's only function is to call the logic files. The logic files can be updated
+# and used with no need to re source this file or the rc file on every change.
+
+# Additionally, the logic files are the tested files, this file is just a pointer to them.
+
+if [ -z "$MONOM_PROJECT_ROOT" ]; then
+  echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
+elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
+  echo "No folder on path $MONOM_PROJECT_ROOT" >&2
+fi
+
+cmp_fn() {
+  . ./completion_logic
+}
+
+fn() {
+  echo "fn..."
+}
+complete -F cmp_fn fn

@@ -1,0 +1,82 @@
+#!/bin/bash
+
+. ./utils/log
+. ./utils/test_helpers
+
+oneTimeSetUp() {
+  mkdir -p test_monorepos/monorepo1/project1/command_1/sub_command_1
+  mkdir -p test_monorepos/monorepo1/project1/command_1/sub_command_2
+  mkdir -p test_monorepos/monorepo1/project1/command_2/sub_command_3
+  mkdir -p test_monorepos/monorepo1/project1/command_2/sub_command_4
+  mkdir -p test_monorepos/monorepo1/project2
+}
+
+setUp() {
+  export COMP_WORDS=()
+}
+
+test_missing_and_invalid_monom_project_root() {
+  unset MONOM_PROJECT_ROOT
+  local \
+    stderr_output \
+    exit_code \
+    bad_monom_path="/___invalid_false/path"
+
+  stderr_output=$(. ./completion_logic 2>&1)
+  exit_code=$?
+  assertEquals "Missing \$MONOM_PROJECT_ROOT variable" "${stderr_output}"
+  assertEquals 1 ${exit_code}
+
+  stderr_output=$(MONOM_PROJECT_ROOT="$bad_monom_path" . ./completion_logic 2>&1)
+  exit_code=$?
+  assertEquals "No folder on path $bad_monom_path" "${stderr_output}"
+  assertEquals 1 ${exit_code}
+}
+
+test_completion_of_folder_structure() {
+  assertCompletion \
+    "fn" \
+    "1" \
+    "project1 project2"
+
+  assertCompletion \
+    "fn proj" \
+    "1" \
+    "project1 project2"
+
+  assertCompletion \
+    "fn project1 " \
+    "2" \
+    "command_1 command_2"
+
+  assertCompletion \
+    "fn project1 command_1" \
+    "3" \
+    "sub_command_1 sub_command_2"
+
+  assertCompletion \
+    "fn project1 command_2" \
+    "3" \
+    "sub_command_3 sub_command_4"
+}
+
+test_no_completion_on_final_command() {
+  assertCompletion \
+    "fn project1 command_2 sub_command_3" \
+    "4" \
+    ""
+
+  assertCompletion \
+    "fn project2" \
+    "2" \
+    ""
+
+  assertCompletion \
+    "fn project2 junky" \
+    "3" \
+    ""
+}
+
+# todo consider using `type -a fn` for function completion
+
+. ./dependencies/shunit2

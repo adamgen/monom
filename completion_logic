@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# This files implements the entire interface of the "complete -F cmp_fn fn"
+#
+# Inside cmp_fn calls this file with "source completion_logic"
+#
+# Now after sourcing the original completion file you can edit this file
+# click tab and see the completion without running source again
+#
+# This file is also the tested file. Since there's no way to `tab` click inside
+# a script, this file will be called with the relevant variables defined before calling
+
+. ./utils/log
+
+# Input variables for the complete command. Uncomment to debug them into a log file.
+# See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
+
+_log "COMP_CWORD      ${COMP_CWORD}"
+_log "COMP_POINT      ${COMP_POINT}"
+_log "COMP_LINE       ${COMP_LINE}"
+_log "COMP_WORDS[*]   ${COMP_WORDS[*]}"
+_log
+
+# Validate input variables of the monom project
+
+if [ -z "$MONOM_PROJECT_ROOT" ]; then
+  echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
+  exit 1
+elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
+  echo "No folder on path $MONOM_PROJECT_ROOT"
+  exit 1
+fi
+
+# Output variable - used by completion to show suggestions
+export COMPREPLY
+COMPREPLY=()
+
+# The logic of the completion
+
+index=0
+path="$MONOM_PROJECT_ROOT"
+DONT_REPLY=0
+for word in "${COMP_WORDS[@]:1}"; do
+  if [ $index -eq $(($COMP_CWORD - 1)) ]; then
+    continue
+  fi
+
+  temp_path="$path/$word"
+  if [ -d $temp_path ]; then
+    path=$temp_path
+  else
+    _log "Exiting on non existing path $temp_path pwd $(pwd)"
+    DONT_REPLY=1
+    break
+  fi
+
+  ((index++))
+done
+
+if [ $DONT_REPLY -eq 0 ]; then
+  while IFS='' read -r line; do
+    COMPREPLY+=("$line")
+  done < <(cd "${path}" && compgen -d | sort)
+fi

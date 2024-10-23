@@ -1,0 +1,20 @@
+#!/bin/bash
+
+function assertCompletion() {
+  local MONOM_PROJECT_ROOT
+  MONOM_PROJECT_ROOT="$(pwd)/test_monorepos/monorepo1"
+  export MONOM_PROJECT_ROOT
+
+  local COMP_LINE=$1
+  local COMP_CWORD=$2
+  local expected_reply=$3
+
+  local COMP_WORDS
+
+  IFS=' ' read -r -a COMP_WORDS <<<"$COMP_LINE"
+
+  . ./completion_logic
+
+  assertEquals 0 $?
+  assertEquals "$expected_reply" "${COMPREPLY[*]}"
+}
