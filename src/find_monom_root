@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Start from the current directory
+dir="$PWD"
+
+while [[ "$dir" != "/" ]]; do
+    # Check if monom file exists in current directory
+    if [[ -f "$dir/monom" ]]; then
+        echo "$dir"
+        exit 0
+    fi
+    # Move up to parent directory
+    dir="$(dirname "$dir")"
+done
+
+# If we reach here, no monom file was found
+echo "No monom configuration file found in any parent directory" >&2
+exit 1

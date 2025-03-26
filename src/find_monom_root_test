@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# Get the directory where the test script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIND_MONOM_ROOT="$SCRIPT_DIR/find_monom_root"
+
+# Set up test environment
+setUp() {
+    # Create a temporary test directory structure
+    TEST_DIR=$(mktemp -d)
+    
+    # Create nested directories
+    mkdir -p "$TEST_DIR/a/b/c"
+}
+
+# Clean up after tests
+tearDown() {
+    cd "$SCRIPT_DIR"  # Return to the script directory before cleanup
+    rm -rf "$TEST_DIR"
+}
+
+# Test when monom file exists in current directory
+test_find_monom_in_current_dir() {
+    # Create a monom file in the test directory
+    touch "$TEST_DIR/a/b/c/monom"
+    
+    # Run from the directory containing monom
+    cd "$TEST_DIR/a/b/c"
+    result=$("$FIND_MONOM_ROOT")
+    
+    assertEquals "Should find monom in current directory" \
+        "$TEST_DIR/a/b/c" "$result"
+}
+
+# Test when monom file exists in parent directory
+test_find_monom_in_parent_dir() {
+    # Create a monom file in a parent directory
+    touch "$TEST_DIR/a/monom"
+    
+    # Run from a child directory
+    cd "$TEST_DIR/a/b/c"
+    result=$("$FIND_MONOM_ROOT")
+    
+    assertEquals "Should find monom in parent directory" \
+        "$TEST_DIR/a" "$result"
+}
+
+# Test when no monom file exists
+test_no_monom_file() {
+    # Run from a directory with no monom file in path
+    cd "$TEST_DIR/a/b/c"
+    result=$("$FIND_MONOM_ROOT" 2>&1)
+    
+    assertEquals "Should return error message" \
+        "No monom configuration file found in any parent directory" "$result"
+    
+    # Check exit code
+    "$FIND_MONOM_ROOT" >/dev/null 2>&1
+    assertNotEquals "Should return non-zero exit code" 0 $?
+}
+
+# Load shunit2 
+. ../dependencies/shunit2 
