@@ -7,11 +7,20 @@
 
 # Additionally, the logic files are the tested files, this file is just a pointer to them.
 
+# Use preset value if it exists, otherwise try to find it
+if [ -z "$MONOM_PROJECT_ROOT" ]; then
+  MONOM_PROJECT_ROOT=$("$(dirname "${BASH_SOURCE[0]}")/find_monom_root") 
+fi
+
 if [ -z "$MONOM_PROJECT_ROOT" ]; then
   echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
+  exit 1
 elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
   echo "No folder on path $MONOM_PROJECT_ROOT" >&2
+  exit 1
 fi
+
+echo "MONOM_PROJECT_ROOT: $MONOM_PROJECT_ROOT"
 
 cmp_fn() {
   . ./completion_logic
