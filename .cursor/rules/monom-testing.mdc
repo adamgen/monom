@@ -1,0 +1,42 @@
+---
+description: Testing Conventions for Shell Scripts
+globs: 
+alwaysApply: false
+---
+# Testing Conventions for Shell Scripts
+
+## Test File Structure
+1. Test files should follow the naming convention `${script_name}_test` for the script they are testing
+2. Test files should be placed in the same directory as the script being tested
+
+## Test Setup
+1. Each test file should determine its own directory path using:
+   ```bash
+   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+   ```
+2. The script under test should be referenced using its absolute path:
+   ```bash
+   SCRIPT_UNDER_TEST="$SCRIPT_DIR/script_name"
+   ```
+
+## Test Environment
+1. Use `setUp()` to create temporary test directories with `mktemp -d`
+2. Use `tearDown()` to clean up temporary directories
+3. When testing path-related functionality:
+   - Create test directories using `mkdir -p`
+   - Use absolute paths to avoid working directory issues
+   - Change directories within tests using `cd` as needed
+   - Always reference the script under test using its absolute path
+
+## Test Framework
+1. Tests use the shunit2 framework from ../dependencies/shunit2
+2. Test functions should be named `test_descriptive_name()`
+3. Use `assertEquals` for string comparisons
+4. Use `assertNotEquals` for exit code testing
+5. Capture stderr using `2>&1` when testing error messages
+
+## Common Gotchas
+1. The "getcwd: cannot access parent directories" warning is expected when running in a directory that gets deleted
+2. Always use absolute paths when executing the script under test from different directories
+3. Clean up temporary directories in tearDown, even if tests fail
+x

@@ -1,0 +1,11 @@
+---
+description: What is this project
+globs: 
+alwaysApply: true
+---
+This is a CLI tool for building cli tools
+
+## Tests
+
+1. Tests for a specific util file has a convention of "${file_name}_test".
+2. The testing framework is shunit and is avalable on [shunit2](mdc:dependencies/shunit2)
