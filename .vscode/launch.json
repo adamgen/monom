@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "bashdb",
+      "request": "launch",
+      "name": "Run Bash File",
+      "program": "${file}",
+      "cwd": "${fileDirname}",
+      "terminalKind": "integrated"
+    }
+  ]
+}
