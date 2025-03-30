@@ -1,4 +1,0 @@
-#!/bin/bash
-
-export MONOM_PROJECT_ROOT=test_monorepos/monorepo1
-. ./monom
