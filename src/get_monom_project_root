@@ -14,5 +14,5 @@ while [[ "$dir" != "/" ]]; do
 done
 
 # If we reach here, no monom file was found
-echo "No monom configuration file found in any parent directory" >&2
+echo "cannot find monom project root: no 'monom' file in this or parent directories" >&2
 exit 1
