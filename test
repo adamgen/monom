@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+# Get the directory where the test script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source shunit2
+. ./dependencies/shunit2
+
+# Find all test files
+find_test_files() {
+  find src -type f -name "*_test"
+}
+
+# Run all tests
+run_all_tests() {
+  local test_files
+  test_files=$(find_test_files)
+  
+  if [ -z "$test_files" ]; then
+    echo "No test files found matching pattern *_test"
+    exit 0
+  fi
+  
+  local exit_code=0
+  echo "Running tests..."
+  echo
+  
+  while IFS= read -r test_file; do
+    echo "Running tests in: $test_file"
+    # Change to the directory containing the test file
+    cd "$SCRIPT_DIR/$(dirname "$test_file")" || exit
+    if ! bash "./$(basename "$test_file")"; then
+      exit_code=1
+      echo "Tests in $test_file failed"
+    fi
+    echo
+    # Return to the original directory
+    cd "$SCRIPT_DIR" || exit
+  done <<< "$test_files"
+  
+  if [ $exit_code -eq 0 ]; then
+    echo "All tests passed! 🎉"
+  else
+    echo "Some tests failed ❌"
+    exit 1
+  fi
+}
+
+run_all_tests 

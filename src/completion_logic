@@ -10,6 +10,7 @@
 # This file is also the tested file. Since there's no way to `tab` click inside
 # a script, this file will be called with the relevant variables defined before calling
 
+# shellcheck source=utils/log
 . ./utils/log
 
 # Input variables for the complete command. Uncomment to debug them into a log file.
@@ -41,12 +42,12 @@ index=0
 path="$MONOM_PROJECT_ROOT"
 DONT_REPLY=0
 for word in "${COMP_WORDS[@]:1}"; do
-  if [ $index -eq $(($COMP_CWORD - 1)) ]; then
+  if [ $index -eq $((COMP_CWORD - 1)) ]; then
     continue
   fi
 
   temp_path="$path/$word"
-  if [ -d $temp_path ]; then
+  if [ -d "$temp_path" ]; then
     path=$temp_path
   else
     _log "Exiting on non existing path $temp_path pwd $(pwd)"

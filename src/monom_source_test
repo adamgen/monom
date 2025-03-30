@@ -16,12 +16,13 @@ setUp() {
     OLD_MONOM_PROJECT_ROOT="$MONOM_PROJECT_ROOT"
     
     # Source the file to test
-    . "$MONOM_SOURCE"
+    # shellcheck source=./monom_source
+    . "${MONOM_SOURCE}"
 }
 
 # Clean up after tests
 tearDown() {
-    cd "$SCRIPT_DIR"  # Return to the script directory before cleanup
+    cd "$SCRIPT_DIR" || exit  # Return to the script directory before cleanup
     rm -rf "$TEST_DIR"
     
     # Restore original MONOM_PROJECT_ROOT
@@ -87,4 +88,5 @@ test_monom_command_with_invalid_setup() {
 }
 
 # Load shunit2
-. ../dependencies/shunit2 
+# shellcheck source=../dependencies/shunit2
+. "../dependencies/shunit2"

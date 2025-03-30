@@ -1,6 +1,8 @@
 #!/bin/bash
 
+# shellcheck source=utils/log
 . ./utils/log
+# shellcheck source=utils/test_helpers
 . ./utils/test_helpers
 
 oneTimeSetUp() {
@@ -79,4 +81,5 @@ test_no_completion_on_final_command() {
 
 # todo consider using `type -a fn` for function completion
 
+# shellcheck disable=SC1091
 . ./dependencies/shunit2

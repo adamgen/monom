@@ -13,7 +13,7 @@ SRC_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 setup_monom() {
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
-    MONOM_PROJECT_ROOT=$("$SRC_DIR/find_monom_root") 
+    MONOM_PROJECT_ROOT=$("$SRC_DIR/get_monom_project_root") 
   fi
 
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
@@ -32,8 +32,7 @@ setup_monom() {
 }
 
 monom_completion() {
-  local setup_output
-  setup_output=$(setup_monom)
+  setup_monom
   local setup_status=$?
   [ $setup_status -eq 0 ] || return 1
 
@@ -41,8 +40,7 @@ monom_completion() {
 }
 
 monom() {
-  local setup_output
-  setup_output=$(setup_monom)
+  setup_monom
   local setup_status=$?
 
   [ $setup_status -eq 0 ] || return 1

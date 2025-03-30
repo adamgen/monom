@@ -2,7 +2,7 @@
 
 # Get the directory where the test script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIND_MONOM_ROOT="$SCRIPT_DIR/find_monom_root"
+FIND_MONOM_ROOT="$SCRIPT_DIR/get_monom_project_root"
 
 # Set up test environment
 setUp() {
@@ -52,7 +52,7 @@ test_no_monom_file() {
     result=$("$FIND_MONOM_ROOT" 2>&1)
     
     assertEquals "Should return error message" \
-        "No monom configuration file found in any parent directory" "$result"
+        "cannot find monom project root: no 'monom' file in this or parent directories" "$result"
     
     # Check exit code
     "$FIND_MONOM_ROOT" >/dev/null 2>&1

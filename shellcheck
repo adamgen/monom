@@ -1,2 +1,2 @@
 #!/bin/bash
-shellcheck src/** 2>/dev/null || true
+shellcheck -x src/**
