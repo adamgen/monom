@@ -15,7 +15,7 @@ setUp() {
 
 # Clean up after tests
 tearDown() {
-    cd "$SCRIPT_DIR"  # Return to the script directory before cleanup
+    cd "$SCRIPT_DIR" || exit  # Return to the script directory before cleanup
     rm -rf "$TEST_DIR"
 }
 
@@ -25,7 +25,7 @@ test_find_monom_in_current_dir() {
     touch "$TEST_DIR/a/b/c/monom"
     
     # Run from the directory containing monom
-    cd "$TEST_DIR/a/b/c"
+    cd "$TEST_DIR/a/b/c" || exit
     result=$("$FIND_MONOM_ROOT")
     
     assertEquals "Should find monom in current directory" \
@@ -38,7 +38,7 @@ test_find_monom_in_parent_dir() {
     touch "$TEST_DIR/a/monom"
     
     # Run from a child directory
-    cd "$TEST_DIR/a/b/c"
+    cd "$TEST_DIR/a/b/c" || exit
     result=$("$FIND_MONOM_ROOT")
     
     assertEquals "Should find monom in parent directory" \
@@ -48,7 +48,7 @@ test_find_monom_in_parent_dir() {
 # Test when no monom file exists
 test_no_monom_file() {
     # Run from a directory with no monom file in path
-    cd "$TEST_DIR/a/b/c"
+    cd "$TEST_DIR/a/b/c" || exit
     result=$("$FIND_MONOM_ROOT" 2>&1)
     
     assertEquals "Should return error message" \
@@ -60,4 +60,4 @@ test_no_monom_file() {
 }
 
 # Load shunit2 
-. ../dependencies/shunit2 
+. ../dependencies/shunit2
