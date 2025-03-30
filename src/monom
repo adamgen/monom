@@ -8,25 +8,47 @@
 # Additionally, the logic files are the tested files, this file is just a pointer to them.
 
 # Use preset value if it exists, otherwise try to find it
-if [ -z "$MONOM_PROJECT_ROOT" ]; then
-  MONOM_PROJECT_ROOT=$("$(dirname "${BASH_SOURCE[0]}")/find_monom_root") 
-fi
 
-if [ -z "$MONOM_PROJECT_ROOT" ]; then
-  echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
-  exit 1
-elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
-  echo "No folder on path $MONOM_PROJECT_ROOT" >&2
-  exit 1
-fi
+SRC_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
-echo "MONOM_PROJECT_ROOT: $MONOM_PROJECT_ROOT"
+setup_monom() {
+  if [ -z "$MONOM_PROJECT_ROOT" ]; then
+    MONOM_PROJECT_ROOT=$("$SRC_DIR/find_monom_root") 
+  fi
 
-cmp_fn() {
+  if [ -z "$MONOM_PROJECT_ROOT" ]; then
+    echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
+    return 1
+  elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
+    echo "No folder on path $MONOM_PROJECT_ROOT" >&2
+    return 1
+  fi
+
+  # echo "MONOM_PROJECT_ROOT: $MONOM_PROJECT_ROOT"
+
+  export MONOM_PROJECT_ROOT
+
+  return 0
+}
+
+monom_completion() {
+  local setup_output
+  setup_output=$(setup_monom)
+  local setup_status=$?
+  [ $setup_status -eq 0 ] || return 1
+
   . ./completion_logic
 }
 
-fn() {
-  echo "fn..."
+monom() {
+  local setup_output
+  setup_output=$(setup_monom)
+  local setup_status=$?
+
+  [ $setup_status -eq 0 ] || return 1
+  echo "monom..."
 }
-complete -F cmp_fn fn
+
+export monom
+
+complete -F monom_completion monom
