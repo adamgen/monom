@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Get the directory where the test script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MONOM_SOURCE="$SCRIPT_DIR/monom_source"
+
+# Set up test environment
+setUp() {
+    # Create a temporary test directory structure
+    TEST_DIR=$(mktemp -d)
+    
+    # Create nested directories
+    mkdir -p "$TEST_DIR/project"
+    
+    # Save original value of MONOM_PROJECT_ROOT
+    OLD_MONOM_PROJECT_ROOT="$MONOM_PROJECT_ROOT"
+    
+    # Source the file to test
+    . "$MONOM_SOURCE"
+}
+
+# Clean up after tests
+tearDown() {
+    cd "$SCRIPT_DIR"  # Return to the script directory before cleanup
+    rm -rf "$TEST_DIR"
+    
+    # Restore original MONOM_PROJECT_ROOT
+    MONOM_PROJECT_ROOT="$OLD_MONOM_PROJECT_ROOT"
+    unset OLD_MONOM_PROJECT_ROOT
+}
+
+# Test setup_monom with valid project root
+test_setup_monom_with_valid_root() {
+    MONOM_PROJECT_ROOT="$TEST_DIR/project"
+    
+    setup_monom
+    status=$?
+    
+    assertEquals "setup_monom should return 0 with valid root" 0 "$status"
+    assertEquals "MONOM_PROJECT_ROOT should be set correctly" \
+        "$TEST_DIR/project" "$MONOM_PROJECT_ROOT"
+}
+
+# Test setup_monom with invalid project root
+test_setup_monom_with_invalid_root() {
+    MONOM_PROJECT_ROOT="/nonexistent/path"
+    
+    output=$(setup_monom 2>&1)
+    status=$?
+    
+    assertNotEquals "setup_monom should return non-zero with invalid root" 0 "$status"
+    assertEquals "Should show correct error message" \
+        "No folder on path /nonexistent/path" "$output"
+}
+
+# Test setup_monom with unset project root
+test_setup_monom_with_unset_root() {
+    unset MONOM_PROJECT_ROOT
+    
+    output=$(setup_monom 2>&1)
+    status=$?
+    
+    # Note: This test might need adjustment depending on the behavior of find_monom_root
+    assertNotEquals "setup_monom should return non-zero with unset root" 0 "$status"
+}
+
+# Test monom command
+test_monom_command() {
+    MONOM_PROJECT_ROOT="$TEST_DIR/project"
+    
+    output=$(monom)
+    status=$?
+    
+    assertEquals "monom command should return 0" 0 "$status"
+    assertEquals "monom command should output correct message" \
+        "monom..." "$output"
+}
+
+# Test monom command with invalid setup
+test_monom_command_with_invalid_setup() {
+    MONOM_PROJECT_ROOT="/nonexistent/path"
+    
+    output=$(monom 2>&1)
+    status=$?
+    
+    assertNotEquals "monom command should return non-zero with invalid setup" 0 "$status"
+}
+
+# Load shunit2
+. ../dependencies/shunit2 
