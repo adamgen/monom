@@ -1,5 +1,5 @@
 ---
-description: What is this project
+description: 
 globs: 
 alwaysApply: true
 ---
@@ -10,4 +10,4 @@ This is a CLI tool for building cli tools
 1. Tests for a specific util file has a convention of "${file_name}_test".
 2. The testing framework is shunit and is avalable on [shunit2](mdc:dependencies/shunit2)
 3. To validate best practices using shellcheck run `./shellcheck fromthe`
-4. Always assume file has execution privilage, if it fails then add it.
+4. Do not run `chmod +x` unless you got a "permission denied" error, then run it.
