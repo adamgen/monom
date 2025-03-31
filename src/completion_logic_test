@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# shellcheck source=utils/log
 . ./utils/log
-# shellcheck source=utils/test_helpers
 
 
 function assertCompletion() {
