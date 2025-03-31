@@ -1,5 +1,16 @@
 # Monom
 
+## Vision
+
+- Have a oneline install utility that allows you to write CLI tools easily
+- File as commands, file tree as command tree (commands & subcommands)
+- Modularity / extensibility - have hooks where developers can extend both a single command and the entire project. Examples:
+  - Cache & S3 cache
+  - Web ui
+  - Tests
+- Have an easy to understand convention for accepting cli arguments
+- Support a global monom and a project specific monom (will project specific run from anywhere?)
+
 ## Motivation
 
 [//]: # "todo"
