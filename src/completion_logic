@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# This files implements the entire interface of the "complete -F cmp_fn fn"
+# This files implements the entire interface of the "complete -F monom_completion monom"
 #
-# Inside cmp_fn calls this file with "source completion_logic"
+# Inside monom_completion calls this file with "source completion_logic"
 #
 # Now after sourcing the original completion file you can edit this file
 # click tab and see the completion without running source again
