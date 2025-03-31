@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# This script finds the root directory of a monom project by searching for a 'monom' file.
+# It starts from the current working directory and traverses up the directory tree
+# until it finds a directory containing a 'monom' file or reaches the root directory (/).
+#
+# Returns:
+#   - Prints the absolute path of the monom project root directory and exits with 0 if found
+#   - Prints an error message to stderr and exits with 1 if no monom file is found
+
 # Start from the current directory
 dir="$PWD"
 
