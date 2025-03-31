@@ -2,7 +2,7 @@
 
 . ./utils/log
 
-temp_dir="$(git rev-parse --show-toplevel)/test_monorepos"
+temp_dir="$(git rev-parse --show-toplevel)/test_projects"
 
 function assertCompletion() {
   local MONOM_PROJECT_ROOT
