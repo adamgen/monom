@@ -89,14 +89,16 @@ test_no_completion_on_final_command() {
     ""
 
   assertCompletion \
-    "monom project2" \
-    "2" \
-    ""
-
-  assertCompletion \
     "monom project2 junky" \
     "3" \
     ""
+}
+
+test_completion_based_on_the_complete_file() {
+  assertCompletion \
+    "monom project2" \
+    "2" \
+    "option-11 option-22 option-33"
 }
 
 . ../dependencies/shunit2
