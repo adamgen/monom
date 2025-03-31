@@ -3,14 +3,36 @@
 # shellcheck source=utils/log
 . ./utils/log
 # shellcheck source=utils/test_helpers
-. ./utils/test_helpers
+
+
+function assertCompletion() {
+  local MONOM_PROJECT_ROOT
+  MONOM_PROJECT_ROOT="$temp_dir/test_monorepos/monorepo1"
+  export MONOM_PROJECT_ROOT
+
+  local COMP_LINE=$1
+  local COMP_CWORD=$2
+  local expected_reply=$3
+
+  local COMP_WORDS
+
+  IFS=' ' read -r -a COMP_WORDS <<<"$COMP_LINE"
+
+  . ./completion_logic
+
+  assertEquals 0 $?
+  assertEquals "$expected_reply" "${COMPREPLY[*]}"
+}
 
 oneTimeSetUp() {
-  mkdir -p test_monorepos/monorepo1/project1/command_1/sub_command_1
-  mkdir -p test_monorepos/monorepo1/project1/command_1/sub_command_2
-  mkdir -p test_monorepos/monorepo1/project1/command_2/sub_command_3
-  mkdir -p test_monorepos/monorepo1/project1/command_2/sub_command_4
-  mkdir -p test_monorepos/monorepo1/project2
+  temp_dir=$(mktemp -d)
+  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_1/sub_command_1"
+  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_1/sub_command_2"
+  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_2/sub_command_3"
+  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_2/sub_command_4"
+  mkdir -p "$temp_dir/test_monorepos/monorepo1/project2"
+
+  export temp_dir
 }
 
 setUp() {
@@ -37,49 +59,46 @@ test_missing_and_invalid_monom_project_root() {
 
 test_completion_of_folder_structure() {
   assertCompletion \
-    "fn" \
+    "monom" \
     "1" \
     "project1 project2"
 
   assertCompletion \
-    "fn proj" \
+    "monom proj" \
     "1" \
     "project1 project2"
 
   assertCompletion \
-    "fn project1 " \
+    "monom project1 " \
     "2" \
     "command_1 command_2"
 
   assertCompletion \
-    "fn project1 command_1" \
+    "monom project1 command_1" \
     "3" \
     "sub_command_1 sub_command_2"
 
   assertCompletion \
-    "fn project1 command_2" \
+    "monom project1 command_2" \
     "3" \
     "sub_command_3 sub_command_4"
 }
 
 test_no_completion_on_final_command() {
   assertCompletion \
-    "fn project1 command_2 sub_command_3" \
+    "monom project1 command_2 sub_command_3" \
     "4" \
     ""
 
   assertCompletion \
-    "fn project2" \
+    "monom project2" \
     "2" \
     ""
 
   assertCompletion \
-    "fn project2 junky" \
+    "monom project2 junky" \
     "3" \
     ""
 }
 
-# todo consider using `type -a fn` for function completion
-
-# shellcheck disable=SC1091
 . ../dependencies/shunit2
