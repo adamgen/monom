@@ -1,2 +1,5 @@
 #!/bin/bash
-shellcheck -x src/**
+
+find src -type f \
+  -exec sh -c 'head -n1 "$1" | grep -q "^#!/bin/bash"' sh {} \; \
+  -exec shellcheck -x {} \;
