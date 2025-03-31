@@ -8,6 +8,7 @@
   - Cache & S3 cache
   - Web ui
   - Tests
+  - Docs/manual
 - Have an easy to understand convention for accepting cli arguments
 - Support a global monom and a project specific monom (will project specific run from anywhere?)
 
