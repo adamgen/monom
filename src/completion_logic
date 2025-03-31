@@ -60,14 +60,14 @@ done
 
 _log "temp path complete file $temp_path/complete"
 
-if [ $DONT_REPLY -eq 0 ] && [ -f "$temp_path/complete" ]; then
-  while IFS='' read -r line; do
-    COMPREPLY+=("$line")
-  done < <("$temp_path/complete")
-fi
-
 if [ $DONT_REPLY -eq 0 ]; then
-  while IFS='' read -r line; do
-    COMPREPLY+=("$line")
-  done < <(cd "${path}" && compgen -d | sort)
+  if [ -f "$temp_path/complete" ]; then
+    while IFS='' read -r line; do
+      COMPREPLY+=("$line")
+    done < <("$temp_path/complete")
+  elif [ $DONT_REPLY -eq 0 ]; then
+    while IFS='' read -r line; do
+      COMPREPLY+=("$line")
+    done < <(cd "${path}" && compgen -d | sort)
+  fi
 fi
