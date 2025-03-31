@@ -2,10 +2,11 @@
 
 . ./utils/log
 
+temp_dir="$(git rev-parse --show-toplevel)/test_monorepos"
 
 function assertCompletion() {
   local MONOM_PROJECT_ROOT
-  MONOM_PROJECT_ROOT="$temp_dir/test_monorepos/monorepo1"
+  MONOM_PROJECT_ROOT="$temp_dir/monorepo1"
   export MONOM_PROJECT_ROOT
 
   local COMP_LINE=$1
@@ -23,12 +24,11 @@ function assertCompletion() {
 }
 
 oneTimeSetUp() {
-  temp_dir=$(mktemp -d)
-  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_1/sub_command_1"
-  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_1/sub_command_2"
-  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_2/sub_command_3"
-  mkdir -p "$temp_dir/test_monorepos/monorepo1/project1/command_2/sub_command_4"
-  mkdir -p "$temp_dir/test_monorepos/monorepo1/project2"
+  mkdir -p "$temp_dir/monorepo1/project1/command_1/sub_command_1"
+  mkdir -p "$temp_dir/monorepo1/project1/command_1/sub_command_2"
+  mkdir -p "$temp_dir/monorepo1/project1/command_2/sub_command_3"
+  mkdir -p "$temp_dir/monorepo1/project1/command_2/sub_command_4"
+  mkdir -p "$temp_dir/monorepo1/project2"
 
   export temp_dir
 }
