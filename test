@@ -6,9 +6,6 @@ set -e
 # Get the directory where the test script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source shunit2
-. ./dependencies/shunit2
-
 # Find all test files
 find_test_files() {
   find src -type f -name "*_test"
