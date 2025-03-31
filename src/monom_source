@@ -13,7 +13,10 @@ SRC_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 setup_monom() {
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
-    MONOM_PROJECT_ROOT=$("$SRC_DIR/get_monom_project_root") 
+    if ! MONOM_PROJECT_ROOT=$("$SRC_DIR/get_monom_project_root"); then
+      echo "Failed to get monom project root" >&2
+      return 1
+    fi
   fi
 
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
@@ -44,7 +47,12 @@ monom() {
   local setup_status=$?
 
   [ $setup_status -eq 0 ] || return 1
-  echo "monom..."
+  # Define colors
+  GREEN='\033[0;32m'
+  BLUE='\033[0;34m'
+  NC='\033[0m' # No Color
+
+  echo -e "${GREEN}Using monom from:${NC} ${BLUE}$MONOM_PROJECT_ROOT${NC}"
 }
 
 export monom

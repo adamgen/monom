@@ -57,12 +57,13 @@ test_setup_monom_with_invalid_root() {
 # Test setup_monom with unset project root
 test_setup_monom_with_unset_root() {
     unset MONOM_PROJECT_ROOT
-    
-    output=$(setup_monom 2>&1)
+    mkdir -p "$TEST_DIR/project/a/b/c"
+    touch "$TEST_DIR/project/monom"
+    cd "$TEST_DIR/project/a/b/c" || exit
+    setup_monom
     status=$?
-    
-    # Note: This test might need adjustment depending on the behavior of find_monom_root
-    assertNotEquals "setup_monom should return non-zero with unset root" 0 "$status"
+
+    assertEquals "setup_monom find parent monom" 0 "$status"
 }
 
 # Test monom command
@@ -72,9 +73,14 @@ test_monom_command() {
     output=$(monom)
     status=$?
     
+
+    GREEN='\033[0;32m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+
     assertEquals "monom command should return 0" 0 "$status"
     assertEquals "monom command should output correct message" \
-        "monom..." "$output"
+        "$(echo -e "${GREEN}Using monom from:${NC} ${BLUE}$MONOM_PROJECT_ROOT${NC}")" "$output"
 }
 
 # Test monom command with invalid setup
