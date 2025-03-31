@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$(pwd)/log}"
+_DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$(pwd)/.log}"
 printf "" >"$_DEBUG_LOG_PATH"
 function _log() {
   echo "$1" >>"$_DEBUG_LOG_PATH"
