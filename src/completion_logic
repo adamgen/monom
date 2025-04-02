@@ -11,15 +11,22 @@
 # a script, this file will be called with the relevant variables defined before calling
 
 # shellcheck source=utils/log
+
+echo > ./.log
 . ./utils/log
 
 # Input variables for the complete command. Uncomment to debug them into a log file.
 # See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
 
-_log "COMP_CWORD      ${COMP_CWORD}"
-_log "COMP_POINT      ${COMP_POINT}"
-_log "COMP_LINE       ${COMP_LINE}"
-_log "COMP_WORDS[*]   ${COMP_WORDS[*]}"
+CLEAN_COMP_LINE=${COMP_LINE#"monom "}
+
+
+_log "COMP_CWORD          ${COMP_CWORD}"
+_log "COMP_LINE           ${COMP_LINE}"
+_log "COMP_WORDS[*]       ${COMP_WORDS[*]}"
+_log "CLEAN_COMP_LINE     ${CLEAN_COMP_LINE}"
+
+# _log "COMP_POINT      ${COMP_POINT}"
 _log
 
 # Validate input variables of the monom project
@@ -43,7 +50,7 @@ _log "completion options" "$completion_options"
 export COMPREPLY
 COMPREPLY=()
 
-comp_path="$(printf "%s " "${COMP_WORDS[@]:1}" | tr ' ' '/' | sed 's/\/$//')"
+comp_path="$(printf "%s " "$CLEAN_COMP_LINE" | tr ' ' '/' | sed 's|/*$||')"
 
 _log "comp_path $comp_path"
 
@@ -54,7 +61,7 @@ else
   filtered_options="$( \
     echo "$completion_options" | \
     grep "^$comp_path" | \
-    sed "s#^$comp_path\/##" | \
+    sed "s#^$comp_path/##" | \
     sed "s#^$comp_path\$##" | \
     sed 's#^/##' | \
     sed 's#/.*##' | \

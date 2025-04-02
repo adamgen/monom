@@ -57,7 +57,7 @@ test_missing_and_invalid_monom_project_root() {
 
 test_completion_of_folder_structure() {
   assertCompletion \
-    "monom" \
+    "monom " \
     "1" \
     "project1 project2"
 
