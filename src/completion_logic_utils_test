@@ -60,14 +60,37 @@ test_cleanup_completion_options() {
   assertEquals $'option1\noption1\noption2\noption3' "$result"
 }
 
-test_prepare_completion_options() {
+
+test_prepare_completion_options_first_word() {
+  test_options="project1/command_1
+project1/command_1/sub_command_1
+project1/command_1/sub_command_2
+project1/command_2
+project1/command_2/sub_command_3
+project1/command_2/sub_command_4
+project2"
+
   local result
-  result=$(echo -e "project1/command1\nproject1/command2\nproject2/command3" | prepare_completion_options "project1")
-  assertEquals $'command1\ncommand2' "$result"
+  result=$(echo -e "$test_options" | prepare_completion_options)
+  assertEquals $'project1\nproject2' "$result"
   
-  input=$(echo -e "project1\nproject1/command1\nproject1/command2")
-  result=$(echo "$input" | prepare_completion_options "project1")
-  assertEquals $'command1\ncommand2' "$result"
+  result=$(echo -e "$test_options" | prepare_completion_options "coma")
+  assertEquals "" "$result"
+  
+  result=$(echo -e "$test_options" | prepare_completion_options "p")
+  assertEquals $'project1\nproject2' "$result"
+  
+  result=$(echo -e "$test_options" | prepare_completion_options "projec")
+  assertEquals $'project1\nproject2' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1")
+  assertEquals $'command_1\ncommand_2' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project2")
+  assertEquals "" "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1")
+  assertEquals $'command_1\ncommand_2' "$result"
 }
 
 . ./completion_logic_utils
