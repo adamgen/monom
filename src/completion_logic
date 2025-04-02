@@ -14,6 +14,7 @@
 
 echo > ./.log
 . ./utils/log
+. ./completion_logic_utils
 
 # Input variables for the complete command. Uncomment to debug them into a log file.
 # See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
@@ -43,7 +44,7 @@ MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
 _log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
 
 # todo make sure that this run remove is in the right place
-completion_options="$($MONOM_CONFIG_FILE "completion" | sed 's#^\./##' | sed 's#run$##' | sed 's/\/$//')"
+completion_options=$(_get_completion_options "$MONOM_CONFIG_FILE")
 _log "completion options" "$completion_options"
 
 # Output variable - used by completion to show suggestions
@@ -54,26 +55,18 @@ comp_path="$(printf "%s " "$CLEAN_COMP_LINE" | tr ' ' '/' | sed 's|/*$||')"
 
 _log "comp_path $comp_path"
 
-if [ -e "$MONOM_PROJECT_ROOT/$comp_path/complete" ]; then
-  filtered_options=$("$MONOM_PROJECT_ROOT"/"$comp_path"/complete)
+custom_completion_file="$MONOM_PROJECT_ROOT/$comp_path/complete"
+
+if [ -e "$custom_completion_file" ]; then
+  filtered_options=$("$custom_completion_file")
 else
-  # todo consider exporting all filters to testable functions
-  filtered_options="$( \
-    echo "$completion_options" | \
-    grep "^$comp_path" | \
-    sed "s#^$comp_path/##" | \
-    sed "s#^$comp_path\$##" | \
-    sed 's#^/##' | \
-    sed 's#/.*##' | \
-    uniq | \
-    sort \
-  )"
+  filtered_options="$(echo "$completion_options" | prepare_completion_options "$comp_path")"
 fi
 
 _log "filtered_options" "$filtered_options"
 
 while IFS= read -r line; do
   COMPREPLY+=("$line")
-done < <(echo "$filtered_options" | grep -v '^$')
+done < <(echo "$filtered_options")
 
 _log "COMPREPLY" "${COMPREPLY[*]}"

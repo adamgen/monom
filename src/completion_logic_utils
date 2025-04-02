@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# otherwise sed is missing on completion
+sed="/usr/bin/sed"
+grep="/usr/bin/grep"
+uniq="/usr/bin/uniq"
+sort="/usr/bin/sort"
+
+_remove_exact_path_matches() {
+  local path="$1"
+  $sed "s#^$path\$##"
+}
+
+_filter_by_path_prefix() {
+  local path="$1"
+  $grep "^$path"
+}
+
+_remove_path_prefix() {
+  local path="$1"
+  $sed "s#^$path/##"
+}
+
+_remove_leading_slash() {
+  $sed 's#^/##'
+}
+
+_keep_first_path_component() {
+  $sed 's#/.*##'
+}
+
+_get_completion_options() {
+  local monom_config_file="$1"
+  $monom_config_file "completion" | sed 's#^\./##' | sed 's#run$##' | sed 's/\/$//'
+}
+
+_cleanup_completion_options() {
+  $grep -v '^$' | $uniq | $sort
+}
+
+prepare_completion_options() {
+  local path="$1"
+
+  _filter_by_path_prefix "$path" | \
+  _remove_path_prefix "$path" | \
+  _remove_exact_path_matches "$path" | \
+  _remove_leading_slash | \
+  _keep_first_path_component | \
+  _cleanup_completion_options
+}
