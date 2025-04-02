@@ -39,6 +39,8 @@ monom_completion() {
   local setup_status=$?
   [ $setup_status -eq 0 ] || return 1
 
+  cd "$SRC_DIR" || return 1
+
   . ./completion_logic
 }
 

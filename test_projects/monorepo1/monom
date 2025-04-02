@@ -1,0 +1,8 @@
+#!/bin/bash
+
+completion(){
+    cd "$(dirname "$0")" || exit 1
+    find . -name "run" | sort
+}
+
+"$1"

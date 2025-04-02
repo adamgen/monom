@@ -32,42 +32,41 @@ elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
   exit 1
 fi
 
+MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
+_log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
+
+# todo make sure that this run remove is in the right place
+completion_options="$($MONOM_CONFIG_FILE "completion" | sed 's#^\./##' | sed 's#run$##' | sed 's/\/$//')"
+_log "completion options" "$completion_options"
+
 # Output variable - used by completion to show suggestions
 export COMPREPLY
 COMPREPLY=()
 
-# The logic of the completion
+comp_path="$(printf "%s " "${COMP_WORDS[@]:1}" | tr ' ' '/' | sed 's/\/$//')"
 
-index=0
-path="$MONOM_PROJECT_ROOT"
-DONT_REPLY=0
-for word in "${COMP_WORDS[@]:1}"; do
-  if [ $index -eq $((COMP_CWORD - 1)) ]; then
-    continue
-  fi
+_log "comp_path $comp_path"
 
-  temp_path="$path/$word"
-  if [ -d "$temp_path" ]; then
-    path=$temp_path
-  else
-    _log "Exiting on non existing path $temp_path pwd $(pwd)"
-    DONT_REPLY=1
-    break
-  fi
-
-  ((index++))
-done
-
-_log "temp path complete file $temp_path/complete"
-
-if [ $DONT_REPLY -eq 0 ]; then
-  if [ -f "$temp_path/complete" ]; then
-    while IFS='' read -r line; do
-      COMPREPLY+=("$line")
-    done < <("$temp_path/complete")
-  elif [ $DONT_REPLY -eq 0 ]; then
-    while IFS='' read -r line; do
-      COMPREPLY+=("$line")
-    done < <(cd "${path}" && compgen -d | sort)
-  fi
+if [ -e "$MONOM_PROJECT_ROOT/$comp_path/complete" ]; then
+  filtered_options=$("$MONOM_PROJECT_ROOT"/"$comp_path"/complete)
+else
+  # todo consider exporting all filters to testable functions
+  filtered_options="$( \
+    echo "$completion_options" | \
+    grep "^$comp_path" | \
+    sed "s#^$comp_path\/##" | \
+    sed "s#^$comp_path\$##" | \
+    sed 's#^/##' | \
+    sed 's#/.*##' | \
+    uniq | \
+    sort \
+  )"
 fi
+
+_log "filtered_options" "$filtered_options"
+
+while IFS= read -r line; do
+  COMPREPLY+=("$line")
+done < <(echo "$filtered_options" | grep -v '^$')
+
+_log "COMPREPLY" "${COMPREPLY[*]}"

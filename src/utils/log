@@ -1,7 +1,19 @@
 #!/bin/bash
 
 _DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$(pwd)/.log}"
-printf "" >"$_DEBUG_LOG_PATH"
+
+SKIP_LOG=true
+
 function _log() {
+  if [ "$SKIP_LOG" = true ]; then
+    return 0
+  fi
+  
   echo "$1" >>"$_DEBUG_LOG_PATH"
+  if [ -n "$2" ]; then
+    while IFS= read -r line; do
+      printf "%*s %s\n" 4 "" "$line">>"$_DEBUG_LOG_PATH"
+    done < <(echo "$2")
+    echo >>"$_DEBUG_LOG_PATH"
+  fi
 }
