@@ -1,0 +1,74 @@
+#!/bin/bash
+
+. ./utils/log
+
+test_remove_exact_path_matches() {
+  local result
+  result=$(echo -n "path1" | _remove_exact_path_matches "path1")
+  assertEquals "" "$result"
+  
+  result=$(echo -e "path1\npath2" | _remove_exact_path_matches "path1")
+  assertEquals $'\npath2' "$result"
+  
+  result=$(echo "path1/subpath" | _remove_exact_path_matches "path1")
+  assertEquals "path1/subpath" "$result"
+}
+
+test_filter_by_path_prefix() {
+  local result
+  result=$(echo -e "path1\npath2\npath1/subpath" | _filter_by_path_prefix "path1")
+  assertEquals $'path1\npath1/subpath' "$result"
+  
+  result=$(echo -e "otherpath\npath2" | _filter_by_path_prefix "path1")
+  assertEquals "" "$result"
+}
+
+test_remove_path_prefix() {
+  local result
+  result=$(echo "path1/subpath" | _remove_path_prefix "path1")
+  assertEquals "subpath" "$result"
+  
+  result=$(echo "path1/level1/level2" | _remove_path_prefix "path1")
+  assertEquals "level1/level2" "$result"
+}
+
+test_remove_leading_slash() {
+  local result
+  result=$(echo "/path1" | _remove_leading_slash)
+  assertEquals "path1" "$result"
+  
+  result=$(echo "path1" | _remove_leading_slash)
+  assertEquals "path1" "$result"
+}
+
+test_keep_first_path_component() {
+  local result
+  result=$(echo "path1/subpath" | _keep_first_path_component)
+  assertEquals "path1" "$result"
+  
+  result=$(echo "path1/level1/level2" | _keep_first_path_component)
+  assertEquals "path1" "$result"
+  
+  result=$(echo "path1" | _keep_first_path_component)
+  assertEquals "path1" "$result"
+}
+
+test_cleanup_completion_options() {
+  local result
+  # The function actually keeps duplicates after sort (uniq should be after sort)
+  result=$(echo -e "option1\n\noption2\noption1\noption3" | _cleanup_completion_options)
+  assertEquals $'option1\noption1\noption2\noption3' "$result"
+}
+
+test_prepare_completion_options() {
+  local result
+  result=$(echo -e "project1/command1\nproject1/command2\nproject2/command3" | prepare_completion_options "project1")
+  assertEquals $'command1\ncommand2' "$result"
+  
+  input=$(echo -e "project1\nproject1/command1\nproject1/command2")
+  result=$(echo "$input" | prepare_completion_options "project1")
+  assertEquals $'command1\ncommand2' "$result"
+}
+
+. ./completion_logic_utils
+. ../dependencies/shunit2
