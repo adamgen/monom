@@ -6,8 +6,6 @@ grep="/usr/bin/grep"
 uniq="/usr/bin/uniq"
 sort="/usr/bin/sort"
 
-. ./string
-
 _remove_exact_path_matches() {
   local path="$1"
   $sed "s#^$path\$##"
