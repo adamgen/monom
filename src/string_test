@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# todo move to utils
+
+. ./string
+
+test_split_path_to_array_empty() {
+  local result
+  result=$(_split_path_to_array "")
+  assertEquals "Empty path should return empty result" "" "$result"
+}
+
+test_split_path_to_array_single() {
+  local result
+  result=$(_split_path_to_array "file")
+  assertEquals "Single component should return just that component" "file" "$result"
+}
+
+test_split_path_to_array_multiple() {
+  local result
+  result=$(_split_path_to_array "path/to/something")
+  local expected=$'path\nto\nsomething'
+  assertEquals "Path with multiple components should split correctly" "$expected" "$result"
+}
+
+test_split_path_to_array_leading_slash() {
+  local result
+  result=$(_split_path_to_array "/path/to/something")
+  local expected=$'\npath\nto\nsomething'
+  assertEquals "Path with leading slash should include empty first component" "$expected" "$result"
+}
+
+test_join_path_parts() {
+  local result
+
+  result=$(_join_path_parts "path" "file")
+  assertEquals "Should join two parts with slash" "path/file/" "$result"
+
+  result=$(_join_path_parts "path" "to" "something")
+  assertEquals "Should join multiple parts with slashes" "path/to/something/" "$result"
+
+  result=$(_join_path_parts "" "path")
+  assertEquals "Should handle empty first part" "/path/" "$result"
+
+  result=$(_join_path_parts "path")
+  assertEquals "Should handle single part" "path/" "$result"
+}
+
+. ../../dependencies/shunit2
