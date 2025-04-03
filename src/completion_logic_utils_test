@@ -38,7 +38,22 @@ test_remove_path_prefix() {
   assertEquals "level1/level2" "$result"
 
   result=$(echo "path1/level1/level2/level3" | _remove_path_prefix "path1/level1/lev")
-  assertEquals "level1/level2/level3" "$result"
+  assertEquals "level2/level3" "$result"
+
+  result=$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/lev")
+  assertEquals "level2/level3/" "$result"
+
+  result=$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2")
+  assertEquals "level3/" "$result"
+
+  result=$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/")
+  assertEquals "level3/" "$result"
+
+  assertEquals "level3/" "$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/le")"
+  assertEquals "level3/" "$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/lev")"
+  assertEquals "level3/" "$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/leve")"
+  assertEquals "level3/" "$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/level")"
+  assertEquals "" "$(echo "path1/level1/level2/level3/" | _remove_path_prefix "path1/level1/level2/level3")"
 }
 
 test_remove_leading_slash() {
@@ -115,6 +130,21 @@ test_prepare_completion_options_second_word() {
 
   result=$(echo -e "$test_options" | prepare_completion_options "project1/command_1/")
   assertEquals $'sub_command_1\nsub_command_2' "$result"
+  
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_1/sub")
+  assertEquals $'sub_command_1\nsub_command_2' "$result"
+  
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_2")
+  assertEquals $'sub_command_3\nsub_command_4' "$result"
+  
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_2/")
+  assertEquals $'sub_command_3\nsub_command_4' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_2/sub")
+  assertEquals $'sub_command_3\nsub_command_4' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_2/sub_command_4")
+  assertEquals $'' "$result"
 }
 
 . ./completion_logic_utils

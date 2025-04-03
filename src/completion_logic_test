@@ -72,12 +72,27 @@ test_completion_of_folder_structure() {
     "command_1 command_2"
 
   assertCompletion \
+    "monom project1 comma" \
+    "3" \
+    "command_1 command_2"
+
+  assertCompletion \
     "monom project1 command_1" \
     "3" \
     "sub_command_1 sub_command_2"
 
   assertCompletion \
+    "monom project1 command_1 sub" \
+    "3" \
+    "sub_command_1 sub_command_2"
+
+  assertCompletion \
     "monom project1 command_2" \
+    "3" \
+    "sub_command_3 sub_command_4"
+
+  assertCompletion \
+    "monom project1 command_2 s" \
     "3" \
     "sub_command_3 sub_command_4"
 }
@@ -87,6 +102,12 @@ test_no_completion_on_final_command() {
     "monom project1 command_2 sub_command_3" \
     "4" \
     ""
+
+  # todo 
+  # assertCompletion \
+  #   "monom project1 command_2 sub_comman" \
+  #   "3" \
+  #   "sub_command_3 sub_command_4"
 
   assertCompletion \
     "monom project2 junky" \

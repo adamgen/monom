@@ -23,15 +23,15 @@ _add_trailing_slash() {
 }
 
 _remove_path_prefix() {
+  local path_prefix path_prefix_2
   local path="$1"
-  _log "path" "$path"
-  #                consider instead 's#/.*$#/#'
-  path_prefix=$(echo "$path" | $sed 's#/.*$##' | $sed 's#/*$#/#')
-  _log "path_prefix" "$path_prefix"
-  path_prefix_2=$(echo "$path" | $sed 's#^[[:alnum:]]*/##' | $sed 's#/*$#/#')
-  _log "path_prefix_2" "$path_prefix_2"
+  # _log "path" "$path"
+  path_prefix=$(echo "$path" | $sed 's#/[[:alnum:]]*$#/#' | $sed 's#/*$#/#')
+  # _log "path_prefix" "$path_prefix"
+  path_prefix_2=$(echo "$path" | $sed "s#^$path_prefix##" | $sed 's#/*$#/#')
+  # _log "path_prefix_2" "$path_prefix_2"
 
-  $sed "s#^$path_prefix##" | $sed "s#^$path_prefix_2##"
+  $sed "s#^$path_prefix##" | $sed "s#^$path_prefix_2##" | $sed 's#^/*##'
 }
 
 _remove_leading_slash() {
