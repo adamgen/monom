@@ -2,7 +2,7 @@
 
 _DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$(pwd)/.log}"
 
-SKIP_LOG=true
+SKIP_LOG=false
 
 function _log() {
   if [ "$SKIP_LOG" = true ]; then

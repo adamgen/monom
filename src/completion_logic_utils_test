@@ -30,6 +30,15 @@ test_remove_path_prefix() {
   
   result=$(echo "path1/level1/level2" | _remove_path_prefix "path1")
   assertEquals "level1/level2" "$result"
+  
+  result=$(echo "path1/level1/level2" | _remove_path_prefix "path1/level1")
+  assertEquals "level2" "$result"
+  
+  result=$(echo "path1/level1/level2" | _remove_path_prefix "path1/lev")
+  assertEquals "level1/level2" "$result"
+
+  result=$(echo "path1/level1/level2/level3" | _remove_path_prefix "path1/level1/lev")
+  assertEquals "level1/level2/level3" "$result"
 }
 
 test_remove_leading_slash() {
@@ -60,9 +69,7 @@ test_cleanup_completion_options() {
   assertEquals $'option1\noption1\noption2\noption3' "$result"
 }
 
-
-test_prepare_completion_options_first_word() {
-  test_options="project1/command_1
+test_options="project1/command_1
 project1/command_1/sub_command_1
 project1/command_1/sub_command_2
 project1/command_2
@@ -70,6 +77,7 @@ project1/command_2/sub_command_3
 project1/command_2/sub_command_4
 project2"
 
+test_prepare_completion_options_first_word() {
   local result
   result=$(echo -e "$test_options" | prepare_completion_options)
   assertEquals $'project1\nproject2' "$result"
@@ -91,6 +99,64 @@ project2"
 
   result=$(echo -e "$test_options" | prepare_completion_options "project1")
   assertEquals $'command_1\ncommand_2' "$result"
+}
+
+
+test_prepare_completion_options_second_word() {
+  local result
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/su")
+  assertEquals "" "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/c")
+  assertEquals $'command_1\ncommand_2' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_1")
+  assertEquals $'sub_command_1\nsub_command_2' "$result"
+
+  result=$(echo -e "$test_options" | prepare_completion_options "project1/command_1/")
+  assertEquals $'sub_command_1\nsub_command_2' "$result"
+}
+
+test_split_path_to_array_empty() {
+  local result
+  result=$(_split_path_to_array "")
+  assertEquals "Empty path should return empty result" "" "$result"
+}
+
+test_split_path_to_array_single() {
+  local result
+  result=$(_split_path_to_array "file")
+  assertEquals "Single component should return just that component" "file" "$result"
+}
+
+test_split_path_to_array_multiple() {
+  local result
+  result=$(_split_path_to_array "path/to/something")
+  local expected=$'path\nto\nsomething'
+  assertEquals "Path with multiple components should split correctly" "$expected" "$result"
+}
+
+test_split_path_to_array_leading_slash() {
+  local result
+  result=$(_split_path_to_array "/path/to/something")
+  local expected=$'\npath\nto\nsomething'
+  assertEquals "Path with leading slash should include empty first component" "$expected" "$result"
+}
+
+test_join_path_parts() {
+  local result
+
+  result=$(_join_path_parts "path" "file")
+  assertEquals "Should join two parts with slash" "path/file/" "$result"
+
+  result=$(_join_path_parts "path" "to" "something")
+  assertEquals "Should join multiple parts with slashes" "path/to/something/" "$result"
+
+  result=$(_join_path_parts "" "path")
+  assertEquals "Should handle empty first part" "/path/" "$result"
+
+  result=$(_join_path_parts "path")
+  assertEquals "Should handle single part" "path/" "$result"
 }
 
 . ./completion_logic_utils

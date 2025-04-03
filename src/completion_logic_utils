@@ -6,6 +6,28 @@ grep="/usr/bin/grep"
 uniq="/usr/bin/uniq"
 sort="/usr/bin/sort"
 
+
+_split_path_to_array() {
+  local path="$1"
+  local -a path_parts
+  IFS='/' read -ra path_parts <<< "$path"
+  printf '%s\n' "${path_parts[@]}"
+}
+
+_join_path_parts() {
+  local -a path_parts=("$@")
+  local combined_path=""
+  local last_idx=$((${#path_parts[@]}))
+
+  for i in "${!path_parts[@]}"; do
+    if [ "$i" -lt "$last_idx" ]; then
+      combined_path="${combined_path}${path_parts[i]}/"
+    fi
+  done
+
+  echo "$combined_path"
+}
+
 _remove_exact_path_matches() {
   local path="$1"
   $sed "s#^$path\$##"
@@ -16,9 +38,20 @@ _filter_by_path_prefix() {
   $grep "^$path"
 }
 
+_add_trailing_slash() {
+  $sed 's#/*$#/#'
+}
+
 _remove_path_prefix() {
   local path="$1"
-  $sed "s#^$path/##"
+  _log "path" "$path"
+  #                consider instead 's#/.*$#/#'
+  path_prefix=$(echo "$path" | $sed 's#/.*$##' | $sed 's#/*$#/#')
+  _log "path_prefix" "$path_prefix"
+  path_prefix_2=$(echo "$path" | sed 's#^[[:alnum:]]*/##' | $sed 's#/*$#/#')
+  _log "path_prefix_2" "$path_prefix_2"
+
+  $sed "s#^$path_prefix##" | $sed "s#^$path_prefix_2##"
 }
 
 _remove_leading_slash() {
@@ -42,7 +75,9 @@ prepare_completion_options() {
   local path="$1"
 
   _filter_by_path_prefix "$path" | \
+  _add_trailing_slash | \
   _remove_path_prefix "$path" | \
+  tee -a ./.log | \
   _remove_exact_path_matches "$path" | \
   _remove_leading_slash | \
   _keep_first_path_component | \
