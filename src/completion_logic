@@ -12,7 +12,6 @@
 
 # shellcheck source=utils/log
 
-echo > ./.log
 . ./utils/log
 . ./completion_logic_utils
 
