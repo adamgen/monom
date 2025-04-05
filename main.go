@@ -2,35 +2,38 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
+	"strings"
 
 	"github.com/adamgen/monom/src/project"
 )
 
 func run() error {
-	config, err := project.LoadConfig()
-	if err != nil {
-		return err
-	}
-
 	// Check if we have any arguments
 	if len(os.Args) < 2 {
-		fmt.Printf("MONOM_PROJECT_ROOT: %s\n", config.RootPath)
+		fmt.Printf("monom tools command\n")
 		return nil
 	}
 
 	command := os.Args[1]
 	if command == "complete" {
+		commandPath := os.Args[2]
+
 		// Check if we have a path prefix argument
 		if len(os.Args) < 3 {
 			return fmt.Errorf("path prefix argument required for complete command")
 		}
-		pathPrefix := os.Args[2]
+
+		// Read from stdin
+		stdinBytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read from stdin: %w", err)
+		}
+		stdinStr := strings.TrimSpace(string(stdinBytes))
 
 		// Use test_projects directory for finding commands
-		testProjectsPath := filepath.Join(config.RootPath, "test_projects")
-		matches, err := project.FindCommands(testProjectsPath, pathPrefix)
+		matches, err := project.FindCommands(stdinStr, commandPath)
 		if err != nil {
 			return err
 		}
@@ -42,7 +45,6 @@ func run() error {
 		return nil
 	}
 
-	fmt.Printf("MONOM_PROJECT_ROOT: %s\nCommand: %s\n", config.RootPath, command)
 	return nil
 }
 
