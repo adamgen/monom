@@ -1,6 +1,6 @@
 #!/bin/bash
 
-completion(){
+complete(){
     cd "$(dirname "$0")" || exit 1
     find . -name "run" | sort
 }
