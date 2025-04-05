@@ -1,11 +1,16 @@
 #!/bin/bash
 
 ./build
+tools=$(realpath ./monom_tools)
+complete_command="$tools complete"
 
+print_test_input() {
+  cd test_projects/monorepo1 && find ./**/run
+}
 
 test_project_1() {
   cd ./test_projects/project1 || exit
-  assertEquals "Error: path prefix argument required for complete command" "$(find ./* | ../../monom_tools complete 2>&1)"
+  assertEquals "Error: path prefix argument required for complete command" "$(print_test_input | $complete_command 2>&1)"
 }
 
 . ./dependencies/shunit2
