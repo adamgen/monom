@@ -1,0 +1,11 @@
+#!/bin/bash
+
+./build
+
+
+test_project_1() {
+  cd ./test_projects/project1 || exit
+  assertEquals "Error: path prefix argument required for complete command" "$(find ./* | ../../monom_tools complete 2>&1)"
+}
+
+. ./dependencies/shunit2
