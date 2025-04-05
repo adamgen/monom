@@ -3,13 +3,14 @@
 ./build
 tools=$(realpath ./monom_tools)
 complete_command="$tools complete"
+test_input=$(find ./test_projects/monorepo1 -name run)
+
 
 print_test_input() {
-  cd test_projects/monorepo1 && find ./**/run
+  echo "$test_input"
 }
 
 test_project_1() {
-  cd ./test_projects/project1 || exit
   assertEquals "Error: path prefix argument required for complete command" "$(print_test_input | $complete_command 2>&1)"
 }
 
