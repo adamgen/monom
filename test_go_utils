@@ -10,8 +10,13 @@ print_test_input() {
   echo "$test_input"
 }
 
-test_project_1() {
+test_invalid_input() {
   assertEquals "Error: path prefix argument required for complete command" "$(print_test_input | $complete_command 2>&1)"
+  assertEquals "Error: path prefix cannot be empty" "$(print_test_input | $complete_command "" 2>&1)"
+}
+
+test_input() {
+  assertEquals "Error: path prefix argument required for complete command" "$(print_test_input | $complete_command "p" 2>&1)"
 }
 
 . ./dependencies/shunit2
