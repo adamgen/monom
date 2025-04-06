@@ -18,12 +18,10 @@ func run() error {
 
 	command := os.Args[1]
 	if command == "complete" {
-		// Check if we have a path prefix argument
-		if len(os.Args) < 3 {
-			return fmt.Errorf("path prefix argument required for complete command")
+		var commandPath string
+		if len(os.Args) > 2 {
+			commandPath = os.Args[2]
 		}
-
-		commandPath := os.Args[2]
 
 		// Read from stdin
 		stdinBytes, err := io.ReadAll(os.Stdin)
