@@ -1,13 +1,24 @@
 #!/bin/bash
 
 ./build
+
+pre_process_options() {
+  sed 's#^\./##' | sed 's#/run$##'
+}
+
 tools=$(realpath ./monom_tools)
 complete_command="$tools complete"
-test_input=$(find ./test_projects/monorepo1 -type f -name "run" 2>/dev/null || echo "")
+test_input=$(find ./test_projects/monorepo1 -type f -name "run" | pre_process_options 2>/dev/null || echo "")
+
 
 print_test_input() {
   echo "$test_input"
 }
+
+
+echo "test_input: $(print_test_input)"
+echo
+echo
 
 test_empty_input() {
   assertEquals "$test_input" "$(print_test_input | $complete_command 2>&1)"
@@ -16,7 +27,9 @@ test_empty_input() {
 
 test_input() {
   result=$(print_test_input | $complete_command "p" 2>&1)
-  assertEquals "Command should not return path prefix error" "Error: path prefix argument required for complete command" "$result"
+  assertEquals "Command should not return path prefix error" \
+    "" \
+    "$result"
 }
 
 . ./dependencies/shunit2
