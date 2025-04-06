@@ -126,7 +126,7 @@ var TestCases = []struct {
 	},
 	{
 		name:       "Find_docker_commands",
-		pathPrefix: "tools/docker",
+		pathPrefix: "tools/docker/",
 		wantPaths: []string{
 			"build",
 			"run",
@@ -135,7 +135,7 @@ var TestCases = []struct {
 	},
 	{
 		name:       "Find_API_v1_endpoints",
-		pathPrefix: "api-v1",
+		pathPrefix: "api-v1/",
 		wantPaths: []string{
 			"auth",
 			"users",
@@ -153,7 +153,7 @@ var TestCases = []struct {
 	},
 	{
 		name:       "Find_deep_nested_services",
-		pathPrefix: "services/backend/api/v1/handlers",
+		pathPrefix: "services/backend/api/v1/handlers/",
 		wantPaths: []string{
 			"users",
 			"auth",
@@ -170,7 +170,7 @@ var TestCases = []struct {
 	},
 	{
 		name:       "Find_cloud_functions",
-		pathPrefix: "cloud_functions",
+		pathPrefix: "cloud_functions/",
 		wantPaths: []string{
 			"auth-service",
 			"user-service",
