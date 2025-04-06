@@ -10,9 +10,10 @@
 # Use preset value if it exists, otherwise try to find it
 
 SRC_DIR="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
+monom_tools="$SRC_DIR/monom_tools"
 
 setup_monom() {
-  if [ ! -f "$SRC_DIR/monom_tools" ]; then
+  if [ ! -f "$monom_tools" ]; then
     echo "Missing monom_source file" >&2
     return 1
   fi
@@ -46,8 +47,7 @@ monom_completion() {
 
   cd "$SRC_DIR" || return 1
 
-  echo "Implement" 1>&2
-  exit 1
+  . ./completion
 }
 
 monom() {

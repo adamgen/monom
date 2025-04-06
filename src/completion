@@ -1,0 +1,46 @@
+#!/bin/bash
+# This files implements the entire interface of the "complete -F monom_completion monom"
+#
+# Inside monom_completion calls this file with "source completion_logic"
+#
+# Now after sourcing the original completion file you can edit this file
+# click tab and see the completion without running source again
+#
+# This file is also the tested file. Since there's no way to `tab` click inside
+# a script, this file will be called with the relevant variables defined before calling
+
+. ./sh_utils/log
+
+# Input variables for the complete command. Uncomment to debug them into a log file.
+# See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
+
+CLEAN_COMP_LINE=${COMP_LINE#"monom "}
+
+
+_log "COMP_CWORD          ${COMP_CWORD}"
+_log "COMP_LINE           ${COMP_LINE}"
+_log "COMP_WORDS[*]       ${COMP_WORDS[*]}"
+_log "CLEAN_COMP_LINE     ${CLEAN_COMP_LINE}"
+
+# _log "COMP_POINT      ${COMP_POINT}"
+_log
+
+# Validate input variables of the monom project
+
+if [ -z "$MONOM_PROJECT_ROOT" ]; then
+  echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
+  exit 1
+elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
+  echo "No folder on path $MONOM_PROJECT_ROOT"
+  exit 1
+fi
+
+MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
+_log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
+
+
+monom_tools="$SRC_DIR/monom_tools"
+
+export COMPREPLY=($($MONOM_CONFIG_FILE complete | $monom_tools complete $CLEAN_COMP_LINE))
+_log "COMPREPLY" "${COMPREPLY[*]}"
+
