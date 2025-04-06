@@ -33,7 +33,7 @@ func TestFindCommands(t *testing.T) {
 			sort.Strings(tt.wantPaths)
 
 			if !reflect.DeepEqual(got, tt.wantPaths) {
-				t.Errorf("FindCommands() = %v, want %v", got, tt.wantPaths)
+				t.Errorf("\nFindCommands()\nis   = %v\nwant = %v", got, tt.wantPaths)
 			}
 		})
 	}
