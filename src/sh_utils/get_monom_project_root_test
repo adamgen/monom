@@ -59,4 +59,4 @@ test_no_monom_file() {
     assertNotEquals "Should return non-zero exit code" 0 $?
 }
 
-. ../dependencies/shunit2
+. ../../dependencies/shunit2

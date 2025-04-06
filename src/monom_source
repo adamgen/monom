@@ -13,7 +13,7 @@ SRC_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 setup_monom() {
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
-    if ! MONOM_PROJECT_ROOT=$("$SRC_DIR/get_monom_project_root"); then
+    if ! MONOM_PROJECT_ROOT=$("$SRC_DIR/sh_utils/get_monom_project_root"); then
       echo "Failed to get monom project root" >&2
       return 1
     fi
@@ -41,7 +41,8 @@ monom_completion() {
 
   cd "$SRC_DIR" || return 1
 
-  . ./completion_logic
+  echo "Implement" 1>&2
+  exit 1
 }
 
 monom() {
