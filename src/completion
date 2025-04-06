@@ -14,16 +14,18 @@
 # Input variables for the complete command. Uncomment to debug them into a log file.
 # See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
 
-CLEAN_COMP_LINE=${COMP_LINE#"monom "}
+CLEAN_COMP_LINE=$(echo "${COMP_LINE#"monom "}" | sed 's# #/#g' | sed 's#^/$##' )
+CURRENT_WORD=${COMP_WORDS[$COMP_CWORD]}
 
 
-_log "COMP_CWORD          ${COMP_CWORD}"
-_log "COMP_LINE           ${COMP_LINE}"
-_log "COMP_WORDS[*]       ${COMP_WORDS[*]}"
-_log "CLEAN_COMP_LINE     ${CLEAN_COMP_LINE}"
+# _log "COMP_CWORD          '${COMP_CWORD}'"
+_log "COMP_LINE           '${COMP_LINE}'"
+# _log "COMP_WORDS[*]       '${COMP_WORDS[*]}'"
+_log "CLEAN_COMP_LINE     '${CLEAN_COMP_LINE}'"
+# _log "CURRENT_WORD        '${CURRENT_WORD}'"
+# _log
 
-# _log "COMP_POINT      ${COMP_POINT}"
-_log
+
 
 # Validate input variables of the monom project
 
@@ -36,11 +38,11 @@ elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
 fi
 
 MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
-_log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
+# _log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
 
 
 monom_tools="$SRC_DIR/monom_tools"
 
 export COMPREPLY=($($MONOM_CONFIG_FILE complete | $monom_tools complete $CLEAN_COMP_LINE))
-_log "COMPREPLY" "${COMPREPLY[*]}"
+# _log "COMPREPLY" "${COMPREPLY[*]}"
 
