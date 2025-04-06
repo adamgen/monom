@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adamgen/monom/src/project"
+	"github.com/adamgen/monom/src/go_utils"
 )
 
 func run() error {
@@ -32,7 +32,7 @@ func run() error {
 		commands := strings.Split(stdinStr, "\n")
 
 		// Use test_projects directory for finding commands
-		matches, err := project.FindCommands(commands, commandPath)
+		matches, err := go_utils.FindCommands(commands, commandPath)
 		if err != nil {
 			return err
 		}

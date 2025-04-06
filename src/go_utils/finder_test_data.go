@@ -1,4 +1,4 @@
-package project
+package go_utils
 
 var TestCases = []struct {
 	name        string

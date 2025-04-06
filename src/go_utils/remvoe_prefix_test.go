@@ -1,4 +1,4 @@
-package project
+package go_utils
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package project
+package go_utils
 
 func FindCommands(commands []string, prefix string) ([]string, error) {
 	var result []string
