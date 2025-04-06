@@ -1,6 +1,3 @@
 #!/bin/bash
 
-./build
-./e2e_test
-./sh_test
-./shellcheck
+./build && ./e2e_test && ./sh_test && ./shellcheck && echo "All checks passed!" || echo "Checks failed!"
