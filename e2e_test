@@ -3,8 +3,7 @@
 ./build
 tools=$(realpath ./monom_tools)
 complete_command="$tools complete"
-test_input=$(find ./test_projects/monorepo1 -name run)
-
+test_input=$(find ./test_projects/monorepo1 -type f -name "run" 2>/dev/null || echo "")
 
 print_test_input() {
   echo "$test_input"
@@ -16,7 +15,8 @@ test_invalid_input() {
 }
 
 test_input() {
-  assertEquals "Error: path prefix argument required for complete command" "$(print_test_input | $complete_command "p" 2>&1)"
+  result=$(print_test_input | $complete_command "p" 2>&1)
+  assertEquals "Command should not return path prefix error" "Error: path prefix argument required for complete command" "$result"
 }
 
 . ./dependencies/shunit2
