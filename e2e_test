@@ -3,6 +3,7 @@
 ./build
 
 pre_process_options() {
+  # shellcheck disable=SC2317
   sed 's#^\./##' | sed 's#/run$##'
 }
 
