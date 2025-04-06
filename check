@@ -1,0 +1,6 @@
+#!/bin/bash
+
+./build
+./e2e_test
+./sh_test
+./shellcheck
