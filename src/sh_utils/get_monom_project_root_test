@@ -59,4 +59,5 @@ test_no_monom_file() {
     assertNotEquals "Should return non-zero exit code" 0 $?
 }
 
+# shellcheck disable=SC1091
 . ../../dependencies/shunit2
