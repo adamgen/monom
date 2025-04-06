@@ -21,7 +21,7 @@ func TestFindCommands(t *testing.T) {
 			sort.Strings(got)
 			sort.Strings(tt.wantPaths)
 
-			if !reflect.DeepEqual(got, tt.wantPaths) {
+			if !reflect.DeepEqual(got, tt.wantPaths) && (len(got) + len(tt.wantPaths) != 0) {
 				t.Errorf("\nFindCommands()\nis   = %v\nwant = %v", got, tt.wantPaths)
 			}
 		})
