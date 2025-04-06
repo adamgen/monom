@@ -24,6 +24,28 @@ var TestCases = []struct {
 		},
 	},
 	{
+		name:       "Find_all_with_proj_prefix",
+		pathPrefix: "proj",
+		wantPaths: []string{
+			"project1/command_1",
+			"project1/command_1/sub_command_1",
+			"project1/command_1/sub_command_2",
+			"project1/command_2",
+			"project1/command_2/sub_command_3",
+			"project1/command_2/sub_command_4",
+			"project2",
+		},
+	},
+	{
+		name:       "Find_all_with_prod_prefix",
+		pathPrefix: "prod",
+		wantPaths: []string{
+			"prod/deploy",
+			"prod-staging/deploy",
+			"production/deploy",
+		},
+	},
+	{
 		name:       "Find_project1_commands",
 		pathPrefix: "project1",
 		wantPaths: []string{
