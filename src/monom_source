@@ -12,6 +12,11 @@
 SRC_DIR="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
 
 setup_monom() {
+  if [ ! -f "$SRC_DIR/monom_tools" ]; then
+    echo "Missing monom_source file" >&2
+    return 1
+  fi
+
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
     if ! MONOM_PROJECT_ROOT=$("$SRC_DIR/sh_utils/get_monom_project_root"); then
       echo "Failed to get monom project root" >&2

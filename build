@@ -1,3 +1,4 @@
 #!/bin/bash
 
-go build -o src/monom_tools
+base_dir=$(dirname "$(realpath "$0")")
+go build -o "$base_dir/src/monom_tools" "$base_dir/src/main.go"
