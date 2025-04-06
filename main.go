@@ -31,9 +31,10 @@ func run() error {
 			return fmt.Errorf("failed to read from stdin: %w", err)
 		}
 		stdinStr := strings.TrimSpace(string(stdinBytes))
+		commands := strings.Split(stdinStr, "\n")
 
 		// Use test_projects directory for finding commands
-		matches, err := project.FindCommands(stdinStr, commandPath)
+		matches, err := project.FindCommands(commands, commandPath)
 		if err != nil {
 			return err
 		}
