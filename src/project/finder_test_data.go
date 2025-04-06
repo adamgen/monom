@@ -8,7 +8,7 @@ var TestCases = []struct {
 	errContains string
 }{
 	{
-		name:       "Find all with 'pro' prefix",
+		name:       "Find_all_with_pro_prefix",
 		pathPrefix: "pro",
 		wantPaths: []string{
 			"prod/deploy",
@@ -24,7 +24,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find project1 commands",
+		name:       "Find_project1_commands",
 		pathPrefix: "project1",
 		wantPaths: []string{
 			"command_1",
@@ -36,7 +36,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find project1 commands by prefix",
+		name:       "Find_project1_commands_by_prefix",
 		pathPrefix: "project1/com",
 		wantPaths: []string{
 			"command_1",
@@ -48,7 +48,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find project1 commands by prefix 2",
+		name:       "Find_project1_commands_by_prefix_2",
 		pathPrefix: "project1/command_1",
 		wantPaths: []string{
 			"sub_command_1",
@@ -56,7 +56,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find project1 commands by prefix 3",
+		name:       "Find_project1_commands_by_prefix_3",
 		pathPrefix: "project1/command_1/s",
 		wantPaths: []string{
 			"sub_command_1",
@@ -64,7 +64,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find tools by first letter",
+		name:       "Find_tools_by_first_letter",
 		pathPrefix: "t",
 		wantPaths: []string{
 			"tools/docker/build",
@@ -76,7 +76,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find tools",
+		name:       "Find_tools",
 		pathPrefix: "tools",
 		wantPaths: []string{
 			"docker/build",
@@ -88,7 +88,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find git-helper commands",
+		name:       "Find_git-helper_commands",
 		pathPrefix: "tools/git",
 		wantPaths: []string{
 			"git-helper",
@@ -97,7 +97,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find docker commands",
+		name:       "Find_docker_commands",
 		pathPrefix: "tools/docker",
 		wantPaths: []string{
 			"build",
@@ -106,7 +106,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find API v1 endpoints",
+		name:       "Find_API_v1_endpoints",
 		pathPrefix: "api-v1",
 		wantPaths: []string{
 			"auth",
@@ -114,7 +114,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find all API endpoints",
+		name:       "Find_all_API_endpoints",
 		pathPrefix: "api-v",
 		wantPaths: []string{
 			"api-v1/auth",
@@ -124,7 +124,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find deep nested services",
+		name:       "Find_deep_nested_services",
 		pathPrefix: "services/backend/api/v1/handlers",
 		wantPaths: []string{
 			"users",
@@ -132,7 +132,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find production related commands",
+		name:       "Find_production_related_commands",
 		pathPrefix: "prod",
 		wantPaths: []string{
 			"deploy",
@@ -141,7 +141,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find cloud functions",
+		name:       "Find_cloud_functions",
 		pathPrefix: "cloud_functions",
 		wantPaths: []string{
 			"auth-service",
@@ -149,7 +149,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find cloud storage backups",
+		name:       "Find_cloud_storage_backups",
 		pathPrefix: "cloud-storage/backup",
 		wantPaths: []string{
 			"backup_daily",
@@ -157,7 +157,7 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:       "Find build related commands",
+		name:       "Find_build_related_commands",
 		pathPrefix: "build",
 		wantPaths: []string{
 			"build",
@@ -166,14 +166,14 @@ var TestCases = []struct {
 		},
 	},
 	{
-		name:        "Non-existent prefix",
+		name:        "Non-existent_prefix",
 		pathPrefix:  "nonexistent",
 		wantPaths:   nil,
 		wantErr:     true,
 		errContains: "no commands found",
 	},
 	{
-		name:        "Empty prefix",
+		name:        "Empty_prefix",
 		pathPrefix:  "",
 		wantErr:     true,
 		errContains: "path prefix cannot be empty",
