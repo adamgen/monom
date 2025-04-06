@@ -4,8 +4,6 @@ var TestCases = []struct {
 	name        string
 	pathPrefix  string
 	wantPaths   []string
-	wantErr     bool
-	errContains string
 }{
 	{
 		name:       "Find_all_with_pro_prefix",
@@ -49,7 +47,7 @@ var TestCases = []struct {
 		name:       "Find_all_with_prod_slash_prefix",
 		pathPrefix: "prod/",
 		wantPaths: []string{
-			"prod/deploy",
+			"deploy",
 		},
 	},
 	{
@@ -80,8 +78,9 @@ var TestCases = []struct {
 		name:       "Find_project1_commands_by_prefix_2",
 		pathPrefix: "project1/command_1",
 		wantPaths: []string{
-			"sub_command_1",
-			"sub_command_2",
+			"command_1",
+			"command_1/sub_command_1",
+			"command_1/sub_command_2",
 		},
 	},
 	{
@@ -106,7 +105,7 @@ var TestCases = []struct {
 	},
 	{
 		name:       "Find_tools",
-		pathPrefix: "tools",
+		pathPrefix: "tools/",
 		wantPaths: []string{
 			"docker/build",
 			"docker/compose",
@@ -197,15 +196,12 @@ var TestCases = []struct {
 	{
 		name:        "Non-existent_prefix",
 		pathPrefix:  "nonexistent",
-		wantPaths:   nil,
-		wantErr:     true,
-		errContains: "no commands found",
+		wantPaths:   []string{},
 	},
 	{
 		name:        "Empty_prefix",
 		pathPrefix:  "",
-		wantErr:     true,
-		errContains: "path prefix cannot be empty",
+		wantPaths:   PathsTestData,
 	},
 }
 

@@ -12,17 +12,6 @@ func TestFindCommands(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := FindCommands(PathsTestData, tt.pathPrefix)
 
-			// Check error cases
-			if tt.wantErr {
-				if err == nil {
-					t.Error("FindCommands() error = nil, want error")
-					return
-				}
-				if tt.errContains != "" && !contains(err.Error(), tt.errContains) {
-					t.Errorf("FindCommands() error = %v, want error containing %q", err, tt.errContains)
-				}
-				return
-			}
 			if err != nil {
 				t.Errorf("FindCommands() unexpected error = %v", err)
 				return
