@@ -10,7 +10,7 @@ func RemovePrefix(command string, prefix string) (string, error) {
 	}
 
 	// Special case: if the prefix is just a single character and matches any part of the command
-	if len(prefix) == 1 && strings.HasPrefix(command, prefix) {
+	if !strings.HasPrefix(command, prefix) {
 		return "", nil
 	}
 
