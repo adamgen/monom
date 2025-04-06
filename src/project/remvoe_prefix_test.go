@@ -119,6 +119,12 @@ func TestRemovePrefix(t *testing.T) {
 			prefix:  "project1/subdir/nested/deep/com",
 			want:    "command_1",
 		},
+		{
+			name:    "Deep path - prefix after fourth slash",
+			command: "project1/subdir/nested/deep/command_1",
+			prefix:  "a",
+			want:    "",
+		},
 	}
 
 	for _, tt := range tests {
