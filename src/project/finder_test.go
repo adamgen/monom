@@ -1,8 +1,6 @@
 package project
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -10,29 +8,9 @@ import (
 )
 
 func TestFindCommands(t *testing.T) {
-	// Create test directory structure
-	root := t.TempDir()
-
-	// Helper function to create run files
-	createRunFile := func(path string) {
-		dir := filepath.Join(root, path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatalf("Failed to create directory %s: %v", dir, err)
-		}
-		runFile := filepath.Join(dir, "run")
-		if err := os.WriteFile(runFile, []byte("#!/bin/sh\n"), 0755); err != nil {
-			t.Fatalf("Failed to create run file in %s: %v", dir, err)
-		}
-	}
-
-
-	for _, path := range PathsTestData {
-		createRunFile(path)
-	}
-
 	for _, tt := range TestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindCommands(root, tt.pathPrefix)
+			got, err := FindCommands(PathsTestData, tt.pathPrefix)
 
 			// Check error cases
 			if tt.wantErr {
