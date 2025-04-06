@@ -6,6 +6,10 @@ pre_process_options() {
   sed 's#^\./##' | sed 's#/run$##'
 }
 
+pre_process_options() {
+  sed 's#^\./test_projects/##' | sed 's#/run$##'
+}
+
 tools=$(realpath ./monom_tools)
 complete_command="$tools complete"
 test_input=$(find ./test_projects/monorepo1 -type f -name "run" | pre_process_options 2>/dev/null || echo "")
