@@ -47,6 +47,7 @@ func TestRemovePrefix(t *testing.T) {
 			prefix:  "project1/command_1",
 			want:    "command_1",
 		},
+		// 
 		{
 			name:    "Deep path - prefix before first slash",
 			command: "project1/subdir/nested/deep/command_1",
@@ -125,16 +126,22 @@ func TestRemovePrefix(t *testing.T) {
 			prefix:  "a",
 			want:    "",
 		},
+		{
+			name:    "ADD NAME",
+			command: "api-v1/auth",
+			prefix:  "pro",
+			want:    "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := RemovePrefix(tt.command, tt.prefix)
 			if err != nil {
-				t.Errorf("RemovePrefix() error = %v", err)
+				t.Errorf("\nRemovePrefix() error = %v", err)
 			}
 			if got != tt.want {
-				t.Errorf("RemovePrefix() = %v, want %v", got, tt.want)
+				t.Errorf("\nRemovePrefix()\nis   = %v\nwant = %v", got, tt.want)
 			}
 		})
 	}
