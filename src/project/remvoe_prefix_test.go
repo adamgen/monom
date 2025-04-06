@@ -12,37 +12,37 @@ func TestRemovePrefix(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "Empty prefix",
+			name:    "Empty prefix should return original command",
 			command: "project1/command_1",
 			prefix:  "",
 			want:    "project1/command_1",
 		},
 		{
-			name:    "RemovePrefix",
+			name:    "Partial project prefix should not affect command",
 			command: "project1/command_1",
 			prefix:  "proj",
 			want:    "project1/command_1",
 		},
 		{
-			name:    "RemovePrefix",
+			name:    "Project name without slash should not affect command",
 			command: "project1/command_1",
 			prefix:  "project1",
 			want:    "project1/command_1",
 		},
 		{
-			name:    "RemovePrefix",
+			name:    "Project name with slash should remove project prefix",
 			command: "project1/command_1",
 			prefix:  "project1/",
 			want:    "command_1",
 		},
 		{
-			name:    "RemovePrefix",
+			name:    "Partial command prefix should return remaining command",
 			command: "project1/command_1",
 			prefix:  "project1/c",
 			want:    "command_1",
 		},
 		{
-			name:    "RemovePrefix",
+			name:    "Full command as prefix should return command name",
 			command: "project1/command_1",
 			prefix:  "project1/command_1",
 			want:    "command_1",
