@@ -9,7 +9,7 @@
 
 # Use preset value if it exists, otherwise try to find it
 
-SRC_DIR="$( cd "$( dirname "$0" )" && pwd )"
+SRC_DIR="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
 
 setup_monom() {
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
