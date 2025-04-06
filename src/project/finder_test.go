@@ -42,4 +42,4 @@ func TestFindCommands(t *testing.T) {
 // Helper function to check if a string contains another string
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
-} 
+}

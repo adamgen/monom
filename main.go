@@ -22,7 +22,7 @@ func run() error {
 		if len(os.Args) < 3 {
 			return fmt.Errorf("path prefix argument required for complete command")
 		}
-		
+
 		commandPath := os.Args[2]
 
 		// Read from stdin
@@ -54,4 +54,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

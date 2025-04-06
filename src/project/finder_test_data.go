@@ -207,7 +207,7 @@ var TestCases = []struct {
 		wantErr:     true,
 		errContains: "path prefix cannot be empty",
 	},
-} 
+}
 
 var PathsTestData = []string{
 	// Original test paths
@@ -226,29 +226,29 @@ var PathsTestData = []string{
 	"tools/docker/build",
 	"tools/docker/run",
 	"tools/docker/compose",
-	
+
 	// Paths with numbers and special characters
 	"api-v1/auth",
 	"api-v1/users",
 	"api-v2/auth",
 	"api-v2/users",
-	
+
 	// Deep nested paths
 	"services/backend/api/v1/handlers/users",
 	"services/backend/api/v1/handlers/auth",
 	"services/backend/api/v2/handlers/users",
-	
+
 	// Similar prefix paths
 	"prod/deploy",
 	"prod-staging/deploy",
 	"production/deploy",
-	
+
 	// Paths with underscores and hyphens mixed
 	"cloud_functions/auth-service",
 	"cloud_functions/user-service",
 	"cloud-storage/backup_daily",
 	"cloud-storage/backup_weekly",
-	
+
 	// Single level commands with similar names
 	"build",
 	"builder",
