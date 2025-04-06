@@ -46,8 +46,15 @@ var TestCases = []struct {
 		},
 	},
 	{
+		name:       "Find_all_with_prod_slash_prefix",
+		pathPrefix: "prod/",
+		wantPaths: []string{
+			"prod/deploy",
+		},
+	},
+	{
 		name:       "Find_project1_commands",
-		pathPrefix: "project1",
+		pathPrefix: "project1/",
 		wantPaths: []string{
 			"command_1",
 			"command_1/sub_command_1",
@@ -157,7 +164,7 @@ var TestCases = []struct {
 		name:       "Find_production_related_commands",
 		pathPrefix: "prod",
 		wantPaths: []string{
-			"deploy",
+			"prod/deploy",
 			"prod-staging/deploy",
 			"production/deploy",
 		},
