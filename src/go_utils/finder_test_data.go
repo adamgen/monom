@@ -9,15 +9,10 @@ var TestCases = []struct {
 		name:       "Find_all_with_pro_prefix",
 		pathPrefix: "pro",
 		wantPaths: []string{
-			"prod/deploy",
-			"prod-staging/deploy",
-			"production/deploy",
-			"project1/command_1",
-			"project1/command_1/sub_command_1",
-			"project1/command_1/sub_command_2",
-			"project1/command_2",
-			"project1/command_2/sub_command_3",
-			"project1/command_2/sub_command_4",
+			"prod",
+			"prod-staging",
+			"production",
+			"project1",
 			"project2",
 		},
 	},
@@ -25,12 +20,7 @@ var TestCases = []struct {
 		name:       "Find_all_with_proj_prefix",
 		pathPrefix: "proj",
 		wantPaths: []string{
-			"project1/command_1",
-			"project1/command_1/sub_command_1",
-			"project1/command_1/sub_command_2",
-			"project1/command_2",
-			"project1/command_2/sub_command_3",
-			"project1/command_2/sub_command_4",
+			"project1",
 			"project2",
 		},
 	},
@@ -38,9 +28,9 @@ var TestCases = []struct {
 		name:       "Find_all_with_prod_prefix",
 		pathPrefix: "prod",
 		wantPaths: []string{
-			"prod/deploy",
-			"prod-staging/deploy",
-			"production/deploy",
+			"prod",
+			"prod-staging",
+			"production",
 		},
 	},
 	{
@@ -55,11 +45,7 @@ var TestCases = []struct {
 		pathPrefix: "project1/",
 		wantPaths: []string{
 			"command_1",
-			"command_1/sub_command_1",
-			"command_1/sub_command_2",
 			"command_2",
-			"command_2/sub_command_3",
-			"command_2/sub_command_4",
 		},
 	},
 	{
@@ -67,11 +53,7 @@ var TestCases = []struct {
 		pathPrefix: "project1/com",
 		wantPaths: []string{
 			"command_1",
-			"command_1/sub_command_1",
-			"command_1/sub_command_2",
 			"command_2",
-			"command_2/sub_command_3",
-			"command_2/sub_command_4",
 		},
 	},
 	{
@@ -79,8 +61,6 @@ var TestCases = []struct {
 		pathPrefix: "project1/command_1",
 		wantPaths: []string{
 			"command_1",
-			"command_1/sub_command_1",
-			"command_1/sub_command_2",
 		},
 	},
 	{
@@ -95,24 +75,15 @@ var TestCases = []struct {
 		name:       "Find_tools_by_first_letter",
 		pathPrefix: "t",
 		wantPaths: []string{
-			"tools/docker/build",
-			"tools/docker/compose",
-			"tools/docker/run",
-			"tools/git-helper",
-			"tools/git-helper/commit",
-			"tools/git-helper/push",
+			"tools",
 		},
 	},
 	{
 		name:       "Find_tools",
 		pathPrefix: "tools/",
 		wantPaths: []string{
-			"docker/build",
-			"docker/compose",
-			"docker/run",
+			"docker",
 			"git-helper",
-			"git-helper/commit",
-			"git-helper/push",
 		},
 	},
 	{
@@ -120,8 +91,6 @@ var TestCases = []struct {
 		pathPrefix: "tools/git",
 		wantPaths: []string{
 			"git-helper",
-			"git-helper/commit",
-			"git-helper/push",
 		},
 	},
 	{
@@ -145,10 +114,8 @@ var TestCases = []struct {
 		name:       "Find_all_API_endpoints",
 		pathPrefix: "api-v",
 		wantPaths: []string{
-			"api-v1/auth",
-			"api-v1/users",
-			"api-v2/auth",
-			"api-v2/users",
+			"api-v1",
+			"api-v2",
 		},
 	},
 	{
@@ -163,9 +130,9 @@ var TestCases = []struct {
 		name:       "Find_production_related_commands",
 		pathPrefix: "prod",
 		wantPaths: []string{
-			"prod/deploy",
-			"prod-staging/deploy",
-			"production/deploy",
+			"prod",
+			"prod-staging",
+			"production",
 		},
 	},
 	{
@@ -201,7 +168,60 @@ var TestCases = []struct {
 	{
 		name:        "Empty_prefix",
 		pathPrefix:  "",
-		wantPaths:   PathsTestData,
+		wantPaths: []string{
+			"api-v1",
+			"api-v2",
+			"build",
+			"builder",
+			"building",
+			"cloud-storage",
+			"cloud_functions",
+			"prod",
+			"prod-staging",
+			"production",
+			"project1",
+			"project2",
+			"services",
+			"tools",
+		},
+	},
+	// "services/backend/api/v1/handlers/users",
+	{
+		name:       "Walk_deep__services/",
+		pathPrefix: "services/",
+		wantPaths: []string{
+			"backend",
+		},
+	},
+	{
+		name:       "Walk_deep__services/backend",
+		pathPrefix: "services/backend/",
+		wantPaths: []string{
+			"api",
+		},
+	},
+	{
+		name:       "Walk_deep__services/backend/api",
+		pathPrefix: "services/backend/api/",
+		wantPaths: []string{
+			"v1",
+			"v2",
+		},
+	},
+	{
+		name:       "Walk_deep__services/backend/api/v1",
+		pathPrefix: "services/backend/api/v1/",
+		wantPaths: []string{
+			"handlers",
+		},
+	},
+	{
+		name:       "Walk_deep__services/backend/api/v1/handlers",
+		pathPrefix: "services/backend/api/v1/handlers/",
+		wantPaths: []string{
+			"users",
+			"auth",
+		},
 	},
 }
 

@@ -1,5 +1,10 @@
 package go_utils
 
+import (
+	"slices"
+	"strings"
+)
+
 func FindCommands(commands []string, prefix string) ([]string, error) {
 	var result []string
 	for _, command := range commands {
@@ -8,8 +13,10 @@ func FindCommands(commands []string, prefix string) ([]string, error) {
 			return nil, err
 		}
 		if command != "" {
-			result = append(result, command)
-
+			parts := strings.SplitN(command, "/", 2)
+			if !slices.Contains(result, parts[0]) {
+				result = append(result, parts[0])
+			}
 		}
 	}
 
