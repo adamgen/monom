@@ -47,7 +47,6 @@ func TestRemovePrefix(t *testing.T) {
 			prefix:  "project1/command_1",
 			want:    "command_1",
 		},
-		// 
 		{
 			name:    "Deep path - prefix before first slash",
 			command: "project1/subdir/nested/deep/command_1",
