@@ -1,3 +1,4 @@
 #!/bin/bash
 
-pwd
+echo "Running command: command_2"
+
