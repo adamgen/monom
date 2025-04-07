@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Define colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}Using monom from:${NC} ${BLUE}$MONOM_PROJECT_ROOT${NC}"
+
+run_relative_path=$(echo "$@" | sed 's# #/#g' | sed 's#$#/run#')
+
+run_path="$MONOM_PROJECT_ROOT/$run_relative_path"
+
+$run_path
