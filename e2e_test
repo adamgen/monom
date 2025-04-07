@@ -8,7 +8,7 @@ pre_process_options() {
 }
 
 pre_process_options() {
-  sed 's#^\./test_projects/##' | sed 's#/run$##'
+  sed 's#^\./test_projects/monorepo1/##' | sed 's#/run$##'
 }
 
 tools=$(realpath ./src/monom_tools)
@@ -21,13 +21,14 @@ print_test_input() {
 }
 
 
-echo "test_input: $(print_test_input)"
+echo "test_input"
+print_test_input | xargs -I@@ echo $'    @@'
 echo
 echo
 
-test_empty_input() {
-  assertEquals "$test_input" "$(print_test_input | $complete_command 2>&1)"
-  assertEquals "$test_input" "$(print_test_input | $complete_command "" 2>&1)"
+test_complete_command_empty_input() {
+  assertEquals $'project1\nproject2' "$(print_test_input | $complete_command 2>&1)"
+  assertEquals $'project1\nproject2' "$(print_test_input | $complete_command "" 2>&1)"
 }
 
 test_input() {
