@@ -15,7 +15,7 @@
 # See all variables in docs from https://devmanual.gentoo.org/tasks-reference/completion/index.html
 
 CLEAN_COMP_LINE=$(echo "${COMP_LINE#"monom "}" | sed 's# #/#g' | sed 's#^/$##' )
-CURRENT_WORD=${COMP_WORDS[$COMP_CWORD]}
+# CURRENT_WORD=${COMP_WORDS[$COMP_CWORD]}
 
 
 # _log "COMP_CWORD          '${COMP_CWORD}'"
@@ -43,6 +43,7 @@ MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
 
 monom_tools="$SRC_DIR/monom_tools"
 
+# shellcheck disable=SC2207 disable=SC2086
 export COMPREPLY=($($MONOM_CONFIG_FILE complete | $monom_tools complete $CLEAN_COMP_LINE))
 # _log "COMPREPLY" "${COMPREPLY[*]}"
 

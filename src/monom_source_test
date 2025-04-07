@@ -11,6 +11,9 @@ setUp() {
     
     # Create nested directories
     mkdir -p "$TEST_DIR/project"
+    touch "$TEST_DIR/project/monom"
+    touch "$TEST_DIR/project/run"
+    chmod +x "$TEST_DIR/project/run"
     
     # Save original value of MONOM_PROJECT_ROOT
     OLD_MONOM_PROJECT_ROOT="$MONOM_PROJECT_ROOT"
@@ -70,6 +73,7 @@ test_setup_monom_with_unset_root() {
 test_monom_command() {
     MONOM_PROJECT_ROOT="$TEST_DIR/project"
     
+    # shellcheck disable=SC2119
     output=$(monom)
     status=$?
     
@@ -87,6 +91,7 @@ test_monom_command() {
 test_monom_command_with_invalid_setup() {
     MONOM_PROJECT_ROOT="/nonexistent/path"
     
+    # shellcheck disable=SC2119
     output=$(monom 2>&1)
     status=$?
     
