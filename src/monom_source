@@ -43,6 +43,7 @@ setup_monom() {
 monom_completion() {
   setup_monom
   local setup_status=$?
+  local monom_alias_name=${monom_alias_name:-monom}
   [ $setup_status -eq 0 ] || return 1
 
   cd "$SRC_DIR" || return 1
@@ -63,3 +64,7 @@ monom() {
 export monom
 
 complete -F monom_completion monom
+
+if [ -n "$1" ] && [ -n "$2" ]; then
+  . "$SRC_DIR/make_monom_alias" "$1" "$2"
+fi

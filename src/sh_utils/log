@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$(pwd)/.log}"
+_DEBUG_LOG_PATH="${_DEBUG_LOG_PATH:-$SRC_DIR/.log}"
 
 SKIP_LOG=false
 

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+. "$SRC_DIR/sh_utils/log"
+_log "alias compete"
+
+if [ -z "$1" ] || [ -z "$2" ]; then
+  echo "Usage: . $0 <alias_name> <project_root>"
+  exit 1
+fi
+
+eval "${1}() {
+  #local MONOM_PROJECT_ROOT=\"$2\"
+  #monom \"\$@\"
+  echo \"$2\"
+}"
+
+monom_alias_name_completion="${1}_completion"
+
+eval "${monom_alias_name_completion}() {
+  monom_alias_name=\"$1\"
+  local MONOM_PROJECT_ROOT=\"$2\"
+  monom_completion \"\$@\"
+}"
+
+complete -F "${monom_alias_name_completion}" "$1"
