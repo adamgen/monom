@@ -17,3 +17,28 @@ function _log() {
     echo >>"$_DEBUG_LOG_PATH"
   fi
 }
+
+# Define colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Logging namespace
+log::info() {
+    local name=$1
+    shift
+    echo -e "${BLUE}$name${NC}" "$@"
+}
+
+log::error() {
+    local name=$1
+    shift
+    echo -e "${RED}$name${NC}" "$@"
+}
+
+log::success() {
+    local name=$1
+    shift
+    echo -e "${GREEN}$name${NC}" "$@"
+}

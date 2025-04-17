@@ -1,14 +1,31 @@
 #!/bin/bash
 
-# Define colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Source logging utilities
+# shellcheck source=sh_utils/log
+. "$MONOM_LIB_ROOT/sh_utils/log"
 
-echo -e "${GREEN}Using monom from:${NC} ${BLUE}$MONOM_PROJECT_ROOT${NC}"
-
+echo -e "${GREEN}Using monom from: ${BLUE}$MONOM_PROJECT_ROOT${NC}"
+# shellcheck disable=SC2206
+command_chain="$*"
 run_relative_path=$(echo "$@" | sed 's# #/#g' | sed 's#$#/run#')
 
 run_path="$MONOM_PROJECT_ROOT/$run_relative_path"
 
-$run_path
+# all_args=($@)
+# input_length=${#all_args[@]}
+# last_index=$((input_length-1))
+# last_element="${all_args[$last_index]}"
+
+# echo
+# echo
+# log::info "last element" "$last_element"
+# log::info "command_chain" "$command_chain"
+# echo
+# echo
+
+if [ -f "$run_path" ]; then
+    $run_path
+else
+    log::error "Error:" "Command not found: $command_chain"
+    exit 1
+fi

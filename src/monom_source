@@ -12,6 +12,8 @@
 SRC_DIR="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
 monom_tools="$SRC_DIR/monom_tools"
 
+export MONOM_LIB_ROOT="$SRC_DIR"
+
 setup_monom() {
   if [ ! -f "$monom_tools" ]; then
     echo "Missing monom_source file" >&2
