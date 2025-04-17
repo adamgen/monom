@@ -1,5 +1,15 @@
 # Monom
 
+## Todo
+
+- [ ] Make the map the completion back to the `run` file an extension
+- [ ] Decide what happens when you have no run command but is only a namespace for subcommands
+- [ ] Distinc between the "monom lib project root" and the "active monom project root"
+- [ ] Finish the `complete_override` function that will allow a function based completion instead of a file based
+- [ ] Publis to brew
+- [ ] Add a better `--args` function
+- [ ] Add functions that run on the same shell (like sourcing python)
+
 ## Vision
 
 - Have a oneline install utility that allows you to write CLI tools easily
@@ -128,5 +138,3 @@ There are the commands that each primitive command should expose:
 
 Each command is either stored in a dedicated folder with the above commands listed as files. Or have a `monom` file
 that has exposes the above commands as its subcommands.
-
-[//]: # "todo - discuss with gpt"
