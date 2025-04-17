@@ -27,18 +27,6 @@ CLEAN_COMP_LINE=$(echo "${COMP_LINE}" | sed "s#${monom_alias_name} ##" | sed 's#
 # _log "CURRENT_WORD        '${CURRENT_WORD}'"
 # _log
 
-
-
-# Validate input variables of the monom project
-
-if [ -z "$MONOM_PROJECT_ROOT" ]; then
-  echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
-  exit 1
-elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
-  echo "No folder on path $MONOM_PROJECT_ROOT"
-  exit 1
-fi
-
 MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
 # _log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
 
