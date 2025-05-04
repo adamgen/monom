@@ -7,9 +7,10 @@
 echo -e "${GREEN}Using monom from: ${BLUE}$MONOM_PROJECT_ROOT${NC}"
 # shellcheck disable=SC2206
 command_chain="$*"
-run_relative_path=$(echo "$@" | sed 's# #/#g' | sed 's#$#/run#')
 
-run_path="$MONOM_PROJECT_ROOT/$run_relative_path"
+# relative_run_path=$(echo "$@" | $MONOM_CONFIG_FILE run)
+relative_run_path=$(echo "$@" | sed 's# #/#g' | sed 's#$#/run#')
+run_path="$MONOM_PROJECT_ROOT/$relative_run_path"
 
 # all_args=($@)
 # input_length=${#all_args[@]}

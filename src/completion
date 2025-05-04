@@ -27,13 +27,7 @@ CLEAN_COMP_LINE=$(echo "${COMP_LINE}" | sed "s#${monom_alias_name} ##" | sed 's#
 # _log "CURRENT_WORD        '${CURRENT_WORD}'"
 # _log
 
-MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
-# _log "MONOM_CONFIG_FILE $MONOM_CONFIG_FILE"
-
-
-monom_tools="$SRC_DIR/monom_tools"
-
 # shellcheck disable=SC2207 disable=SC2086
-export COMPREPLY=($($MONOM_CONFIG_FILE complete | $monom_tools complete $CLEAN_COMP_LINE))
+export COMPREPLY=($($MONOM_CONFIG_FILE complete | monom_tools complete $CLEAN_COMP_LINE))
 # _log "COMPREPLY" "${COMPREPLY[*]}"
 # _log "original options" "$($MONOM_CONFIG_FILE complete)"

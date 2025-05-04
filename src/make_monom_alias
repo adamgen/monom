@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. "$SRC_DIR/sh_utils/log"
+. "$MONOM_LIB_ROOT/sh_utils/log"
 _log "alias compete"
 
 if [ -z "$1" ] || [ -z "$2" ]; then

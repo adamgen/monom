@@ -1,33 +1,39 @@
 #!/bin/bash
 
-# This file the the file that sourced from your users rc / profile file.
+# This file the the file that sourced from your users rc or profile file.
 
 # It's only function is to call the logic files. The logic files can be updated
 # and used with no need to re source this file or the rc file on every change.
 
-# Additionally, the logic files are the tested files, this file is just a pointer to them.
+# Project variable overview:
+# The following environment variables are used throughout the monom project to manage paths and configuration:
+# - MONOM_LIB_ROOT is the directory of the logic files.
+#     it's defined in the source step
+# - MONOM_PROJECT_ROOT is the directory of the project.
+#     defined in the setup setup (when a complete or a run command is called)
+# - MONOM_CONFIG_FILE is the file that contains the configuration for the project.
+#     is basically an alias to "$MONOM_PROJECT_ROOT/monom"
 
-# Use preset value if it exists, otherwise try to find it
-
-SRC_DIR="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
-monom_tools="$SRC_DIR/monom_tools"
-
-export MONOM_LIB_ROOT="$SRC_DIR"
+export MONOM_LIB_ROOT
+MONOM_LIB_ROOT="$( cd "$( dirname "$(realpath "$0")" )" && pwd )"
+# shellcheck disable=SC2139
+alias monom_tools="$MONOM_LIB_ROOT/monom_tools"
 
 setup_monom() {
-  if [ ! -f "$monom_tools" ]; then
-    echo "Missing monom_source file" >&2
+  if [ ! -f "$MONOM_LIB_ROOT/monom_tools" ]; then
+    echo "Missing monom_tools file at \"$MONOM_LIB_ROOT/monom_tools\"" >&2
     return 1
   fi
 
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
-    if ! MONOM_PROJECT_ROOT=$("$SRC_DIR/sh_utils/get_monom_project_root"); then
+    if ! MONOM_PROJECT_ROOT=$("$MONOM_LIB_ROOT/sh_utils/get_monom_project_root"); then
       echo "Failed to get monom project root" >&2
       return 1
     fi
   fi
 
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
+    # instead of echo we should have an exit code and handle up stream. This way the complete won't give wierd errors.
     echo "Missing \$MONOM_PROJECT_ROOT variable" >&2
     return 1
   elif [ ! -d "$MONOM_PROJECT_ROOT" ]; then
@@ -38,7 +44,7 @@ setup_monom() {
   # echo "MONOM_PROJECT_ROOT: $MONOM_PROJECT_ROOT"
 
   export MONOM_PROJECT_ROOT
-
+  export MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
   return 0
 }
 
@@ -48,7 +54,7 @@ monom_completion() {
   local monom_alias_name=${monom_alias_name:-monom}
   [ $setup_status -eq 0 ] || return 1
 
-  cd "$SRC_DIR" || return 1
+  cd "$MONOM_LIB_ROOT" || return 1
 
   . ./completion
 }
@@ -60,7 +66,7 @@ monom() {
   [ $setup_status -eq 0 ] || return 1
 
   # shellcheck disable=SC2068
-  "$SRC_DIR/run" $@
+  "$MONOM_LIB_ROOT/run" $@
 }
 
 export monom
@@ -68,5 +74,5 @@ export monom
 complete -F monom_completion monom
 
 if [ -n "$1" ] && [ -n "$2" ]; then
-  . "$SRC_DIR/make_monom_alias" "$1" "$2"
+  . "$MONOM_LIB_ROOT/make_monom_alias" "$1" "$2"
 fi
