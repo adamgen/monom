@@ -14,6 +14,7 @@ setUp() {
     touch "$TEST_DIR/project/monom"
     touch "$TEST_DIR/project/run"
     chmod +x "$TEST_DIR/project/run"
+    chmod +x "$TEST_DIR/project/monom"
     
     # Save original value of MONOM_PROJECT_ROOT
     OLD_MONOM_PROJECT_ROOT="$MONOM_PROJECT_ROOT"
@@ -77,14 +78,26 @@ test_monom_command() {
     output=$(monom)
     status=$?
     
-
     GREEN='\033[0;32m'
     BLUE='\033[0;34m'
     NC='\033[0m' # No Color
 
-    assertEquals "monom command should return 0" 0 "$status"
-    assertEquals "monom command should output correct message" \
-        "$(echo -e "${GREEN}Using monom from:${NC} ${BLUE}$MONOM_PROJECT_ROOT${NC}")" "$output"
+    local test_failed=0
+    
+    if [ "$status" -ne 0 ]; then
+        fail "monom command should return 0 but got $status"
+        test_failed=1
+    fi
+    
+    expected_output="$(echo -e "${GREEN}Using monom from: ${BLUE}$MONOM_PROJECT_ROOT${NC}")"
+    if [ "$output" != "$expected_output" ]; then
+        fail "monom command output mismatch:
+Expected: $expected_output
+Got:      $output"
+        test_failed=1
+    fi
+    
+    [ $test_failed -eq 0 ] || return 1
 }
 
 # Test monom command with invalid setup
