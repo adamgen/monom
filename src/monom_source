@@ -27,7 +27,6 @@ setup_monom() {
 
   if [ -z "$MONOM_PROJECT_ROOT" ]; then
     if ! MONOM_PROJECT_ROOT=$("$MONOM_LIB_ROOT/sh_utils/get_monom_project_root"); then
-      echo "Failed to get monom project root" >&2
       return 1
     fi
   fi
