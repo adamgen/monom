@@ -1,7 +1,7 @@
 #!/bin/bash
 
 . "$MONOM_LIB_ROOT/sh_utils/log"
-_log "alias compete"
+# _log "alias compete"
 
 if [ -z "$1" ] || [ -z "$2" ]; then
   echo "Usage: . $0 <alias_name> <project_root>"
