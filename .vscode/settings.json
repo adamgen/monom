@@ -10,6 +10,7 @@
 		"*.toml": "toml",
 		"*.ini": "ini",
 		"*.conf": "conf",
-		"*.log": "log"
+		"*.log": "log",
+		"**/monom_tools": "binary"
 	}
 }
