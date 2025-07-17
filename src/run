@@ -9,8 +9,7 @@ if [ ! -x "$MONOM_CONFIG_FILE" ]; then
     exit 1
 fi
 
-
-echo -e "${GREEN}Using monom from: ${BLUE}$MONOM_PROJECT_ROOT${NC}"
+log::success "Using monom from:" "$MONOM_PROJECT_ROOT"
 # shellcheck disable=SC2206
 command_chain="$*"
 

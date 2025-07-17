@@ -89,7 +89,7 @@ test_monom_command() {
         test_failed=1
     fi
     
-    expected_output="$(echo -e "${GREEN}Using monom from: ${BLUE}$MONOM_PROJECT_ROOT${NC}")"
+    expected_output="$(log::success "Using monom from:" "$MONOM_PROJECT_ROOT")"
     if [ "$output" != "$expected_output" ]; then
         fail "monom command output mismatch:
 Expected: $expected_output
@@ -111,6 +111,6 @@ test_monom_command_with_invalid_setup() {
     assertNotEquals "monom command should return non-zero with invalid setup" 0 "$status"
 }
 
-# Load shunit2
+. "$MONOM_LIB_ROOT/sh_utils/log"
 # shellcheck source=../dependencies/shunit2
 . "../dependencies/shunit2"
