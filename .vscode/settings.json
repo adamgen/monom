@@ -1,0 +1,15 @@
+{
+	"files.associations": {
+		"*": "shellscript",
+		"*.json": "json",
+		"*.go": "go",
+		"*.sh": "shellscript",
+		"*.md": "markdown",
+		"*.yaml": "yaml",
+		"*.yml": "yaml",
+		"*.toml": "toml",
+		"*.ini": "ini",
+		"*.conf": "conf",
+		"*.log": "log"
+	}
+}
