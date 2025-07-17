@@ -31,7 +31,8 @@ run_all_tests() {
     cd "$SCRIPT_DIR/$(dirname "$test_file")" || exit
     if ! bash "./$(basename "$test_file")"; then
       exit_code=1
-      echo "Tests in $test_file failed"
+      echo "Tests in $test_file failed. Run it with:
+      ./$test_file"
     fi
     echo
     # Return to the original directory

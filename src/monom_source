@@ -51,9 +51,14 @@ monom_completion() {
   setup_monom
   local setup_status=$?
   local monom_alias_name=${monom_alias_name:-monom}
-  [ $setup_status -eq 0 ] || return 1
-
+  
   cd "$MONOM_LIB_ROOT" || return 1
+
+  # todo if setup failed, we not print anything but the usage
+  if [ ! $setup_status -eq 0 ]; then
+    . "$MONOM_LIB_ROOT/usage_completion"
+    return 1
+  fi
 
   . ./completion
 }
@@ -62,7 +67,11 @@ monom() {
   setup_monom
   local setup_status=$?
 
-  [ $setup_status -eq 0 ] || return 1
+    # todo if setup failed, we not print anything but the usage
+  if [ ! $setup_status -eq 0 ]; then
+    . "$MONOM_LIB_ROOT/monom_usage"
+    return 1
+  fi
 
   # shellcheck disable=SC2068
   "$MONOM_LIB_ROOT/run" $@

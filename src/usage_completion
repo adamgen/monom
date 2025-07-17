@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ ! "${COMP_WORDS[1]}" = "," ]; then
+  echo ","
+fi
