@@ -2,7 +2,7 @@
 
 # Get the directory where the test script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MONOM_SOURCE="$SCRIPT_DIR/monom_source"
+MONOM_SOURCE="$SCRIPT_DIR/monom"
 
 # Set up test environment
 setUp() {
@@ -20,7 +20,7 @@ setUp() {
     OLD_MONOM_PROJECT_ROOT="$MONOM_PROJECT_ROOT"
     
     # Source the file to test
-    # shellcheck source=./monom_source
+    # shellcheck source=./monom
     . "${MONOM_SOURCE}"
 }
 
