@@ -2,12 +2,31 @@
 
 ## Todo
 
-- [ ] Make the map the completion back to the `run` file an extension
+- [ ] When using bash +x, how does this propogate to subshells?
+
+### Critical for release
+
 - [ ] Decide what happens when you have no run command but is only a namespace for subcommands
 - [ ] Distinc between the "monom lib project root" and the "active monom project root"
+- [ ] Give the project a better structure
+   - [ ] Utils should move to a different root directory
+   - [ ] Bin folder with all scripts
+   - [ ] Map what's executed in a separate vs same shell, possibly name these shells for refference
+   - [ ] Map all env vars for reference
+   - [ ] Move all log files to a logs folder
+   - [ ] Consider - Rename test_projects to integration/e2e test and move `_test` files into each project's folder
+- [ ] Clean up comments and improve documentation
+- [ ] Make monom's base commands (init, help, usage...) and their completion
+- [ ] Make sure the test runner prints the "run this test TEST_COMMAND" correctly
+- [ ] Have a singular convention for cd to the current file's folder
+
+### Postponed
+
+- [ ] Have nicer support for zsh
+- [ ] Make the "map the completion back to the `run` file" an extension
 - [ ] Finish the `complete_override` function that will allow a function based completion instead of a file based
 - [ ] Publis to brew
-- [ ] Add a better `--args` function
+- [ ] Add a solid `--args` function
 - [ ] Add functions that run on the same shell (like sourcing python)
 
 ## Vision
