@@ -1,5 +1,14 @@
 # Monom
 
+## File structure ideation
+
+Options:
+
+1. Folder per command with many files that represent all command features
+2. File per command with
+  1. In file args checks that run the command or the command features conditionally
+  2. Fnction exports that represent different command features
+
 ## Todo
 
 - [ ] When using bash +x, how does this propogate to subshells?
