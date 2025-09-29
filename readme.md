@@ -12,6 +12,7 @@ Options:
 ## Todo
 
 - [ ] When using bash +x, how does this propogate to subshells?
+- [ ] Make a command sourced instead of executed in a separate shell
 
 ### Critical for release
 
