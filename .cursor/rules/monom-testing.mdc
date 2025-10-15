@@ -39,4 +39,3 @@ alwaysApply: false
 1. The "getcwd: cannot access parent directories" warning is expected when running in a directory that gets deleted
 2. Always use absolute paths when executing the script under test from different directories
 3. Clean up temporary directories in tearDown, even if tests fail
-x
