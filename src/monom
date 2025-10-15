@@ -44,19 +44,19 @@ setup_monom() {
 
   export MONOM_PROJECT_ROOT
   export MONOM_CONFIG_FILE="$MONOM_PROJECT_ROOT/monom"
+  cd "$MONOM_LIB_ROOT" || return 1
+
   return 0
 }
 
 monom_completion() {
-  setup_monom
+  setup_monom || return 1
   local setup_status=$?
-  local monom_alias_name=${monom_alias_name:-monom}
-  
-  cd "$MONOM_LIB_ROOT" || return 1
+  local monom_alias_name=${monom_alias_name:-monom}  
 
   # todo if setup failed, we not print anything but the usage
   if [ ! $setup_status -eq 0 ]; then
-    . "$MONOM_LIB_ROOT/usage_completion"
+    . "./usage_completion"
     return 1
   fi
 
@@ -67,14 +67,14 @@ monom() {
   setup_monom
   local setup_status=$?
 
-    # todo if setup failed, we not print anything but the usage
+  # todo if setup failed, we not print anything but the usage
   if [ ! $setup_status -eq 0 ]; then
-    . "$MONOM_LIB_ROOT/monom_usage"
+    . "./monom_usage"
     return 1
   fi
 
   # shellcheck disable=SC2068
-  "$MONOM_LIB_ROOT/run" $@
+  "./run" $@
 }
 
 export monom
