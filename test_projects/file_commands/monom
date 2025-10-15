@@ -1,0 +1,13 @@
+#!/bin/bash
+
+complete(){
+    cd "$(dirname "$0")" || exit 1
+    find . -name "*.sh" | sed 's#.sh$##' | sed 's#^\./##' | sort
+}
+
+run(){
+    cd "$(dirname "$0")" || exit 1
+    sed 's# #/#g' | sed 's#$#.sh#'
+}
+
+"$1"
