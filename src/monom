@@ -81,6 +81,8 @@ export monom
 
 complete -F monom_completion monom
 
+# This is an effort to make the monom command available as an alias in the user's shell.
+# So they can alias acme_cli to monom and call acme_cli [...] command instead
 if [ -n "$1" ] && [ -n "$2" ]; then
   . "$MONOM_LIB_ROOT/make_monom_alias" "$1" "$2"
 fi
