@@ -34,7 +34,30 @@ run_path="$MONOM_PROJECT_ROOT/$relative_run_path"
 # echo
 
 if [ -f "$run_path" ]; then
-    $run_path
+    # Extract shebang from the first line
+    shebang=$(head -n 1 "$run_path")
+    
+    if [[ "$shebang" =~ ^#! ]]; then
+        # Extract interpreter from shebang (remove #! prefix)
+        interpreter="${shebang#\#!}"
+        # Remove any leading/trailing whitespace
+        interpreter=$(echo "$interpreter" | xargs)
+        
+        # Check if interpreter exists and is executable
+        if command -v "$(echo "$interpreter" | cut -d' ' -f1)" >/dev/null 2>&1; then
+            $interpreter "$run_path"
+        else
+            log::error "Error:" "Interpreter \"$interpreter\" not found or not executable"
+            exit 1
+        fi
+    else
+        # No shebang found, check if file has execute permissions and run directly
+        if [ ! -x "$run_path" ]; then
+            log::error "Error:" "Command file \"$run_path\" does not have execute permissions and no shebang found"
+            exit 1
+        fi
+        $run_path
+    fi
 else
     log::error "Error:" "Command not found: \"$command_chain\" on run \"$run_path\""
     exit 1
