@@ -56,11 +56,11 @@ monom_completion() {
 
   # todo if setup failed, we not print anything but the usage
   if [ ! $setup_status -eq 0 ]; then
-    . "./usage_completion"
+    . "$MONOM_LIB_ROOT/usage_completion"
     return 1
   fi
 
-  . ./completion
+  . $MONOM_LIB_ROOT/completion
 }
 
 monom() {
@@ -69,12 +69,12 @@ monom() {
 
   # todo if setup failed, we not print anything but the usage
   if [ ! $setup_status -eq 0 ]; then
-    . "./monom_usage"
+    . "$MONOM_LIB_ROOT/monom_usage"
     return 1
   fi
 
   # shellcheck disable=SC2068
-  "./run" $@
+  "$MONOM_LIB_ROOT/run" $@
 }
 
 export monom
