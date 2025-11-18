@@ -64,17 +64,20 @@ monom_completion() {
 }
 
 monom() {
-  setup_monom
-  local setup_status=$?
+  # execute the command in a subshell to separate setup_monom from the user's shell
+  (
+    setup_monom
+    local setup_status=$?
 
-  # todo if setup failed, we not print anything but the usage
-  if [ ! $setup_status -eq 0 ]; then
-    . "$MONOM_LIB_ROOT/monom_usage"
-    return 1
-  fi
+    # todo if setup failed, we not print anything but the usage
+    if [ ! $setup_status -eq 0 ]; then
+      . "$MONOM_LIB_ROOT/monom_usage"
+      return 1
+    fi
 
-  # shellcheck disable=SC2068
-  "$MONOM_LIB_ROOT/run" $@
+    # shellcheck disable=SC2068
+    "$MONOM_LIB_ROOT/run" $@
+  )
 }
 
 export monom
