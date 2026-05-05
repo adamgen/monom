@@ -1,2 +1,6 @@
+# shellcheck disable=all
+
 /**/.log
 monom_tools
+.DS_Store
+**/.DS_Store
