@@ -61,8 +61,8 @@ A chain of subprocesses passing data through pipes is hard to reason about, hard
 The `monom` config file at the root of any user project currently exposes:
 
 ```
-$MONOM_CONFIG_FILE complete   # prints all discoverable command paths, one per line
-$MONOM_CONFIG_FILE run        # reads args, prints the resolved file path to execute
+$MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per line
+$MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
 ```
 
 Monom does not care how these are implemented. This interface may evolve, but any change to it requires a corresponding update to this document. Changing the interface without amending the constitution is a process violation.
