@@ -11,6 +11,7 @@
 		"*.ini": "ini",
 		"*.conf": "conf",
 		"*.log": "log",
-		"**/monom_tools": "binary"
+		"**/monom_tools": "binary",
+		".shellcheckrc": "ini"
 	}
 }
