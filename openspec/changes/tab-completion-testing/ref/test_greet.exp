@@ -1,0 +1,135 @@
+#!/usr/bin/expect
+# POC: test tab completion for the `greet` function.
+#
+# Key insight: after a single Tab that unambiguously completes a prefix,
+# readline immediately writes the completed text to the terminal.
+# We assert directly on that text appearing in the output stream.
+# For double-Tab (list all), bash prints the list and redraws the input line.
+
+set dir [file dirname [file normalize [info script]]]
+set failures 0
+
+proc pass {label} { puts "  PASS: $label" }
+proc fail {label reason} { global failures; puts "  FAIL: $label\n        $reason"; incr failures }
+
+proc setup {} {
+    global dir spawn_id
+    # timeout unit is seconds
+    set timeout 5
+    # Start an interactive bash attached to a pty; TERM=xterm activates readline.
+    # BASH_SILENCE_DEPRECATION_WARNING suppresses this macOS noise in the output:
+    #   "The default interactive shell is now zsh.
+    #    To update your account to use zsh, please run `chsh -s /bin/zsh`."
+    spawn env "TERM=xterm" "BASH_SILENCE_DEPRECATION_WARNING=1" bash -i
+    expect -re {bash.*\$}
+    send "stty rows 24 cols 200\r"  ;# \r = carriage return (press Enter)
+    expect -re {bash.*\$}
+    send "source $dir/greet\r"  ;# \r = carriageש return
+    expect -re {bash.*\$}
+}
+
+# Returns 1 if there are still names to wait for, 0 if all have been seen.
+proc seen {} {
+    global remaining
+    incr remaining -1
+    return [expr {$remaining > 0}]
+}
+
+proc tab {{count 1}} {
+    for {set i 0} {$i < $count} {incr i} {
+        send "\011"  ;# \011 = Tab key
+    }
+}
+
+proc teardown {} {
+    global spawn_id
+    send "\003\r"  ;# \003 = Ctrl-C (cancel current input line)
+                    ;# \r   = carriage return (submit the now-empty line)
+    send "exit\r"   ;# \r = carriage return
+    expect eof
+}
+
+puts "=== greet completion POC ==="
+
+# ── Test 1: greet al<Tab> → alice ─────────────────────────────────────────────
+setup
+send "greet al"
+tab
+expect {
+    "alice"  { pass "greet al<Tab> → alice" }
+    timeout  { fail "greet al<Tab> → alice" "alice did not appear" }
+}
+teardown
+
+# ── Test 2: greet a<Tab><Tab> → alice and arthur listed ──────────────────────
+setup
+send "greet a"
+tab 2  ;# double Tab to list all matches for ambiguous prefix
+# Patterns are checked top-to-bottom on each chunk of output, but output arrives
+# in whatever order bash prints the names. Any branch can fire first.
+# `exp_continue` keeps listening for the next name. The guard `if {$remaining > 0}`
+# stops looping once all names have been seen, without waiting for the full timeout.
+set remaining 2  ;# number of names we still need to see
+set got_alice  0
+set got_arthur 0
+expect {
+    "alice"  { set got_alice  1 ; if {[seen]} exp_continue }
+    "arthur" { set got_arthur 1 ; if {[seen]} exp_continue }
+    timeout {}
+}
+teardown
+if {$got_alice && $got_arthur && $remaining == 0} { pass "greet a<Tab><Tab> → alice and arthur listed" } \
+else { fail "greet a<Tab><Tab> → alice and arthur listed" "alice=$got_alice arthur=$got_arthur remaining=$remaining" }
+
+# ── Test 3: greet b<Tab> → bob ────────────────────────────────────────────────
+setup
+send "greet b"
+tab
+expect {
+    "bob"   { pass "greet b<Tab> → bob" }
+    timeout { fail "greet b<Tab> → bob" "bob did not appear" }
+}
+teardown
+
+# ── Test 3: greet c<Tab> → carol ──────────────────────────────────────────────
+setup
+send "greet c"
+tab
+expect {
+    "carol"  { pass "greet c<Tab> → carol" }
+    timeout  { fail "greet c<Tab> → carol" "carol did not appear" }
+}
+teardown
+
+# ── Test 4: greet <Tab><Tab> → all names listed ───────────────────────────────
+setup
+send "greet "
+after 200
+send "\011\011"  ;# \011\011 = Tab Tab (second Tab forces bash to list all matches)
+# Bash lists multiple completions then redraws the input; collect until quiet
+set remaining 5  ;# number of names we still need to see
+set got_alice  0
+set got_arthur 0
+set got_bob    0
+set got_carol  0
+set got_dave   0
+expect {
+    "alice"  { set got_alice  1 ; if {[seen]} exp_continue }
+    "arthur" { set got_arthur 1 ; if {[seen]} exp_continue }
+    "bob"    { set got_bob    1 ; if {[seen]} exp_continue }
+    "carol"  { set got_carol  1 ; if {[seen]} exp_continue }
+    "dave"   { set got_dave   1 ; if {[seen]} exp_continue }
+    timeout {}
+}
+teardown
+if {$got_alice && $got_arthur && $got_bob && $got_carol && $got_dave && $remaining == 0} {
+    pass "greet <Tab><Tab> → all names listed"
+} else {
+    fail "greet <Tab><Tab> → all names listed" \
+        "alice=$got_alice arthur=$got_arthur bob=$got_bob carol=$got_carol dave=$got_dave remaining=$remaining"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+puts ""
+if {$failures == 0} { puts "All tests passed."; exit 0 } \
+else { puts "$failures test(s) failed."; exit 1 }

@@ -1,0 +1,20 @@
+#!/bin/bash
+# A simple CLI with tab completion.
+# Source this file: . ./greet
+# Then type: greet <Tab>
+
+_greet_completion() {
+    local names=(alice arthur bob carol dave)
+    local word="${COMP_WORDS[$COMP_CWORD]}"
+    COMPREPLY=()
+    local name
+    for name in "${names[@]}"; do
+        [[ "$name" == "$word"* ]] && COMPREPLY+=("$name")
+    done
+}
+
+greet() {
+    echo "Hello, ${1:-world}!"
+}
+
+complete -F _greet_completion greet
