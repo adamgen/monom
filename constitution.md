@@ -74,11 +74,10 @@ Monom does not care how these are implemented. This interface may evolve, but an
 Logic and surface are tested with different tools and must not be conflated:
 
 - **Go unit tests** cover Go functions in isolation.
-- **shUnit2 e2e tests** cover the full CLI surface — they spawn the binary, assert on stdout, stderr, and exit codes. These are the contract: they define what monom promises its users.
+- **e2e tests** cover the full CLI surface — they spawn the binary, assert on stdout, stderr, and exit codes. These are the contract: they define what monom promises its users.
+- **Completion e2e tests** execute in a shell environment as close as possible to where tab completion functions and bindings actually run. The testing framework is an implementation detail; what matters is that tests exercise the real completion code path.
 
 If something needs a test and it can live in Go, it should. Shell test files are for CLI surface behavior, not internal logic.
-
-Testing of shell completion bindings (what appears when a user presses Tab) is an open problem. Better e2e coverage for completion is an active goal.
 
 ---
 
@@ -92,7 +91,6 @@ Testing of shell completion bindings (what appears when a user presses Tab) is a
 ## Key Reference Files
 
 - `terminology.md` — canonical definitions of all domain terms. Read before naming anything.
-- `docs.md` — the user config file interface contract.
+- `architecture.md` — current intended architecture: the binary, shell files, data flow.
 - `readme.md` — vision, goals, and use cases.
-- `architecture.md` — current intended architecture: the binary, shell files, data flow, project structure.
 - `CLAUDE.md` — AI working guide (how to work in this repo).

@@ -135,7 +135,7 @@ $MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per l
 $MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
 ```
 
-Monom does not care how these are implemented — shell functions, Python, Go, whatever. The user config is the seam between monom's engine and the author's project. See `docs.md` for the full interface contract.
+Monom does not care how these are implemented — shell functions, Python, Go, whatever. The user config is the seam between monom's engine and the author's project.
 
 ---
 
