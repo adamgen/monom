@@ -74,17 +74,13 @@ matches := filterByPrefix(strings.Split(strings.TrimSpace(string(out)), "\n"), p
 
 ---
 
-### `monomd run <args...>`
+### `monomd pack <args...>`
 
-Called by the `monom()` shell function when the user executes a command.
+Called by the `monom()` shell function when the user executes a command. Reads a file path from stdin (output of `monom_cfg run <args...>`) and resolves it to an absolute path, printing it to stdout. The shell then `exec`s that path.
 
-- Passes `<args...>` to `$MONOM_USER_CONFIG run` to resolve the command to a file path.
-- Prints the resolved absolute path to stdout.
-- The shell then `exec`s that path.
-
-```
-$ monomd run category1 sub_command1
-/path/to/project/category1/sub_command1.sh
+```bash
+monom_cfg run category1 sub_command1 | monomd pack
+# → /path/to/project/category1/sub_command1.sh
 ```
 
 ---
@@ -166,9 +162,8 @@ user presses Tab
 ```
 user runs: monom <args...>
   → monom() [shell]
-    → monomd run <args...>
-        → calls monom_cfg run
-        → prints resolved absolute file path
+    → monom_cfg run <args...>      [user's script — prints raw command path]
+    → monomd pack                  [Go — resolves to absolute file path]
     → shell exec's the resolved path
 ```
 

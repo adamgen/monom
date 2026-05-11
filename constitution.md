@@ -75,7 +75,7 @@ Logic and surface are tested with different tools and must not be conflated:
 
 - **Go unit tests** cover Go functions in isolation.
 - **e2e tests** cover the full CLI surface — they spawn the binary, assert on stdout, stderr, and exit codes. These are the contract: they define what monom promises its users.
-- **Completion e2e tests** execute in a shell environment as close as possible to where tab completion functions and bindings actually run. The testing framework is an implementation detail; what matters is that tests exercise the real completion code path.
+- **Completion e2e tests** execute in a shell environment as close as possible to where tab completion functions and bindings actually run.
 
 If something needs a test and it can live in Go, it should. Shell test files are for CLI surface behavior, not internal logic.
 
@@ -92,5 +92,4 @@ If something needs a test and it can live in Go, it should. Shell test files are
 
 - `terminology.md` — canonical definitions of all domain terms. Read before naming anything.
 - `architecture.md` — current intended architecture: the binary, shell files, data flow.
-- `readme.md` — vision, goals, and use cases.
 - `CLAUDE.md` — AI working guide (how to work in this repo).

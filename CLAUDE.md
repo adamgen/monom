@@ -8,20 +8,6 @@ Read these documents in order before making any changes:
 
 ---
 
-## Canonical Terminology
-
-| Term | Meaning |
-|---|---|
-| **Discovery** | Finding all possible commands for a project. Implemented by `monom_cfg complete`. |
-| **Command packing** | Transforming CLI arguments back into a file path. Implemented by `monom_cfg run`. |
-| **monom config file** | The `monom` executable at the project root. Exposes `complete` and `run`. Env var: `$MONOM_USER_CONFIG`. Shell wrapper: `monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }`. |
-| **Project root** | The directory containing the `monom` config file. Env var: `$MONOM_PROJECT_ROOT`. |
-| **monomd** | The compiled Go binary. The engine of monom. |
-| **CLI author** | The developer building a CLI using monom. |
-| **CLI user** | The developer using the CLI the author built. |
-
----
-
 ## Testing
 
 ### Run all checks
@@ -83,4 +69,4 @@ Before completing any task:
 - [ ] shUnit2 e2e test added or updated if CLI behavior changed
 - [ ] `./check` passes
 - [ ] No new required subcommands added to the user config interface
-- [ ] Terminology from `terminology.md` used consistently
+- [ ] Terminology from `terminology.md` used consistently (do not redefine terms inline)
