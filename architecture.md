@@ -1,4 +1,4 @@
-# Monom Architecture
+# monom Architecture
 
 This document describes the current intended architecture of monom. Unlike the constitution, it is descriptive and will evolve as the project develops. It should stay consistent with the principles in `constitution.md`.
 
@@ -131,7 +131,7 @@ $MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per l
 $MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
 ```
 
-Monom does not care how these are implemented — shell functions, Python, Go, whatever. The user config is the seam between monom's engine and the author's project.
+monom does not care how these are implemented — shell functions, Python, Go, whatever. The user config is the seam between monom's engine and the author's project.
 
 ---
 

@@ -8,6 +8,12 @@ Read these documents in order before making any changes:
 
 ---
 
+## Spelling & Casing
+
+The project name is **monom** — always lowercase, even at the start of a sentence.
+
+---
+
 ## Testing
 
 ### Run all checks

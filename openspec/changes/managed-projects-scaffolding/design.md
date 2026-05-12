@@ -1,6 +1,6 @@
 ## Context
 
-Monom currently has one project model: the user writes an executable `monom` file implementing `complete` and `run`. This gives full flexibility but creates friction for new users who just want a conventional file-tree-based CLI.
+monom currently has one project model: the user writes an executable `monom` file implementing `complete` and `run`. This gives full flexibility but creates friction for new users who just want a conventional file-tree-based CLI.
 
 The proposal introduces a second model — "managed projects" — where a declarative `monom.yaml` replaces the executable config. For managed projects, `monomd` handles discovery and resolution internally, and scaffolding commands help users create projects and commands.
 
@@ -28,7 +28,7 @@ Key constraints:
 
 ### Decision 1: Two project modes — managed and custom
 
-**Choice**: Monom recognizes two project types based on what exists at the project root.
+**Choice**: monom recognizes two project types based on what exists at the project root.
 
 | Mode | Marker file | Who handles discovery/resolution |
 |------|-------------|----------------------------------|

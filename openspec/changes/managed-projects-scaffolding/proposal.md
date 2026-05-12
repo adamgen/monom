@@ -2,7 +2,7 @@
 
 New users adopting monom face a cold-start problem: they know they want a CLI, but the path from zero to a working `monom` config file with tab completion requires understanding the `complete`/`run` interface, writing discovery logic, and setting up a directory structure. This friction contradicts the mission ("no boilerplate, no registration, no framework lock-in").
 
-Monom needs authoring-time tooling — commands like `monomd init` and `monomd new command` — backed by strong defaults that get a user from nothing to a working CLI in one command.
+monom needs authoring-time tooling — commands like `monomd init` and `monomd new command` — backed by strong defaults that get a user from nothing to a working CLI in one command.
 
 ## What Changes
 

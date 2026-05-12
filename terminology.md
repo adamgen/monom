@@ -4,7 +4,7 @@ The terminology for monom is critical since it's used by llm agents to understan
 
 ## Background
 
-Monom is a CLI tool framework.
+monom is a CLI tool framework.
 
 How it works: Organize your executable scripts in a folder structure, add a `monom` configuration file that defines how to discover and run commands, and monom automatically creates a full-featured CLI with tab completion. Your file tree becomes your command tree - folders become command categories, and scripts become executable commands.
 

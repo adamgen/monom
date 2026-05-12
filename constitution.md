@@ -1,4 +1,4 @@
-# Monom Constitution
+# monom Constitution
 
 > A constitution defines the invariants of a project — the principles that remain true as everything else changes, and that resolve conflicts before they are argued. It is normative, not descriptive: it says what should be, not what currently is. It does not contain implementation state, migration plans, or unsettled assumptions.
 >
@@ -6,9 +6,15 @@
 
 ---
 
+## Spelling & Casing
+
+The project name is **monom** — always lowercase, even at the start of a sentence. Never "Monom".
+
+---
+
 ## Mission
 
-Monom is a CLI framework that turns a file tree into a tab-completable command tree. You organize your scripts in folders, add a `monom` config file that defines how to discover and run commands, and monom automatically gives you a full-featured CLI with tab completion — in any shell, for any script language.
+monom is a CLI framework that turns a file tree into a tab-completable command tree. You organize your scripts in folders, add a `monom` config file that defines how to discover and run commands, and monom automatically gives you a full-featured CLI with tab completion — in any shell, for any script language.
 
 The core promise: **your file tree is your command tree**. Folders become command categories. Scripts become commands. No boilerplate, no registration, no framework lock-in.
 
@@ -22,7 +28,7 @@ There are two distinct roles:
 
 **The CLI User** — a developer (often on the same team) who uses the CLI the author built. They type `my-tool <Tab>` and run commands. They never know or care that monom exists underneath.
 
-Monom must serve both: give authors a clean, minimal interface to implement; give users a seamless, fast, native-feeling CLI experience.
+monom must serve both: give authors a clean, minimal interface to implement; give users a seamless, fast, native-feeling CLI experience.
 
 ---
 
@@ -65,7 +71,7 @@ $MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per l
 $MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
 ```
 
-Monom does not care how these are implemented. This interface may evolve, but any change to it requires a corresponding update to this document. Changing the interface without amending the constitution is a process violation.
+monom does not care how these are implemented. This interface may evolve, but any change to it requires a corresponding update to this document. Changing the interface without amending the constitution is a process violation.
 
 ---
 

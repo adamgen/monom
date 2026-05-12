@@ -1,4 +1,4 @@
-# Monom
+# monom
 
 ## File structure ideation
 
@@ -142,7 +142,7 @@ Typing `Tab` in the following scenarios will give these results:
 
 1. Author and user - the author writes the cli library, the user uses the cli library.
 2. User vs monom interfaces - the cli author write a "monom" app exposing commands that monom uses hence the author
-   writes for the monom interface. Monom uses the user's commands and usage of monom interfaces to generate the user
+   writes for the monom interface. monom uses the user's commands and usage of monom interfaces to generate the user
    interface.
 3. Primitive command trait/interface - a list of subcommands each command is exposing that monom uses internally to
    generate it's user interface like completion and input validation.
