@@ -16,48 +16,96 @@ monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }
 
 ---
 
-### `monomd filter <prefix>`
+### `monomd filter [word...]`
 
-Reads command paths from stdin (one per line), filters to those matching `<prefix>`, and prints the matches to stdout.
+Reads command paths from stdin (one per line, slash-delimited) and accepts zero or more space-separated word arguments. Filters stdin to paths matching the given words, and prints the next-level completions to stdout (one per line).
+
+**The two formats:** stdin uses `/` to separate category levels (e.g. `infra/cloud/deploy`) because that is how the CLI author's `complete` output encodes the command tree. The word arguments use spaces because they come directly from what the user typed — the shell passes them as separate args with no transformation. `monomd filter` bridges the two: it joins the word arguments with `/` internally to produce a prefix, then matches that prefix against the slash-delimited stdin paths.
 
 Called by the shell completion binding as part of a pipe:
 
 ```bash
 monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }
-COMPREPLY=($(monom_cfg complete | monomd filter "$prefix"))
+COMPREPLY=($(monom_cfg complete | monomd filter $COMP_WORDS))
 ```
 
-`<prefix>` is the partial command the user has typed so far, with spaces replaced by `/` (e.g. `monom category1 sub` becomes `category1/sub`). An empty prefix returns all top-level commands.
+The shell passes `$COMP_WORDS` (the raw typed tokens) directly — no transformation in shell. Stdin lines containing spaces in any path segment are silently ignored — emitting a hard error during a Tab press would produce noise in the terminal mid-typing. Use `monomd check` to surface these issues explicitly during development.
 
-The following example uses the `file_commands` test project, whose `complete` output looks like this:
+A trailing empty word in the argument list — which bash appends to `$COMP_WORDS` when the user has typed a complete token followed by a space — signals "drill into this level" rather than "match partially."
+
+| User types | `$COMP_WORDS` (args to filter) | stdin format | filter output |
+|---|---|---|---|
+| `monom <Tab>` | _(none)_ | `category1/sub1\ncommand1` | `category1\ncommand1` |
+| `monom com<Tab>` | `com` | `command1\ncommand2\ncategory1/sub1` | `command1\ncommand2` |
+| `monom category1 <Tab>` | `category1` `""` | `category1/sub1\ncategory1/sub2` | `sub1\nsub2` |
+| `monom category1 sub<Tab>` | `category1` `sub` | `category1/sub1\ncategory1/sub2` | `sub1\nsub2` |
+| `monom category1 sub1 <Tab>` | `category1` `sub1` `""` | `category1/sub1/leaf` | `leaf` |
+
+**Single-level example** — the `file_commands` test project:
 
 ```
-# $monom_cfg complete output for file_commands:
+# stdin: $monom_cfg complete output
 category1/sub_command1
 category1/sub_command2
 command1
 command2
 ```
 
-Piped through `monomd filter`:
-
 ```
-$ monom_cfg complete | monomd filter ""
+# user types: monom <Tab>
+$ monom_cfg complete | monomd filter
 category1
 command1
 command2
 
-$ monom_cfg complete | monomd filter "com"
+# user types: monom com<Tab>
+$ monom_cfg complete | monomd filter com
 command1
 command2
 
-$ monom_cfg complete | monomd filter "category1/"
+# user types: monom categ<Tab>
+$ monom_cfg complete | monomd filter categ
+category1
+
+# user types: monom category1 <Tab>  (trailing space → bash appends "")
+$ monom_cfg complete | monomd filter category1 ""
 sub_command1
 sub_command2
-
-$ monom_cfg complete | monomd filter "categ"
-category1
 ```
+
+**Nested example** — a project with two levels of categories:
+
+```
+# stdin: $monom_cfg complete output
+infra/cloud/deploy
+infra/cloud/teardown
+infra/local/start
+infra/local/stop
+release
+```
+
+```
+# user types: monom <Tab>
+$ monom_cfg complete | monomd filter
+infra
+release
+
+# user types: monom infra <Tab>
+$ monom_cfg complete | monomd filter infra ""
+cloud
+local
+
+# user types: monom infra cl<Tab>
+$ monom_cfg complete | monomd filter infra cl
+cloud
+
+# user types: monom infra cloud <Tab>
+$ monom_cfg complete | monomd filter infra cloud ""
+deploy
+teardown
+```
+
+Stdin lines with spaces in any path segment are silently ignored and excluded from completions.
 
 **Why a pipe instead of a single `monomd` call:**
 Calling the user config is a subprocess spawn either way. Shell pipes natively; Go needs goroutines and io plumbing to do the same. The rejected alternative:
@@ -95,6 +143,17 @@ Used by `setup_monom()` when `MONOM_PROJECT_ROOT` is not already set.
 $ monomd root
 /path/to/project
 ```
+
+---
+
+### `monomd check`
+
+Validates that the current monom project is healthy. Runs `monom_cfg complete`, inspects every path in the output, and reports any problems to stdout. Exits non-zero if any problems are found.
+
+Currently checks:
+- Every path is slash-delimited with no spaces in any segment. A path with spaces would be silently skipped by `monomd filter` during completion, making that command undiscoverable.
+
+Intended to be run by the CLI author during development and in CI. Not called on the completion or execution path.
 
 ---
 
