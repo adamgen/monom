@@ -16,23 +16,9 @@ The project name is **monom** — always lowercase, even at the start of a sente
 
 ## Testing
 
-### Run all checks
+> **Note:** The test runner scripts (`./check`, `./sh_test_runner`, `./shellcheck`, `cd src && go test ./...`) are pending the `monomd-binary` implementation. They will be created as part of that change. See `openspec/changes/monomd-binary/`.
 
-```bash
-./check
-```
-
-Runs: `build` → `go_e2e_test` → `sh_test_runner` → `shellcheck`.
-
-### Run specific layers
-
-```bash
-cd src && go test ./...   # Go unit tests
-./sh_test_runner          # shUnit2 e2e tests
-./shellcheck              # shellcheck
-```
-
-### Conventions
+### Conventions (once implemented)
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
 - shUnit2 tests: `${script_name}_test`, colocated, no extension.
@@ -49,6 +35,8 @@ cd src && go test ./...   # Go unit tests
 ---
 
 ## Common Tasks
+
+> **Note:** The file paths below (`src/main.go`, `src/go_utils/`, `src/monom`) are pending the `monomd-binary` implementation. See `openspec/changes/monomd-binary/` for the planned structure.
 
 ### Add a monomd subcommand
 
