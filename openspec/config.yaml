@@ -1,13 +1,11 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Before doing any work, read these files in order:
+  1. CLAUDE.md — AI working guide and validation checklist
+  2. constitution.md — governing principles; every task must be validated against it
+  3. architecture.md — current intended architecture: binary interface, shell files, data flow
+  4. terminology.md — canonical term definitions; use these exactly when naming anything
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
