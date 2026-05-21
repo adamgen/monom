@@ -12,7 +12,7 @@ How it works: Organize your executable scripts in a folder structure, add a `mon
 
 **Discovery** — the process by which monom finds all possible commands for a single project. Discovery can be as simple or complex as required. Implemented by the `complete` subcommand of the monom config file.
 
-**Command packing** — the process by which a command invocation is transformed back into the full path of the executable to run. Implemented by `monomd pack`, which reads the raw path printed by `monom_cfg run <args...>` from stdin and resolves it to an absolute file path.
+**Command packing** — the process by which a command invocation is transformed back into the full path of the executable to run. Implemented by `monomd pack`, which takes the user's space-separated command tokens as CLI arguments, joins them with `/`, resolves against the project root, and prints the absolute executable path to stdout.
 
 **monom config file** — the `monom` executable at the project root, written by the CLI author. Exposes `complete` and `run`. Referenced via env var `$MONOM_USER_CONFIG`. In shell scripts, wrapped as `monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }` for readability.
 
