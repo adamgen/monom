@@ -4,6 +4,23 @@ This document describes the current intended architecture of monom. Unlike the c
 
 ---
 
+## Design Principles
+
+Operational guidelines for designing tools within the monom project (currently `monomd`, and any future tools we build). Unlike the constitution's principles, these are project-design heuristics — they SHOULD be followed, but deviations are allowed when justified. These principles do not apply to the user config interface; CLI authors choose their own conventions there.
+
+### Principle: CLI Arguments by Default, Stdin When the Input Is a Stream
+
+Subcommand inputs SHOULD be CLI arguments. Stdin SHOULD only be used when the input is genuinely a stream — many lines, unbounded data, content piped from another tool, or cases where streaming improves correctness or composability.
+
+**The test:** Before designing a subcommand to read stdin, ask — "is this a parameter or a stream?" Parameters are bounded, named, and known at call time; they belong in args. Streams are unbounded, anonymous, and benefit from pipe composition; they belong in stdin.
+
+Examples in this codebase:
+- `monomd filter` reads commands from stdin — the command list is unbounded and naturally produced by piping `monom_cfg complete`. Stream.
+- `monomd pack` takes args — the user's command tokens are a small, known parameter set produced by the shell at call time, not a stream. Parameters.
+- `monomd root` and `monomd check` take no input — neither parameters nor stream.
+
+---
+
 ## The Binary: monomd
 
 There is one compiled Go binary: `monomd`.
@@ -31,15 +48,19 @@ COMPREPLY=($(monom_cfg complete | monomd filter $COMP_WORDS))
 
 The shell passes `$COMP_WORDS` (the raw typed tokens) directly — no transformation in shell. Stdin lines containing spaces in any path segment are silently ignored — emitting a hard error during a Tab press would produce noise in the terminal mid-typing. Use `monomd check` to surface these issues explicitly during development.
 
+`**monomd filter` never exits with a non-zero status code.** This is a hard constraint, not a guideline. Tab completion is interactive — a non-zero exit or stderr noise mid-typing degrades the user experience and can break shells that interpret completion failures unpredictably. Any internal error produces empty output and exit 0. All diagnostics belong in `monomd check`.
+
 A trailing empty word in the argument list — which bash appends to `$COMP_WORDS` when the user has typed a complete token followed by a space — signals "drill into this level" rather than "match partially."
 
-| User types | `$COMP_WORDS` (args to filter) | stdin format | filter output |
-|---|---|---|---|
-| `monom <Tab>` | _(none)_ | `category1/sub1\ncommand1` | `category1\ncommand1` |
-| `monom com<Tab>` | `com` | `command1\ncommand2\ncategory1/sub1` | `command1\ncommand2` |
-| `monom category1 <Tab>` | `category1` `""` | `category1/sub1\ncategory1/sub2` | `sub1\nsub2` |
-| `monom category1 sub<Tab>` | `category1` `sub` | `category1/sub1\ncategory1/sub2` | `sub1\nsub2` |
-| `monom category1 sub1 <Tab>` | `category1` `sub1` `""` | `category1/sub1/leaf` | `leaf` |
+
+| User types                   | `$COMP_WORDS` (args to filter) | stdin format                         | filter output         |
+| ---------------------------- | ------------------------------ | ------------------------------------ | --------------------- |
+| `monom <Tab>`                | *(none)*                       | `category1/sub1\ncommand1`           | `category1\ncommand1` |
+| `monom com<Tab>`             | `com`                          | `command1\ncommand2\ncategory1/sub1` | `command1\ncommand2`  |
+| `monom category1 <Tab>`      | `category1` `""`               | `category1/sub1\ncategory1/sub2`     | `sub1\nsub2`          |
+| `monom category1 sub<Tab>`   | `category1` `sub`              | `category1/sub1\ncategory1/sub2`     | `sub1\nsub2`          |
+| `monom category1 sub1 <Tab>` | `category1` `sub1` `""`        | `category1/sub1/leaf`                | `leaf`                |
+
 
 **Single-level example** — the `file_commands` test project:
 
@@ -113,6 +134,7 @@ Calling the user config is a subprocess spawn either way. Shell pipes natively; 
 ```bash
 # ❌ Rejected: COMPREPLY=($(monomd complete "$prefix"))
 ```
+
 ```go
 // ❌ What monomd would do internally:
 cmd := exec.Command(os.Getenv("MONOM_USER_CONFIG"), "complete")
@@ -122,22 +144,28 @@ matches := filterByPrefix(strings.Split(strings.TrimSpace(string(out)), "\n"), p
 
 ---
 
-### `monomd pack <args...>`
+### `monomd pack <word...>`
 
-Called by the `monom()` shell function when the user executes a command. Reads a file path from stdin (output of `monom_cfg run <args...>`) and resolves it to an absolute path, printing it to stdout. The shell then `exec`s that path.
+Called by the `monom()` shell function when the user executes a command. Takes the user's space-separated command path as CLI args (e.g. `monomd pack category1 sub_command1`), joins the tokens with `/` internally, resolves the result against the project root, and prints the absolute path to stdout. The shell then `exec`s that path.
+
+Pack is self-sufficient: it discovers the project root itself (same algorithm as `monomd root` — see below), validates the file exists and is executable, and prints the absolute path. The shell `monom()` function reduces to a single `exec` call.
 
 ```bash
-monom_cfg run category1 sub_command1 | monomd pack
-# → /path/to/project/category1/sub_command1.sh
+$ monomd pack category1 sub_command1
+/path/to/project/category1/sub_command1
 ```
+
+Pack is the symmetric counterpart of `filter`: both take space-separated tokens as CLI args and bridge to the slash-delimited file tree. Pack's specific job is to replace spaces with slashes and resolve to an absolute, executable path.
 
 ---
 
 ### `monomd root`
 
-Walks up from `$PWD`, looking for a directory containing a `monom` file. Prints the absolute path of the first one found, or exits non-zero if none is found.
+Returns the active monom project root.
 
-Used by `setup_monom()` when `MONOM_PROJECT_ROOT` is not already set.
+Algorithm: if `$MONOM_PROJECT_ROOT` is set and points to a directory containing an executable `monom` file, return it. Otherwise, walk up from `$PWD` looking for a directory containing an executable `monom` file. Print the first match to stdout; exit non-zero if none is found.
+
+This same algorithm is shared internally by all subcommands that need the root (currently `monomd pack`). Exposed as a standalone subcommand so the shell and CLI authors can query the root explicitly (for sourcing scripts, aliases, debugging).
 
 ```
 $ monomd root
@@ -151,6 +179,7 @@ $ monomd root
 Validates that the current monom project is healthy. Runs `monom_cfg complete`, inspects every path in the output, and reports any problems to stdout. Exits non-zero if any problems are found.
 
 Currently checks:
+
 - Every path is slash-delimited with no spaces in any segment. A path with spaces would be silently skipped by `monomd filter` during completion, making that command undiscoverable.
 
 Intended to be run by the CLI author during development and in CI. Not called on the completion or execution path.
@@ -169,11 +198,13 @@ The exact output format is TBD.
 
 Shell files exist only where a technical constraint makes Go impossible — primarily because env vars, shell functions, and competion hooks must live in the parent shell process.
 
-| File | Purpose |
-|---|---|
-| `src/monom` | Sourced by user's rc file. Defines `monom()` and `setup_monom()`. Delegates everything to `monomd`. |
-| `src/monom.bash` | Registers bash completion hook (`complete -F monom_completion monom`). |
-| `src/monom.zsh` | Registers zsh completion hook (`compdef _monom monom`). |
+
+| File             | Purpose                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
+| `src/monom`      | Sourced by user's rc file. Defines `monom()` and `setup_monom()`. Delegates everything to `monomd`. |
+| `src/monom.bash` | Registers bash completion hook (`complete -F monom_completion monom`).                              |
+| `src/monom.zsh`  | Registers zsh completion hook (`compdef _monom monom`).                                             |
+
 
 The aliasing feature (`make_monom_alias`) exists to let users bind a named command (e.g. `acme`) to a specific project root. How much of this lives in shell vs. Go is still being determined — the principle is to push as much as possible into `monomd`.
 
@@ -183,24 +214,44 @@ No shell file should contain logic beyond what is technically impossible to move
 
 ## The User Config Interface
 
-The user config (`MONOM_USER_CONFIG`) exposes two subcommands that monom calls:
+The user config (`MONOM_USER_CONFIG`) is the seam between monom and the author's project. It exposes one required subcommand and any number of optional hooks (see [Hooks](#hooks) below).
+
+**Required:**
 
 ```
-$MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per line
-$MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
+$MONOM_USER_CONFIG complete   # prints all discoverable command paths, slash-delimited, one per line
 ```
 
-monom does not care how these are implemented — shell functions, Python, Go, whatever. The user config is the seam between monom's engine and the author's project.
+monom does not care how the user config is implemented — shell functions, Python, Go, whatever, as long as the required subcommand prints to stdout. The required interface is constitution-protected; changes require an amendment.
+
+## Hooks
+
+Hooks are optional subcommands the CLI author MAY expose on `$MONOM_USER_CONFIG` to customize monom's default behavior. Each hook has a defined input/output contract and a defined fallback (what monom does when the hook is absent). Hooks are discovered by attempt-and-fallback at the call site — there is no separate registration step. The list of available hooks evolves here in `architecture.md` without requiring a constitution amendment.
+
+### Hook: `run` — transform args before path resolution
+
+Interposes between `monom <user_args...>` and `monomd pack`. Receives the user's space-separated args, prints transformed space-separated args. monom passes the transformed output to `monomd pack`.
+
+```
+$ monom_cfg run acme deploy
+infra cloud deploy
+```
+
+When the hook is present and produces usable output, monom uses it. When the hook is absent or doesn't produce usable output, monom falls back to passing the user's original args to `monomd pack`. The exact detection-and-fallback semantics are left to the implementation.
+
+Useful for: aliasing, namespace remapping, project-specific routing where the surface command tree differs from the file tree.
 
 ---
 
 ## Environment Variables
 
-| Variable | Set by | Description |
-|---|---|---|
-| `MONOM_LIB_ROOT` | `src/monom` at source time | Absolute path to the monom install directory. |
-| `MONOM_PROJECT_ROOT` | user override, alias, or `monomd root` discovery | Path to the currently active monom project root. A single user can have many monom projects; this holds whichever is active for the current invocation. Can be set before sourcing monom to skip auto-discovery. |
-| `MONOM_USER_CONFIG` | `setup_monom()` | Path to the user's config entry point — the `monom` executable at `$MONOM_PROJECT_ROOT/monom`. This file is written by the CLI author and exposes the `complete` and `run` subcommands that monom calls. In shell scripts, wrap it as `monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }` for readability. |
+
+| Variable             | Set by                                           | Description                                                                                                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONOM_LIB_ROOT`     | `src/monom` at source time                       | Absolute path to the monom install directory.                                                                                                                                                                                                                                                       |
+| `MONOM_PROJECT_ROOT` | user override, alias, or `monomd root` discovery | Path to the currently active monom project root. A single user can have many monom projects; this holds whichever is active for the current invocation. Can be set before sourcing monom to skip auto-discovery.                                                                                    |
+| `MONOM_USER_CONFIG`  | `setup_monom()`                                  | Path to the user's config entry point — the `monom` executable at `$MONOM_PROJECT_ROOT/monom`. This file is written by the CLI author and exposes the required `complete` subcommand and any optional [hooks](#hooks). In shell scripts, wrap it as `monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }` for readability. |
+
 
 ---
 
@@ -211,8 +262,8 @@ monom does not care how these are implemented — shell functions, Python, Go, w
 ```
 user presses Tab
   → monom_completion() [shell — registers COMPREPLY]
-    → monom_cfg complete                 [user's script — prints all paths]
-    → monomd filter <prefix>             [Go — filters by prefix, prints matches]
+    → monom_cfg complete                  [user's script — prints all paths, slash-delimited]
+    → monomd filter $COMP_WORDS           [Go — always exits 0, prints matches]
     → COMPREPLY=(...)
 ```
 
@@ -221,10 +272,12 @@ user presses Tab
 ```
 user runs: monom <args...>
   → monom() [shell]
-    → monom_cfg run <args...>      [user's script — prints raw command path]
-    → monomd pack                  [Go — resolves to absolute file path]
+    → (optional) monom_cfg run <args...>   [user hook — transforms args; falls back if absent or fails]
+    → monomd pack <args...>                [Go — discovers root, joins with /, resolves to absolute path]
     → shell exec's the resolved path
 ```
+
+The shell `monom()` function uses an attempt-and-fallback pattern: it tries `monom_cfg run "$@"`, captures the output, and falls back to the user's original args if the hook is absent or produced no usable output. `monomd pack` is then called with the resulting args. `monomd pack` discovers the project root internally (via the same algorithm as `monomd root`), so no separate setup step is needed on the execution path.
 
 ---
 

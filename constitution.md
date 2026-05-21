@@ -62,16 +62,29 @@ A chain of subprocesses passing data through pipes is hard to reason about, hard
 
 ---
 
-## Principle: The User Config Interface Requires a Constitution Amendment to Change
+## Principle: Pluggability via Hooks
 
-The `monom` config file at the root of any user project currently exposes:
+monom defines a small set of default behaviors (command discovery, path resolution, etc.). For each, the CLI author MAY expose a hook in their user config to intercept, transform, or extend the default. Hooks are discovered by convention: they are subcommands of `$MONOM_USER_CONFIG`. If a hook is absent, monom uses its default behavior.
+
+The pluggability principle guides design: when monom adds a new default behavior, the question is always "should this be hookable?" Authors get a minimal required surface to implement and a clearly-defined seam for everything they want to customize.
+
+The current hooks are documented in `architecture.md`.
+
+---
+
+## Principle: The Required User Config Interface Requires a Constitution Amendment to Change
+
+The user config (`$MONOM_USER_CONFIG`) is the seam between monom and the author's project. The set of subcommands monom *requires* the user config to expose is part of monom's stability contract — projects that comply today must continue to work tomorrow.
+
+The currently required interface is:
 
 ```
 $MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per line
-$MONOM_USER_CONFIG run        # reads args, prints the resolved file path to execute
 ```
 
-monom does not care how these are implemented. This interface may evolve, but any change to it requires a corresponding update to this document. Changing the interface without amending the constitution is a process violation.
+Adding to this required set, removing from it, or changing the contract of any required subcommand requires an amendment to this document. Optional hooks are documented in `architecture.md` and may evolve there without amendment.
+
+monom does not care how the required interface is implemented — shell, Python, Go, anything that prints to stdout.
 
 ---
 
