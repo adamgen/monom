@@ -1,0 +1,43 @@
+#!/bin/bash
+# shUnit2 e2e tests for: monomd root
+# Run directly: bash tests/monomd_root_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/_archive/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# monomd root
+# ---------------------------------------------------------------------------
+
+test_root_env_var_honored() {
+  tmp=$(make_tmp_project)
+  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" root)
+  assertEquals "root should return MONOM_PROJECT_ROOT" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_walk_finds_parent() {
+  tmp=$(make_tmp_project)
+  subdir="$tmp/a/b/c"
+  mkdir -p "$subdir"
+  result=$(cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root)
+  assertEquals "root should walk up to project root" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_not_found_exits_nonzero() {
+  tmp=$(mktemp -d)
+  subdir="$tmp/no_project"
+  mkdir -p "$subdir"
+  (cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root) 2>/dev/null
+  assertNotEquals "root must exit non-zero when not found" 0 $?
+  rm -rf "$tmp"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

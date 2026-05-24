@@ -1,0 +1,314 @@
+#!/bin/bash
+# shUnit2 e2e tests for the monomd binary.
+# Run directly: bash tests/monomd_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/_archive/dependencies/shunit2"
+
+# ---------------------------------------------------------------------------
+# Build helper — compiles bin/monomd before the suite runs.
+# ---------------------------------------------------------------------------
+oneTimeSetUp() {
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
+    echo "FATAL: could not build monomd" >&2
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+# make_cmd <path> — writes an executable stub at path (creates parent dirs)
+make_cmd() {
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<'EOF'
+#!/bin/sh
+echo ok
+EOF
+  chmod +x "$1"
+}
+
+# make_tmp_project — creates a temp dir, resolves symlinks, and initialises it
+# as a monom project. Prints the resolved absolute path.
+# Usage: tmp=$(make_tmp_project)
+make_tmp_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+  mkdir -p "$d"
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# make_user_config — creates an executable user-config script whose "complete"
+# subcommand prints the paths given on stdin (one per line). Prints the script path.
+# Usage:
+#   cfg=$(make_user_config <<'EOF'
+#   category1/sub1
+#   command1
+#   EOF
+#   )
+make_user_config() {
+  local dir script paths
+  dir=$(mktemp -d)
+  script="$dir/user_config"
+  paths=$(cat)
+  cat > "$script" <<EOF
+#!/bin/sh
+printf '%s\n' "$paths"
+EOF
+  chmod +x "$script"
+  printf '%s' "$script"
+}
+
+# assert_output_contains_line <msg> <output> <line>
+# Passes if output contains an exact line matching the given value.
+assert_output_contains_line() {
+  local msg="$1" output="$2" line="$3"
+  if ! printf '%s\n' "$output" | grep -qFx "$line"; then
+    fail "$msg: expected line <$line> not found in output: $output"
+  fi
+}
+
+# assert_output_lacks_line <msg> <output> <line>
+# Passes if output does NOT contain an exact line matching the given value.
+assert_output_lacks_line() {
+  local msg="$1" output="$2" line="$3"
+  if printf '%s\n' "$output" | grep -qFx "$line"; then
+    fail "$msg: unexpected line <$line> found in output: $output"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# monomd filter
+# ---------------------------------------------------------------------------
+
+test_filter_no_args_returns_top_level_tokens() {
+  result=$(
+    "$MONOMD" filter <<'EOF'
+category1/sub1
+category1/sub2
+command1
+command2
+EOF
+  )
+  assert_output_contains_line "category1 missing" "$result" "category1"
+  assert_output_contains_line "command1 missing"  "$result" "command1"
+  assert_output_contains_line "command2 missing"  "$result" "command2"
+}
+
+test_filter_partial_word_matches_top_level() {
+  result=$(
+    "$MONOMD" filter com <<'EOF'
+command1
+command2
+category1/sub1
+EOF
+  )
+  assert_output_contains_line "command1 missing"            "$result" "command1"
+  assert_output_contains_line "command2 missing"            "$result" "command2"
+  assert_output_lacks_line    "category1 should not appear" "$result" "category1"
+}
+
+test_filter_complete_word_plus_empty_drills_into_children() {
+  result=$(
+    "$MONOMD" filter category1 "" <<'EOF'
+category1/sub_command1
+category1/sub_command2
+command1
+EOF
+  )
+  assert_output_contains_line "sub_command1 missing"       "$result" "sub_command1"
+  assert_output_contains_line "sub_command2 missing"       "$result" "sub_command2"
+  assert_output_lacks_line    "command1 should not appear" "$result" "command1"
+}
+
+test_filter_complete_word_without_empty_returns_token_not_children() {
+  result=$(
+    "$MONOMD" filter category1 <<'EOF'
+category1/sub_command1
+category1/sub_command2
+command1
+EOF
+  )
+  assert_output_contains_line "category1 missing"              "$result" "category1"
+  assert_output_lacks_line    "sub_command1 should not appear" "$result" "sub_command1"
+  assert_output_lacks_line    "command1 should not appear"     "$result" "command1"
+}
+
+test_filter_nested_drill_down() {
+  result=$(
+    "$MONOMD" filter infra cloud "" <<'EOF'
+infra/cloud/deploy
+infra/cloud/teardown
+infra/local/start
+EOF
+  )
+  assert_output_contains_line "deploy missing"              "$result" "deploy"
+  assert_output_contains_line "teardown missing"            "$result" "teardown"
+  assert_output_lacks_line    "start should not appear"     "$result" "start"
+}
+
+test_filter_paths_with_spaces_are_silently_excluded() {
+  result=$(
+    "$MONOMD" filter <<'EOF'
+my command/sub
+command1
+command2
+EOF
+  )
+  assert_output_lacks_line    "bad path should not appear" "$result" "my command"
+  assert_output_contains_line "command1 missing"           "$result" "command1"
+}
+
+test_filter_always_exits_0_with_no_stdin() {
+  "$MONOMD" filter </dev/null
+  assertEquals "filter must exit 0 with no stdin" 0 $?
+}
+
+test_filter_always_exits_0_with_broken_input() {
+  "$MONOMD" filter <<'EOF'
+not/slash/delimited thing with spaces
+EOF
+  assertEquals "filter must exit 0 on unexpected input" 0 $?
+}
+
+test_filter_always_exits_0_no_args() {
+  "$MONOMD" filter <<'EOF'
+command1
+command2
+EOF
+  assertEquals "filter must exit 0 with no word args" 0 $?
+}
+
+# ---------------------------------------------------------------------------
+# monomd root
+# ---------------------------------------------------------------------------
+
+test_root_env_var_honored() {
+  tmp=$(make_tmp_project)
+  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" root)
+  assertEquals "root should return MONOM_PROJECT_ROOT" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_walk_finds_parent() {
+  tmp=$(make_tmp_project)
+  subdir="$tmp/a/b/c"
+  mkdir -p "$subdir"
+  result=$(cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root)
+  assertEquals "root should walk up to project root" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_not_found_exits_nonzero() {
+  tmp=$(mktemp -d)
+  subdir="$tmp/no_project"
+  mkdir -p "$subdir"
+  (cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root) 2>/dev/null
+  assertNotEquals "root must exit non-zero when not found" 0 $?
+  rm -rf "$tmp"
+}
+
+# ---------------------------------------------------------------------------
+# monomd pack
+# ---------------------------------------------------------------------------
+
+test_pack_resolves_single_token_to_absolute_path() {
+  tmp=$(make_tmp_project)
+  make_cmd "$tmp/command1"
+  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1)
+  assertEquals "pack should resolve single token to absolute path" "$tmp/command1" "$result"
+  rm -rf "$tmp"
+}
+
+test_pack_joins_multiple_tokens_with_slashes() {
+  tmp=$(make_tmp_project)
+  make_cmd "$tmp/category1/sub_command1"
+  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack category1 sub_command1)
+  assertEquals "pack should join tokens with slashes" "$tmp/category1/sub_command1" "$result"
+  rm -rf "$tmp"
+}
+
+test_pack_exits_nonzero_when_resolved_file_does_not_exist() {
+  tmp=$(make_tmp_project)
+  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  assertNotEquals "pack must exit non-zero when resolved file does not exist" 0 $?
+  assertContains "error must mention 'command not found'" "$err" "command not found"
+  rm -rf "$tmp"
+}
+
+test_pack_exits_nonzero_when_resolved_file_is_not_executable() {
+  tmp=$(make_tmp_project)
+  cat > "$tmp/command1" <<'EOF'
+#!/bin/sh
+EOF
+  # deliberately not chmod +x
+  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  assertNotEquals "pack must exit non-zero when resolved file is not executable" 0 $?
+  assertContains "error must mention 'not executable'" "$err" "not executable"
+  rm -rf "$tmp"
+}
+
+test_pack_exits_nonzero_when_no_root_found() {
+  tmp=$(mktemp -d)
+  err=$( (cd "$tmp" && MONOM_PROJECT_ROOT="" "$MONOMD" pack command1) 2>&1)
+  assertNotEquals "pack must exit non-zero when no root found" 0 $?
+  assertContains "error must mention 'monom project root'" "$err" "monom project root"
+  rm -rf "$tmp"
+}
+
+# ---------------------------------------------------------------------------
+# monomd check
+# ---------------------------------------------------------------------------
+
+test_check_clean_project_exits_0() {
+  cfg=$(make_user_config <<'EOF'
+category1/sub1
+category1/sub2
+command1
+EOF
+  )
+  MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
+  assertEquals "check must exit 0 for clean project" 0 $?
+  rm -rf "$(dirname "$cfg")"
+}
+
+test_check_path_with_space_exits_nonzero() {
+  cfg=$(make_user_config <<'EOF'
+my command/sub
+command1
+EOF
+  )
+  MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
+  assertNotEquals "check must exit non-zero for path with space" 0 $?
+  rm -rf "$(dirname "$cfg")"
+}
+
+test_check_no_user_config_exits_nonzero() {
+  MONOM_USER_CONFIG="" "$MONOMD" check 2>/dev/null
+  assertNotEquals "check must exit non-zero when MONOM_USER_CONFIG unset" 0 $?
+}
+
+# ---------------------------------------------------------------------------
+# monomd unknown subcommand / no args
+# ---------------------------------------------------------------------------
+
+test_unknown_subcommand_exits_nonzero() {
+  "$MONOMD" totally_unknown_subcommand 2>/dev/null
+  assertNotEquals "unknown subcommand must exit non-zero" 0 $?
+}
+
+test_no_args_exits_nonzero() {
+  "$MONOMD" 2>/dev/null
+  assertNotEquals "no args must exit non-zero" 0 $?
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

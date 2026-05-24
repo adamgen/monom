@@ -1,0 +1,116 @@
+#!/bin/bash
+# shUnit2 e2e tests for: monomd filter
+# Run directly: bash tests/monomd_filter_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/_archive/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# monomd filter
+# ---------------------------------------------------------------------------
+
+test_filter_no_args_returns_top_level_tokens() {
+  result=$(
+    "$MONOMD" filter <<'EOF'
+category1/sub1
+category1/sub2
+command1
+command2
+EOF
+  )
+  assert_output_contains_line "category1 missing" "$result" "category1"
+  assert_output_contains_line "command1 missing"  "$result" "command1"
+  assert_output_contains_line "command2 missing"  "$result" "command2"
+}
+
+test_filter_partial_word_matches_top_level() {
+  result=$(
+    "$MONOMD" filter com <<'EOF'
+command1
+command2
+category1/sub1
+EOF
+  )
+  assert_output_contains_line "command1 missing"            "$result" "command1"
+  assert_output_contains_line "command2 missing"            "$result" "command2"
+  assert_output_lacks_line    "category1 should not appear" "$result" "category1"
+}
+
+test_filter_complete_word_plus_empty_drills_into_children() {
+  result=$(
+    "$MONOMD" filter category1 "" <<'EOF'
+category1/sub_command1
+category1/sub_command2
+command1
+EOF
+  )
+  assert_output_contains_line "sub_command1 missing"       "$result" "sub_command1"
+  assert_output_contains_line "sub_command2 missing"       "$result" "sub_command2"
+  assert_output_lacks_line    "command1 should not appear" "$result" "command1"
+}
+
+test_filter_complete_word_without_empty_returns_token_not_children() {
+  result=$(
+    "$MONOMD" filter category1 <<'EOF'
+category1/sub_command1
+category1/sub_command2
+command1
+EOF
+  )
+  assert_output_contains_line "category1 missing"              "$result" "category1"
+  assert_output_lacks_line    "sub_command1 should not appear" "$result" "sub_command1"
+  assert_output_lacks_line    "command1 should not appear"     "$result" "command1"
+}
+
+test_filter_nested_drill_down() {
+  result=$(
+    "$MONOMD" filter infra cloud "" <<'EOF'
+infra/cloud/deploy
+infra/cloud/teardown
+infra/local/start
+EOF
+  )
+  assert_output_contains_line "deploy missing"          "$result" "deploy"
+  assert_output_contains_line "teardown missing"        "$result" "teardown"
+  assert_output_lacks_line    "start should not appear" "$result" "start"
+}
+
+test_filter_paths_with_spaces_are_silently_excluded() {
+  result=$(
+    "$MONOMD" filter <<'EOF'
+my command/sub
+command1
+command2
+EOF
+  )
+  assert_output_lacks_line    "bad path should not appear" "$result" "my command"
+  assert_output_contains_line "command1 missing"           "$result" "command1"
+}
+
+test_filter_always_exits_0_with_no_stdin() {
+  "$MONOMD" filter </dev/null
+  assertEquals "filter must exit 0 with no stdin" 0 $?
+}
+
+test_filter_always_exits_0_with_broken_input() {
+  "$MONOMD" filter <<'EOF'
+not/slash/delimited thing with spaces
+EOF
+  assertEquals "filter must exit 0 on unexpected input" 0 $?
+}
+
+test_filter_always_exits_0_no_args() {
+  "$MONOMD" filter <<'EOF'
+command1
+command2
+EOF
+  assertEquals "filter must exit 0 with no word args" 0 $?
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

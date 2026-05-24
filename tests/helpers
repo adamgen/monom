@@ -1,0 +1,88 @@
+# Shared helpers for monomd shUnit2 e2e tests.
+# Source this file; do not execute it directly.
+#
+# Requires REPO_ROOT and MONOMD to be set by the sourcing file.
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
+# oneTimeSetUp — compiles bin/monomd before the suite runs (shUnit2 hook).
+oneTimeSetUp() {
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
+    echo "FATAL: could not build monomd" >&2
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Fixture helpers
+# ---------------------------------------------------------------------------
+
+# make_cmd <path> — writes an executable stub at path (creates parent dirs)
+make_cmd() {
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<'EOF'
+#!/bin/sh
+echo ok
+EOF
+  chmod +x "$1"
+}
+
+# make_tmp_project — creates a temp dir, resolves symlinks, and initialises it
+# as a monom project. Prints the resolved absolute path.
+# Usage: tmp=$(make_tmp_project)
+make_tmp_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+  mkdir -p "$d"
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# make_user_config — creates an executable user-config script whose "complete"
+# subcommand prints the paths given on stdin (one per line). Prints the script path.
+# Usage:
+#   cfg=$(make_user_config <<'EOF'
+#   category1/sub1
+#   command1
+#   EOF
+#   )
+make_user_config() {
+  local dir script paths
+  dir=$(mktemp -d)
+  script="$dir/user_config"
+  paths=$(cat)
+  cat > "$script" <<EOF
+#!/bin/sh
+printf '%s\n' "$paths"
+EOF
+  chmod +x "$script"
+  printf '%s' "$script"
+}
+
+# ---------------------------------------------------------------------------
+# Custom assertions
+# ---------------------------------------------------------------------------
+
+# assert_output_contains_line <msg> <output> <line>
+# Passes if output contains an exact line matching the given value.
+assert_output_contains_line() {
+  local msg="$1" output="$2" line="$3"
+  if ! printf '%s\n' "$output" | grep -qFx "$line"; then
+    fail "$msg: expected line <$line> not found in output: $output"
+  fi
+}
+
+# assert_output_lacks_line <msg> <output> <line>
+# Passes if output does NOT contain an exact line matching the given value.
+assert_output_lacks_line() {
+  local msg="$1" output="$2" line="$3"
+  if printf '%s\n' "$output" | grep -qFx "$line"; then
+    fail "$msg: unexpected line <$line> found in output: $output"
+  fi
+}

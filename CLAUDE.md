@@ -16,55 +16,48 @@ The project name is **monom** — always lowercase, even at the start of a sente
 
 ## Testing
 
-> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. See `openspec/changes/monomd-binary/`.
+> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/monomd_<subcommand>_test`. See `openspec/changes/monomd-binary/`.
 
-### Conventions (once implemented)
+### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- shUnit2 tests: `${script_name}_test`, colocated, no extension.
+- shUnit2 e2e tests: one file per subcommand under `tests/`, named `monomd_<subcommand>_test`.
+- shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.
 
 ### What to test where
 
 | What | Tool |
 |---|---|
-| A Go function | Go unit test |
+| Logic edge cases not observable from the binary surface | Go unit test |
+| Pure function correctness (return values, error messages) | Go unit test |
 | Full CLI binary surface (stdin, args, stdout, exit codes) | shUnit2 e2e test |
+| Env var integration (`MONOM_PROJECT_ROOT`, `MONOM_USER_CONFIG`) | shUnit2 e2e test |
+| Cross-package integration (e.g. `pack` calling `root`) | shUnit2 e2e test |
 | Completion behavior in a real shell environment | shUnit2 completion e2e test |
 | Shell binding files | shUnit2 test |
 
+**Avoid testing the same scenario in both layers.** Go tests own logic correctness and unreachable-from-outside edge cases (panic recovery, walk stops at filesystem root, non-executable file skipped during walk, empty input). e2e tests own the binary's external contract. If a scenario is equally expressible in both, put it in e2e only.
+
+### shUnit2 e2e test structure
+
+One test file per subcommand under `tests/`, named `monomd_<subcommand>_test`. Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly.
+
+Each test file follows this pattern:
+
+```sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/monomd"
+
+. "$SCRIPT_DIR/helpers"
+
+test_something() { ... }
+
+. "$SHUNIT2"
+```
+
 ---
-
-## Project Layout
-
-> **Note:** This section is temporary guidance during the `monomd-binary` change. Once all Go utilities and the binary entry point are implemented, this section will be removed — the layout will be self-evident from the repo.
-
-```
-monom/
-├── go.mod
-├── go.sum
-├── Makefile
-├── cmd/
-│   └── monomd/
-│       └── main.go          ← binary entry point (package main)
-├── internal/
-│   ├── filter/
-│   │   ├── filter.go
-│   │   └── filter_test.go
-│   ├── pack/
-│   │   ├── pack.go
-│   │   └── pack_test.go
-│   ├── root/
-│   │   ├── root.go
-│   │   └── root_test.go
-│   └── check/
-│       ├── check.go
-│       └── check_test.go
-└── bin/                     ← compiled output (.gitignore'd)
-    └── monomd
-```
-
-Shell files (`src/monom`, `src/monom.bash`, `src/monom.zsh`) are a separate subsequent change.
 
 ---
 
@@ -84,9 +77,9 @@ The four subcommands in scope for the initial binary are `filter`, `root`, `pack
 
 To add or extend a subcommand:
 
-1. Add or update the logic package under `internal/<subcommand>/` with a matching `*_test.go`
+1. Add or update the logic package under `internal/<subcommand>/` with a `*_test.go` covering edge cases not testable from outside the binary
 2. Wire the dispatch in `cmd/monomd/main.go`
-3. Add shUnit2 e2e tests covering stdin, args, stdout, and exit codes
+3. Add or update `tests/monomd_<subcommand>_test` covering stdin, args, stdout, exit codes, and env var integration
 4. Run `make check`
 
 ### Add a new shell binding
