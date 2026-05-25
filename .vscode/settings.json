@@ -12,6 +12,7 @@
 		"*.conf": "conf",
 		"*.log": "log",
 		"**/monom_tools": "binary",
-		".shellcheckrc": "ini"
+		".shellcheckrc": "ini",
+		"Makefile": "makefile"
 	}
 }

@@ -90,6 +90,18 @@ Shell files are a separate change after the binary. When that work begins:
 2. Update `src/monom` to source the right file based on shell detection
 3. Verify shellcheck passes
 
+### Fix spurious shellcheck errors in the IDE
+
+`.vscode/settings.json` uses `"*": "shellscript"` as a catch-all. Any new file type without a more specific entry will be treated as a shell script, causing the IDE's shellcheck extension to report false errors (e.g. SC2148 "shebang missing") on non-shell files.
+
+When a file gets a spurious shellcheck error in the editor, add an explicit language association to `.vscode/settings.json`:
+
+```json
+"Makefile": "makefile"
+```
+
+Do not add a shebang or `# shellcheck shell=` directive to non-shell files — fix the association instead.
+
 ---
 
 ## Validation Checklist
