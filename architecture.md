@@ -196,7 +196,9 @@ The exact output format is TBD.
 
 ## Shell Files
 
-Shell files exist only where a technical constraint makes Go impossible — primarily because env vars, shell functions, and competion hooks must live in the parent shell process.
+Shell files exist only where a technical constraint makes Go impossible — primarily because env vars, shell functions, and completion hooks must live in the parent shell process.
+
+**Target shells: bash and zsh only.** monom targets macOS developers, who use bash or zsh. POSIX sh portability is explicitly out of scope — trying to maintain it restricts implementation options (e.g. no `BASH_SOURCE`, no bash arrays) without meaningful benefit to the target audience. Fish, dash, and other shells are not supported.
 
 
 | File             | Purpose                                                                                             |
