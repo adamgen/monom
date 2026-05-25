@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for monomd shUnit2 e2e tests.
 # Source this file; do not execute it directly.
 #
