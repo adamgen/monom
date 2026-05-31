@@ -38,7 +38,7 @@ monom must serve both: give authors a clean, minimal interface to implement; giv
 2. Provide free, correct tab completion for bash and zsh (with more shells supported in the future).
 3. Support both standalone CLI tools (like `git`) and internal monorepo managers (like `acme ui build`).
 4. Remain language-agnostic — commands can be shell, Python, Node, Ruby, anything with a shebang.
-5. Follow [clig.dev](https://clig.dev/) guidelines for CLI behavior.
+5. Follow [clig.dev](https://clig.dev/) guidelines for CLI behavior (see Key Reference Files for when to consult it).
 6. Be fast. Completion must feel instant. No perceptible latency from monom's own overhead.
 7. Be testable. Every piece of logic has a clear home and a clear testing strategy.
 
@@ -112,3 +112,4 @@ If something needs a test and it can live in Go, it should. Shell test files are
 - `terminology.md` — canonical definitions of all domain terms. Read before naming anything.
 - `architecture.md` — current intended architecture: the binary, shell files, data flow.
 - `CLAUDE.md` — AI working guide (how to work in this repo).
+- [clig.dev](https://clig.dev/) — CLI design guidelines. Consult when designing or reviewing any user-facing behavior: argument conventions, output format, error messages, help text, exit codes, environment variables, or interactive behavior. Not required reading for every edit — use it as a review standard when the CLI surface is changing.
