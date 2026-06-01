@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# monom user config for the demo-project fixture.
+# Called by monomd to discover commands and run hooks.
+
+case "$1" in
+  complete)
+    root="$(cd "$(dirname "$0")" && pwd)"
+    find "$root" -type f -perm -u+x ! -name monom -print | sed "s#^$root/##" | sort
+    ;;
+esac
