@@ -5,3 +5,5 @@ monom_tools
 .DS_Store
 **/.DS_Store
 bin/monomd
+tmp/*
+!tmp/.gitkeep

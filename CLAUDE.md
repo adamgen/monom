@@ -14,6 +14,16 @@ The project name is **monom** — always lowercase, even at the start of a sente
 
 ---
 
+## Temporary Files
+
+The `tmp/` directory at the repo root is for scratch and temporary files (scratch scripts, intermediate output, log dumps, throwaway fixtures). Its contents are git-ignored (only `tmp/.gitkeep` is tracked, so the folder always exists).
+
+- Write any temporary or throwaway files here instead of cluttering the repo root or source directories.
+- Never rely on anything in `tmp/` persisting or being committed — treat it as disposable.
+- Do not add real project artifacts (source, tests, specs, config) here.
+
+---
+
 ## Testing
 
 > **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/monomd_<subcommand>_test`. See `openspec/changes/monomd-binary/`.
