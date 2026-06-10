@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: sourcing src/monom in zsh produces no output and exits 0
+# Run directly: bash tests/monom_zsh_source_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+
+oneTimeSetUp() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "FATAL: zsh not found on PATH — cannot run zsh source tests" >&2
+    exit 1
+  fi
+  # Build monomd (standard helper behaviour).
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
+    echo "FATAL: could not build monomd" >&2
+    exit 1
+  fi
+}
+
+test_source_exits_0() {
+  zsh --no-rcs -c "source '$SRC_MONOM'" > /dev/null 2>&1
+  assertEquals "sourcing src/monom in zsh should exit 0" 0 $?
+}
+
+test_source_prints_nothing_to_stdout() {
+  local stdout
+  stdout=$(zsh --no-rcs -c "source '$SRC_MONOM'" 2>/dev/null)
+  assertEquals "sourcing src/monom in zsh should print nothing to stdout" "" "$stdout"
+}
+
+test_source_prints_nothing_to_stderr() {
+  local stderr
+  stderr=$(zsh --no-rcs -c "source '$SRC_MONOM'" 2>&1 >/dev/null)
+  assertEquals "sourcing src/monom in zsh should print nothing to stderr" "" "$stderr"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

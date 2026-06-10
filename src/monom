@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# src/monom — sourced from user's rc file (.bashrc or .zshrc).
+# Defines monom(), setup_monom(), and monom_cfg(), then sources the
+# shell-specific completion binding.
+
+export MONOM_LIB_ROOT
+# Resolve the directory containing this file in a shell-agnostic way.
+# ${(%):-%x} is zsh's equivalent of bash's ${BASH_SOURCE[0]} — it gives the
+# path of the currently executing file even when sourced.
+# shellcheck disable=SC2296
+_monom_self="${ZSH_VERSION:+${(%):-%x}}${ZSH_VERSION:-${BASH_SOURCE[0]}}"
+MONOM_LIB_ROOT="$(cd "$(dirname "$_monom_self")" && pwd)"
+unset _monom_self
+
+# Resolve the real monomd binary once, at source time, into MONOM_BIN.
+#
+# Why this exists: the bindings (and monom() itself) call the monomd binary. If
+# the user only has `monomd` as a shell *alias*, that alias is NOT expanded
+# inside function bodies or completion widgets, so the bare name `monomd`
+# resolves to nothing and every call fails with "command not found" (exit 127)
+# — silently, because the call sites discard stderr. Resolving an explicit
+# executable path here and calling "$MONOM_BIN" at every call site removes that
+# dependency. We deliberately do NOT define a monomd() wrapper function: zsh
+# refuses to define a function whose name collides with an existing alias
+# (parse error), which is exactly the situation we are working around.
+#
+# Resolution order:
+#   1. A real monomd executable on PATH (ignoring aliases/functions):
+#      `type -P` in bash, `whence -p` in zsh.
+#   2. The binary shipped next to the sources at ../bin/monomd.
+export MONOM_BIN
+if [ -n "$ZSH_VERSION" ]; then
+  # shellcheck disable=SC2296
+  MONOM_BIN="$(whence -p monomd 2>/dev/null)"
+else
+  MONOM_BIN="$(type -P monomd 2>/dev/null)"
+fi
+if [ -z "$MONOM_BIN" ] && [ -x "$MONOM_LIB_ROOT/../bin/monomd" ]; then
+  MONOM_BIN="$(cd "$MONOM_LIB_ROOT/.." && pwd)/bin/monomd"
+fi
+
+# _monom_log — append a timestamped debug line to $MONOM_DEBUG_LOG.
+# No-op (and no subprocess spawned) when MONOM_DEBUG_LOG is unset or empty.
+# Log file grows unboundedly; truncate between sessions as needed.
+_monom_log() {
+  [ -n "$MONOM_DEBUG_LOG" ] || return 0
+  printf '[%s] %s\n' "$(date +%T)" "$*" >> "$MONOM_DEBUG_LOG"
+}
+
+# monom_cfg — thin wrapper so call sites read as `monom_cfg complete`
+# instead of `"$MONOM_USER_CONFIG" complete`.
+monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }
+
+# setup_monom — ensures MONOM_PROJECT_ROOT and MONOM_USER_CONFIG are set.
+# Short-circuits if MONOM_PROJECT_ROOT is already exported.
+# Returns non-zero when no project root can be found.
+setup_monom() {
+  _monom_log "[setup_monom] PWD=$PWD MONOM_PROJECT_ROOT=${MONOM_PROJECT_ROOT:-<unset>}"
+  if [ -n "$MONOM_PROJECT_ROOT" ]; then
+    export MONOM_USER_CONFIG="$MONOM_PROJECT_ROOT/monom"
+    _monom_log "[setup_monom] short-circuit: using existing root=$MONOM_PROJECT_ROOT"
+    return 0
+  fi
+
+  local root root_err
+  root=$("$MONOM_BIN" root 2>/tmp/_monom_root_err) || {
+    root_err=$(cat /tmp/_monom_root_err 2>/dev/null)
+    _monom_log "[setup_monom] monomd root failed: $root_err"
+    return 1
+  }
+
+  _monom_log "[setup_monom] monomd root found: $root"
+  export MONOM_PROJECT_ROOT="$root"
+  export MONOM_USER_CONFIG="$MONOM_PROJECT_ROOT/monom"
+}
+
+# monom — the command the user calls. Resolves args to an executable path
+# via monomd pack and runs it in a subshell via exec.
+monom() {
+  if ! setup_monom; then
+    echo "monom: no project root found" >&2
+    return 1
+  fi
+
+  local args
+  # Attempt the run hook; fall back to original args if it produces nothing.
+  args=$(monom_cfg run "$@" 2>/dev/null)
+  if [ -z "$args" ]; then
+    args="$*"
+  fi
+
+  local resolved
+  # shellcheck disable=SC2086
+  if ! resolved=$("$MONOM_BIN" pack $args 2>&1); then
+    echo "$resolved" >&2
+    return 1
+  fi
+
+  # Run via exec in a subshell so the user's interactive session is not replaced.
+  ( exec "$resolved" )
+}
+
+# Source the shell-specific completion binding.
+if [ -n "$ZSH_VERSION" ]; then
+  # shellcheck disable=SC1091
+  . "$MONOM_LIB_ROOT/monom.zsh"
+elif [ -n "$BASH_VERSION" ]; then
+  # shellcheck disable=SC1091
+  . "$MONOM_LIB_ROOT/monom.bash"
+fi

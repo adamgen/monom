@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests for: src/monom shell bindings
+# Run directly: bash tests/monom_shell_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+SRC_MONOM_BASH="$REPO_ROOT/src/monom.bash"
+SRC_MONOM_ZSH="$REPO_ROOT/src/monom.zsh"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# make_complete_project — creates a temp project whose `monom` config prints
+# two slash-delimited paths when called with `complete`. Returns project dir.
+make_complete_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" && pwd -P)
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'cmd1\ncmd2\n' ;;
+esac
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# ---------------------------------------------------------------------------
+# 5.2 — MONOM_LIB_ROOT is set on source
+# ---------------------------------------------------------------------------
+
+test_monom_lib_root_is_set() {
+  local output
+  output=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM'
+    echo \"\$MONOM_LIB_ROOT\"
+  " 2>/dev/null)
+  assertEquals "MONOM_LIB_ROOT should be the src/ directory" \
+    "$REPO_ROOT/src" "$output"
+}
+
+# ---------------------------------------------------------------------------
+# 5.3 — setup_monom uses pre-set MONOM_PROJECT_ROOT
+# ---------------------------------------------------------------------------
+
+test_setup_monom_uses_existing_project_root() {
+  local proj
+  proj=$(make_complete_project)
+
+  local output
+  output=$(bash --norc --noprofile -c "
+    PATH='$REPO_ROOT/bin:$PATH'
+    source '$SRC_MONOM'
+    MONOM_PROJECT_ROOT='$proj'
+    setup_monom
+    echo \"\$MONOM_USER_CONFIG\"
+  " 2>/dev/null)
+
+  assertEquals "MONOM_USER_CONFIG should be set from pre-set root" \
+    "$proj/monom" "$output"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# 5.4 — setup_monom discovers root from PWD
+# ---------------------------------------------------------------------------
+
+test_setup_monom_discovers_root() {
+  local proj
+  proj=$(make_complete_project)
+
+  local output
+  output=$(bash --norc --noprofile -c "
+    PATH='$REPO_ROOT/bin:$PATH'
+    unset MONOM_PROJECT_ROOT
+    cd '$proj'
+    source '$SRC_MONOM'
+    setup_monom
+    echo \"\$MONOM_PROJECT_ROOT\"
+    echo \"\$MONOM_USER_CONFIG\"
+  " 2>/dev/null)
+
+  local root config
+  root=$(printf '%s' "$output" | head -1)
+  config=$(printf '%s' "$output" | tail -1)
+
+  assertEquals "MONOM_PROJECT_ROOT should be discovered" "$proj" "$root"
+  assertEquals "MONOM_USER_CONFIG should be set"         "$proj/monom" "$config"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# 5.5 — setup_monom returns non-zero outside any project
+# ---------------------------------------------------------------------------
+
+test_setup_monom_fails_outside_project() {
+  local exit_code
+  exit_code=$(bash --norc --noprofile -c "
+    PATH='$REPO_ROOT/bin:$PATH'
+    unset MONOM_PROJECT_ROOT
+    cd /tmp
+    source '$SRC_MONOM'
+    setup_monom
+    echo \$?
+  " 2>/dev/null)
+
+  assertNotEquals "setup_monom should fail outside a project" 0 "$exit_code"
+}
+
+# ---------------------------------------------------------------------------
+# 5.6 — monom_cfg forwards args to MONOM_USER_CONFIG
+# ---------------------------------------------------------------------------
+
+test_monom_cfg_forwards_args() {
+  local proj
+  proj=$(make_complete_project)
+
+  local output
+  output=$(bash --norc --noprofile -c "
+    PATH='$REPO_ROOT/bin:$PATH'
+    MONOM_PROJECT_ROOT='$proj'
+    source '$SRC_MONOM'
+    setup_monom
+    monom_cfg complete
+  " 2>/dev/null)
+
+  assertEquals "monom_cfg complete should return project's paths" \
+    "$(printf 'cmd1\ncmd2')" "$output"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# 5.7 — monom_completion is defined and registered in bash
+# ---------------------------------------------------------------------------
+
+test_monom_completion_defined_in_bash() {
+  local fn_exists hook_registered
+  fn_exists=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    declare -f monom_completion > /dev/null 2>&1 && echo yes || echo no
+  " 2>/dev/null)
+
+  hook_registered=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    complete -p monom 2>/dev/null
+  " 2>/dev/null)
+
+  assertEquals "monom_completion function should exist" "yes" "$fn_exists"
+  # complete -p monom prints something like: complete -F monom_completion monom
+  if ! printf '%s' "$hook_registered" | grep -qF -- "-F monom_completion"; then
+    fail "complete -p monom should show -F monom_completion; got: $hook_registered"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# 5.8 — _monom function is defined after sourcing monom.zsh
+# ---------------------------------------------------------------------------
+
+test_monom_zsh_function_defined() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+
+  local fn_defined
+  fn_defined=$(zsh --no-rcs -c "
+    source '$SRC_MONOM_ZSH'
+    if [[ -n \"\${functions[_monom]}\" ]]; then echo yes; else echo no; fi
+  " 2>/dev/null)
+
+  assertEquals "_monom function should be defined in zsh" "yes" "$fn_defined"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"
+

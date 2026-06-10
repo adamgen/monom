@@ -11,15 +11,16 @@ test: ## Run Go unit tests
 	go test ./...
 
 test-e2e: build ## Run shUnit2 e2e test suites
-	@for f in tests/monomd_*_test; do bash "$$f"; done
+	@for f in tests/monomd_*_test tests/monom_*_test; do bash "$$f"; done
 
-lint: ## Run shellcheck on all shell files
-	shellcheck tests/monomd_*_test tests/helpers
-r
+lint: ## Run shellcheck on all shell files (zsh excluded: SC1071)
+	shellcheck tests/monomd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash
+
 clean: ## Remove build artifacts
 	rm -f bin/monomd
 
-check: build ## Build, test, run e2e suites, and lint
+check: build ## Build, vet, test, run e2e suites, and lint
+	go vet ./...
 	go test ./...
 	@$(MAKE) test-e2e
-	shellcheck tests/monomd_*_test tests/helpers
+	shellcheck tests/monomd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash
