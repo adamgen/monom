@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests for `monomd install` and the install nudge.
+# Run directly: bash tests/monomd_install_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# make_fake_install_tree — creates a temp directory tree resembling:
+#   <root>/bin/monomd  (the binary symlink target)
+#   <root>/src/monom   (the file the source line points at)
+# Returns the bin/monomd path.
+make_fake_install_tree() {
+  local root
+  root=$(mktemp -d)
+  root=$(cd "$root" && pwd -P)
+  mkdir -p "$root/bin" "$root/src"
+  # Copy the real binary so it is executable.
+  cp "$MONOMD" "$root/bin/monomd"
+  touch "$root/src/monom"
+  printf '%s/bin/monomd' "$root"
+}
+
+# ---------------------------------------------------------------------------
+# Nudge tests
+# ---------------------------------------------------------------------------
+
+test_nudge_fires_when_monom_active_unset() {
+  local stderr
+  stderr=$(MONOM_ACTIVE='' "$MONOMD" root 2>&1 >/dev/null) || true
+  assertContains "nudge should appear on stderr when MONOM_ACTIVE unset" \
+    "$stderr" "monomd install"
+}
+
+test_nudge_fires_when_no_subcommand_given() {
+  local stderr
+  stderr=$(MONOM_ACTIVE='' "$MONOMD" 2>&1 >/dev/null) || true
+  assertContains "nudge should appear on stderr when monomd called with no args" \
+    "$stderr" "monomd install"
+}
+
+test_nudge_suppressed_when_monom_active_set() {
+  local stderr
+  stderr=$(MONOM_ACTIVE=1 "$MONOMD" root 2>&1 >/dev/null) || true
+  assertNotContains "nudge should not appear when MONOM_ACTIVE=1" \
+    "$stderr" "monomd install"
+}
+
+test_nudge_suppressed_for_install_subcommand() {
+  local tmpbin srcmonom stderr
+  tmpbin=$(make_fake_install_tree)
+  srcmonom="$(dirname "$(dirname "$tmpbin")")/src/monom"
+  # Set SHELL to zsh and give a real home-like dir so install can run.
+  local tmprc
+  tmprc=$(mktemp -d)
+  stderr=$(MONOM_ACTIVE='' HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install 2>&1 >/dev/null) || true
+  assertNotContains "nudge must not appear when subcommand is install" \
+    "$stderr" "hint: run"
+}
+
+test_nudge_stdout_is_clean() {
+  local stdout
+  # monomd root will exit non-zero (no project), but stdout must be empty of nudge.
+  stdout=$(MONOM_ACTIVE='' "$MONOMD" root 2>/dev/null) || true
+  assertNotContains "nudge must not appear on stdout" "$stdout" "monomd install"
+}
+
+# ---------------------------------------------------------------------------
+# Install subcommand tests
+# ---------------------------------------------------------------------------
+
+test_install_writes_zsh_rc() {
+  local tmpbin tmprc srcmonom
+  tmpbin=$(make_fake_install_tree)
+  srcmonom="$(dirname "$(dirname "$tmpbin")")/src/monom"
+  tmprc=$(mktemp -d)
+
+  MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install > /dev/null
+  assertEquals "monomd install should exit 0 for zsh" 0 $?
+
+  local content
+  content=$(cat "$tmprc/.zshrc" 2>/dev/null)
+  assertContains "zshrc should contain source line" "$content" "$srcmonom"
+}
+
+test_install_idempotent() {
+  local tmpbin tmprc
+  tmpbin=$(make_fake_install_tree)
+  tmprc=$(mktemp -d)
+
+  MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install > /dev/null
+  MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install > /tmp/_install_out 2>&1
+
+  local out
+  out=$(cat /tmp/_install_out)
+  assertContains "second install should say already installed" "$out" "already installed"
+
+  # Ensure the source line appears only once.
+  local count
+  count=$(grep -c "src/monom" "$tmprc/.zshrc" 2>/dev/null || echo 0)
+  assertEquals "source line should appear exactly once" 1 "$count"
+}
+
+test_install_unknown_shell_exits_nonzero() {
+  local tmpbin tmprc
+  tmpbin=$(make_fake_install_tree)
+  tmprc=$(mktemp -d)
+
+  MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/fish" "$tmpbin" install > /dev/null 2>&1
+  assertNotEquals "should exit non-zero for unsupported shell" 0 $?
+}
+
+test_install_stderr_clean_stdout_has_info() {
+  local tmpbin tmprc stdout stderr
+  tmpbin=$(make_fake_install_tree)
+  tmprc=$(mktemp -d)
+
+  stdout=$(MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install 2>/tmp/_install_stderr)
+  stderr=$(cat /tmp/_install_stderr)
+
+  # Stdout should have the rc file path and restart hint.
+  assertContains "stdout should mention rc file path" "$stdout" ".zshrc"
+  # Stderr should be empty on success.
+  assertEquals "stderr should be empty on success" "" "$stderr"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

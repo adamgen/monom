@@ -44,6 +44,12 @@ test_source_prints_nothing_to_stderr() {
   assertEquals "sourcing src/monom in zsh should print nothing to stderr" "" "$stderr"
 }
 
+test_source_exports_monom_active() {
+  local val
+  val=$(zsh --no-rcs -c "source '$SRC_MONOM'; echo \$MONOM_ACTIVE" 2>/dev/null)
+  assertEquals "sourcing src/monom should export MONOM_ACTIVE=1" "1" "$val"
+}
+
 # ---------------------------------------------------------------------------
 
 # shellcheck disable=SC1090

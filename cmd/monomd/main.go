@@ -11,12 +11,20 @@ import (
 	"github.com/adamgen/monom/internal/check"
 	"github.com/adamgen/monom/internal/debuglog"
 	"github.com/adamgen/monom/internal/filter"
+	"github.com/adamgen/monom/internal/install"
 	"github.com/adamgen/monom/internal/pack"
 	"github.com/adamgen/monom/internal/root"
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	subcommand := ""
+	if len(os.Args) >= 2 {
+		subcommand = os.Args[1]
+	}
+
+	checkNudge(subcommand)
+
+	if subcommand == "" {
 		usage()
 		os.Exit(1)
 	}
@@ -32,6 +40,8 @@ func main() {
 		runPack()
 	case "check":
 		runCheck()
+	case "install":
+		runInstall()
 	default:
 		debuglog.Log("[monomd] unknown subcommand: %q", os.Args[1])
 		fmt.Fprintf(os.Stderr, "monomd: unknown subcommand %q\n", os.Args[1])
@@ -42,7 +52,18 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: monomd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
+}
+
+// checkNudge prints a hint to stderr when the shell integration is not active
+// (MONOM_ACTIVE unset), except when the user is already running `monomd install`.
+func checkNudge(subcommand string) {
+	if subcommand == "install" {
+		return
+	}
+	if os.Getenv("MONOM_ACTIVE") == "" {
+		fmt.Fprintln(os.Stderr, "hint: run 'monomd install' to activate shell integration")
+	}
 }
 
 // runFilter reads newline-delimited command paths from stdin, applies Filter
@@ -124,6 +145,19 @@ func runCheck() {
 	}
 	fmt.Fprintf(os.Stderr, "monomd check: %d problem(s) found\n", len(problems))
 	os.Exit(1)
+}
+
+// runInstall writes a source line for src/monom into the user's shell rc file.
+func runInstall() {
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "monomd install: could not determine binary path:", err)
+		os.Exit(1)
+	}
+	if err := install.Run(exe); err != nil {
+		fmt.Fprintln(os.Stderr, "monomd install:", err)
+		os.Exit(1)
+	}
 }
 
 // countLines runs userConfig complete and counts non-empty output lines.

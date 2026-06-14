@@ -4,6 +4,7 @@
 # shell-specific completion binding.
 
 export MONOM_LIB_ROOT
+export MONOM_ACTIVE
 # Resolve the directory containing this file in a shell-agnostic way.
 # ${(%):-%x} is zsh's equivalent of bash's ${BASH_SOURCE[0]} — it gives the
 # path of the currently executing file even when sourced.
@@ -11,6 +12,7 @@ export MONOM_LIB_ROOT
 _monom_self="${ZSH_VERSION:+${(%):-%x}}${ZSH_VERSION:-${BASH_SOURCE[0]}}"
 MONOM_LIB_ROOT="$(cd "$(dirname "$_monom_self")" && pwd)"
 unset _monom_self
+MONOM_ACTIVE=1
 
 # Resolve the real monomd binary once, at source time, into MONOM_BIN.
 #

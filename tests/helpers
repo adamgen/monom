@@ -4,6 +4,10 @@
 #
 # Requires REPO_ROOT and MONOMD to be set by the sourcing file.
 
+# Suppress the "run monomd install" nudge in all test suites that source this
+# file. Tests that specifically exercise the nudge manage MONOM_ACTIVE themselves.
+export MONOM_ACTIVE=1
+
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
