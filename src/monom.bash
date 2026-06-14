@@ -16,10 +16,11 @@ monom_completion() {
   local raw_completions
   raw_completions=$(monom_cfg complete 2>/dev/null)
   _monom_log "[bash] monom_cfg complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
-  # $MONOM_BIN is the monomd binary resolved at source time in src/monom — used
-  # instead of the bare name `monomd`, which may only exist as a user alias.
+  # monomd() is the wrapper defined in src/monom; it invokes the executable
+  # resolved at source time rather than the bare name `monomd`, which may only
+  # exist as a user alias.
   # shellcheck disable=SC2207
-  COMPREPLY=($(printf '%s' "$raw_completions" | "$MONOM_BIN" filter "${COMP_WORDS[@]:1}" 2>/dev/null))
+  COMPREPLY=($(printf '%s' "$raw_completions" | monomd filter "${COMP_WORDS[@]:1}" 2>/dev/null))
   _monom_log "[bash] COMPREPLY=(${COMPREPLY[*]})"
   return 0
 }

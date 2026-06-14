@@ -30,7 +30,7 @@ Document the zsh completion binding `src/monom.zsh`: the `_monom` completion fun
 - **THEN** no completions are added, nothing is written to stderr, and `_monom` exits 0
 
 ### Requirement: _monom populates completions via the monomd binary
-`_monom()` SHALL call `setup_monom`, then pass the output of `monom_cfg complete | "$MONOM_BIN" filter "${words[@]:1}"` to `compadd`. It SHALL invoke the resolved `$MONOM_BIN` binary rather than the bare name `monomd` (see the `shell-binding-core` MONOM_BIN requirement).
+`_monom()` SHALL call `setup_monom`, then pass the output of `monom_cfg complete | monomd filter "${words[@]:1}"` to `compadd`. It SHALL invoke the `monomd()` wrapper (which runs the resolved executable) rather than relying on the bare name being on `PATH` (see the `shell-binding-core` monomd wrapper requirement).
 
 #### Scenario: completions are added on Tab
 - **WHEN** `_monom` is invoked with `words=("monom" "")` and `CURRENT=2`

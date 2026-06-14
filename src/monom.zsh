@@ -24,10 +24,10 @@ _monom() {
   local filter_words=("${words[@]:1}")
   _monom_log "[zsh] filter words=(${filter_words[*]})"
   local filter_output
-  # $MONOM_BIN is the monomd binary resolved at source time in src/monom — used
-  # instead of the bare name `monomd`, which may only exist as a user alias and
-  # would not resolve inside this completion widget.
-  filter_output=$(printf '%s\n' "$raw_completions" | "$MONOM_BIN" filter "${filter_words[@]}" 2>/dev/null)
+  # monomd() is the wrapper defined in src/monom; it invokes the executable
+  # resolved at source time rather than the bare name `monomd`, which may only
+  # exist as a user alias and would not resolve inside this completion widget.
+  filter_output=$(printf '%s\n' "$raw_completions" | monomd filter "${filter_words[@]}" 2>/dev/null)
   _monom_log "[zsh] filter raw output: $(printf '%s' "$filter_output" | wc -l | tr -d ' ') lines: $filter_output"
   # No completions (leaf reached): return without calling compadd. Splitting an
   # empty string with ${(@f)...} yields a single empty-string element, and

@@ -26,7 +26,7 @@ Document the bash completion binding `src/monom.bash`: the `monom_completion` ha
 - **THEN** `COMPREPLY` is empty, nothing is written to stderr, and `monom_completion` exits 0
 
 ### Requirement: monom_completion populates COMPREPLY via the monomd binary
-`monom_completion()` SHALL call `setup_monom`, then populate `COMPREPLY` with the output of `monom_cfg complete | "$MONOM_BIN" filter "${COMP_WORDS[@]:1}"`. It SHALL invoke the resolved `$MONOM_BIN` binary rather than the bare name `monomd` (see the `shell-binding-core` MONOM_BIN requirement).
+`monom_completion()` SHALL call `setup_monom`, then populate `COMPREPLY` with the output of `monom_cfg complete | monomd filter "${COMP_WORDS[@]:1}"`. It SHALL invoke the `monomd()` wrapper (which runs the resolved executable) rather than relying on the bare name being on `PATH` (see the `shell-binding-core` monomd wrapper requirement).
 
 #### Scenario: COMPREPLY is populated on Tab
 - **WHEN** `monom_completion` is invoked with `COMP_WORDS=("monom" "")` and `COMP_CWORD=1`

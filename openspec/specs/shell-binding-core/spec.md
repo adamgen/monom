@@ -11,18 +11,14 @@ When `src/monom` is sourced, it SHALL export `MONOM_LIB_ROOT` as the absolute pa
 - **WHEN** a user sources `src/monom`
 - **THEN** `$MONOM_LIB_ROOT` is set to the absolute path of the `src/` directory
 
-### Requirement: MONOM_BIN resolves the monomd binary at source time
-When `src/monom` is sourced, it SHALL resolve the `monomd` binary to an explicit executable path, export it as `$MONOM_BIN`, and all call sites (in `src/monom` and both completion bindings) SHALL invoke `"$MONOM_BIN"` rather than the bare name `monomd`. Resolution SHALL prefer a real `monomd` executable found on `PATH` ignoring aliases and functions (`whence -p` in zsh, `type -P` in bash), and SHALL fall back to `$MONOM_LIB_ROOT/../bin/monomd` when no PATH binary is found.
+### Requirement: monomd wrapper resolves the binary at source time
+When `src/monom` is sourced, it SHALL set `$_monom_bin` to `$MONOM_LIB_ROOT/../bin/monomd` — the fixed path where the binary always ships relative to the sources — and define a `monomd()` wrapper function (`monomd() { "$_monom_bin" "$@"; }`) so that all call sites (in `src/monom` and both completion bindings) invoke `monomd <subcommand>` while always running the resolved executable.
 
-This is required because a user may have `monomd` defined only as a shell *alias*. Aliases are not expanded inside function bodies or completion widgets, so a bare `monomd` call there resolves to nothing and fails with "command not found" (exit 127) — silently, since call sites discard stderr. A `monomd()` wrapper function is deliberately NOT used: zsh refuses to define a function whose name collides with an existing alias (parse error).
+No `PATH` lookup is performed: `monomd` is never installed as a standalone command or alias, so the sources-relative path is the single source of truth. The wrapper exists so that call sites — which run inside function bodies and completion widgets — invoke the resolved executable directly rather than depending on the bare name resolving in those contexts.
 
-#### Scenario: monomd available only as an alias, not on PATH
-- **WHEN** `src/monom` is sourced in a shell where `monomd` exists only as an alias and no `monomd` binary is on `PATH`
-- **THEN** `$MONOM_BIN` is set to `$MONOM_LIB_ROOT/../bin/monomd` and completion and dispatch invoke that binary successfully
-
-#### Scenario: monomd binary on PATH
-- **WHEN** `src/monom` is sourced in a shell where a real `monomd` executable is on `PATH`
-- **THEN** `$MONOM_BIN` is set to that executable's path
+#### Scenario: monomd resolves relative to the sources
+- **WHEN** `src/monom` is sourced
+- **THEN** `$_monom_bin` is set to `$MONOM_LIB_ROOT/../bin/monomd` and the `monomd()` wrapper invokes that binary from completion and dispatch
 
 ### Requirement: setup_monom uses MONOM_PROJECT_ROOT if set
 `setup_monom()` SHALL use an already-exported `$MONOM_PROJECT_ROOT` without calling `monomd root`, and SHALL export `MONOM_USER_CONFIG` as `"$MONOM_PROJECT_ROOT/monom"`.
@@ -36,7 +32,7 @@ This is required because a user may have `monomd` defined only as a shell *alias
 - **THEN** `$MONOM_USER_CONFIG` is exported and equals `"$MONOM_PROJECT_ROOT/monom"`
 
 ### Requirement: setup_monom discovers root via monomd root when MONOM_PROJECT_ROOT is unset
-When `$MONOM_PROJECT_ROOT` is not set, `setup_monom()` SHALL call `"$MONOM_BIN" root` to discover it. On success it SHALL export the result as `$MONOM_PROJECT_ROOT`. On failure it SHALL return non-zero without modifying `$MONOM_USER_CONFIG`.
+When `$MONOM_PROJECT_ROOT` is not set, `setup_monom()` SHALL call `monomd root` (via the wrapper) to discover it. On success it SHALL export the result as `$MONOM_PROJECT_ROOT`. On failure it SHALL return non-zero without modifying `$MONOM_USER_CONFIG`.
 
 #### Scenario: Discovery succeeds
 - **WHEN** `$MONOM_PROJECT_ROOT` is unset and `monomd root` returns a valid path
@@ -54,7 +50,7 @@ When `$MONOM_PROJECT_ROOT` is not set, `setup_monom()` SHALL call `"$MONOM_BIN" 
 - **THEN** it executes `"$MONOM_USER_CONFIG" complete`
 
 ### Requirement: monom function dispatches via monomd pack
-`monom()` SHALL call `setup_monom`, then resolve the command path via `"$MONOM_BIN" pack "$@"`, and exec the resolved path. If the optional `run` hook is present and returns usable output, its output SHALL be passed to `"$MONOM_BIN" pack` instead of the original args.
+`monom()` SHALL call `setup_monom`, then resolve the command path via `monomd pack "$@"` (the wrapper), and exec the resolved path. If the optional `run` hook is present and returns usable output, its output SHALL be passed to `monomd pack` instead of the original args.
 
 #### Scenario: Command execution without run hook
 - **WHEN** `monom deploy` is called and `$MONOM_USER_CONFIG run deploy` produces no output or exits non-zero
