@@ -66,6 +66,8 @@ A chain of subprocesses passing data through pipes is hard to reason about, hard
 
 monom defines a small set of default behaviors (command discovery, path resolution, etc.). For each, the CLI author MAY expose a hook in their user config to intercept, transform, or extend the default. Hooks are discovered by convention: they are subcommands of `$MONOM_USER_CONFIG`. If a hook is absent, monom uses its default behavior.
 
+**Hooks are freely optional with zero ceremony.** An author adds a hook by implementing its subcommand and omits it by not implementing it — no registration, no opt-out marker, no signal to *decline* a hook. Calling an absent hook MUST fall back to the default without error, inferred from the hook's natural "did nothing" behavior. monom MUST NOT require a sentinel exit code or any other protocol an author must satisfy to indicate a hook is unimplemented.
+
 The pluggability principle guides design: when monom adds a new default behavior, the question is always "should this be hookable?" Authors get a minimal required surface to implement and a clearly-defined seam for everything they want to customize.
 
 The current hooks are documented in `architecture.md`.
