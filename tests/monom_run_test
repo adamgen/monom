@@ -1,0 +1,342 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: the monom() execution path resolves and runs commands.
+#
+# These tests exercise the full `monom <args...>` flow end to end — sourcing
+# src/monom in a real shell, then invoking monom() — in BOTH bash and zsh.
+#
+# Regression coverage: a multi-token command (e.g. `monom db migrate`) must
+# resolve to the slash-delimited file `db/migrate`. zsh does not word-split
+# unquoted parameters by default, so a string-based `monomd pack $args` passes
+# "db migrate" as a single argument and fails. The fix preserves tokens via an
+# array, so these tests pin the behaviour in both shells.
+#
+# Run directly: bash tests/monom_run_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/monomd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# make_run_project — creates a temp monom project with a nested command tree.
+# Each command script prints a unique marker so the test can assert which file
+# actually ran. Prints the resolved absolute project dir.
+#
+#   release            -> prints "ran release"
+#   db/migrate         -> prints "ran db/migrate"
+#   infra/cloud/deploy -> prints "ran infra/cloud/deploy"
+#
+# The project's `monom` config implements only `complete`; there is no `run`
+# hook, so monom() falls back to the user's literal args.
+make_run_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\n' ;;
+esac
+EOF
+  chmod +x "$d/monom"
+
+  make_cmd "$d/release"
+  make_cmd "$d/db/migrate"
+  make_cmd "$d/infra/cloud/deploy"
+
+  # Overwrite stubs with unique markers so we can assert which file ran.
+  cat > "$d/release" <<'EOF'
+#!/bin/sh
+echo "ran release"
+EOF
+  cat > "$d/db/migrate" <<'EOF'
+#!/bin/sh
+echo "ran db/migrate"
+EOF
+  cat > "$d/infra/cloud/deploy" <<'EOF'
+#!/bin/sh
+echo "ran infra/cloud/deploy"
+EOF
+  chmod +x "$d/release" "$d/db/migrate" "$d/infra/cloud/deploy"
+
+  printf '%s' "$d"
+}
+
+# make_aliasing_project — like make_run_project, but its `monom` config also
+# implements a `run` hook that rewrites the single alias token "dbm" into the
+# multi-token path "db migrate". Exercises the hook-output → pack-args path,
+# which also relies on tokens surviving as distinct arguments.
+make_aliasing_project() {
+  local d
+  d=$(make_run_project)
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\n' ;;
+  run)
+    shift
+    if [ "$1" = "dbm" ]; then
+      echo "db migrate"
+    fi
+    ;;
+esac
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# make_failing_hook_project — a project whose `run` hook is present but broken:
+# it writes a diagnostic to stderr and exits non-zero. Used to assert that
+# monom() surfaces the author's error and aborts rather than silently falling
+# back to the literal args.
+make_failing_hook_project() {
+  local d
+  d=$(make_run_project)
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\n' ;;
+  run)
+    echo "run hook: boom" >&2
+    exit 3
+    ;;
+esac
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# run_monom_in <shell> <project> <args...> — sources src/monom in the named
+# shell with MONOM_PROJECT_ROOT pinned to the project, then runs monom <args>.
+# Prints the combined stdout+stderr of the monom invocation.
+run_monom_in() {
+  local shell="$1" proj="$2"
+  shift 2
+
+  # Build the literal `monom <args>` invocation for the -c snippet.
+  local cmd="monom"
+  local a
+  for a in "$@"; do
+    cmd="$cmd $a"
+  done
+
+  # src/monom resolves the monomd binary via an absolute path, so PATH does not
+  # need adjusting. MONOM_PROJECT_ROOT is pinned so root discovery is skipped.
+  case "$shell" in
+    bash)
+      bash --norc --noprofile -c "
+        export MONOM_PROJECT_ROOT='$proj'
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+    zsh)
+      zsh --no-rcs -c "
+        export MONOM_PROJECT_ROOT='$proj'
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+  esac
+}
+
+# status_monom_in <shell> <project> <args...> — like run_monom_in, but prints
+# only the monom invocation's exit code (stdout/stderr discarded). The exit
+# code is echoed from inside the shell so it survives the -c boundary.
+status_monom_in() {
+  local shell="$1" proj="$2"
+  shift 2
+
+  local cmd="monom"
+  local a
+  for a in "$@"; do
+    cmd="$cmd $a"
+  done
+
+  case "$shell" in
+    bash)
+      bash --norc --noprofile -c "
+        export MONOM_PROJECT_ROOT='$proj'
+        source '$SRC_MONOM'
+        $cmd >/dev/null 2>&1
+        echo \$?
+      " 2>/dev/null
+      ;;
+    zsh)
+      zsh --no-rcs -c "
+        export MONOM_PROJECT_ROOT='$proj'
+        source '$SRC_MONOM'
+        $cmd >/dev/null 2>&1
+        echo \$?
+      " 2>/dev/null
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# bash: single-token command (always worked)
+# ---------------------------------------------------------------------------
+
+test_bash_single_token_command_runs() {
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in bash "$proj" release)
+  assert_output_contains_line "monom release should run release in bash" \
+    "$output" "ran release"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# bash: multi-token commands
+# ---------------------------------------------------------------------------
+
+test_bash_two_token_command_runs() {
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in bash "$proj" db migrate)
+  assert_output_contains_line "monom db migrate should run db/migrate in bash" \
+    "$output" "ran db/migrate"
+  rm -rf "$proj"
+}
+
+test_bash_three_token_command_runs() {
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in bash "$proj" infra cloud deploy)
+  assert_output_contains_line "monom infra cloud deploy should run infra/cloud/deploy in bash" \
+    "$output" "ran infra/cloud/deploy"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# zsh: single-token command (always worked)
+# ---------------------------------------------------------------------------
+
+test_zsh_single_token_command_runs() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in zsh "$proj" release)
+  assert_output_contains_line "monom release should run release in zsh" \
+    "$output" "ran release"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# zsh: multi-token commands (the regression)
+# ---------------------------------------------------------------------------
+
+test_zsh_two_token_command_runs() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in zsh "$proj" db migrate)
+  assert_output_contains_line "monom db migrate should run db/migrate in zsh" \
+    "$output" "ran db/migrate"
+  rm -rf "$proj"
+}
+
+test_zsh_three_token_command_runs() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in zsh "$proj" infra cloud deploy)
+  assert_output_contains_line "monom infra cloud deploy should run infra/cloud/deploy in zsh" \
+    "$output" "ran infra/cloud/deploy"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# run hook: multi-token output must resolve, in both shells
+# ---------------------------------------------------------------------------
+
+test_bash_run_hook_expands_alias_to_multi_token() {
+  local proj output
+  proj=$(make_aliasing_project)
+  output=$(run_monom_in bash "$proj" dbm)
+  assert_output_contains_line "run hook 'dbm' -> 'db migrate' should run db/migrate in bash" \
+    "$output" "ran db/migrate"
+  rm -rf "$proj"
+}
+
+test_zsh_run_hook_expands_alias_to_multi_token() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_aliasing_project)
+  output=$(run_monom_in zsh "$proj" dbm)
+  assert_output_contains_line "run hook 'dbm' -> 'db migrate' should run db/migrate in zsh" \
+    "$output" "ran db/migrate"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# run hook failure: surface the author's error and abort (do NOT fall back)
+# ---------------------------------------------------------------------------
+
+test_bash_run_hook_failure_surfaces_error_and_aborts() {
+  local proj output status
+  proj=$(make_failing_hook_project)
+
+  # run_monom_in merges stderr into stdout and runs in a command substitution,
+  # so $? immediately after captures monom's exit status.
+  output=$(run_monom_in bash "$proj" release)
+  status=$?
+
+  # The hook's own diagnostic must reach the user.
+  assert_output_contains_line "hook stderr should be surfaced in bash" \
+    "$output" "run hook: boom"
+  # The fallback command must NOT have run.
+  assert_output_lacks_line "monom must not fall back to running release in bash" \
+    "$output" "ran release"
+  # monom should exit with the hook's exit code.
+  assertEquals "monom should exit with the hook's status in bash" "3" "$status"
+
+  rm -rf "$proj"
+}
+
+test_zsh_run_hook_failure_surfaces_error_and_aborts() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output status
+  proj=$(make_failing_hook_project)
+
+  output=$(run_monom_in zsh "$proj" release)
+  status=$?
+
+  assert_output_contains_line "hook stderr should be surfaced in zsh" \
+    "$output" "run hook: boom"
+  assert_output_lacks_line "monom must not fall back to running release in zsh" \
+    "$output" "ran release"
+  assertEquals "monom should exit with the hook's status in zsh" "3" "$status"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

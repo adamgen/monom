@@ -52,13 +52,45 @@ When `$MONOM_PROJECT_ROOT` is not set, `setup_monom()` SHALL call `monomd root` 
 ### Requirement: monom function dispatches via monomd pack
 `monom()` SHALL call `setup_monom`, then resolve the command path via `monomd pack "$@"` (the wrapper), and exec the resolved path. If the optional `run` hook is present and returns usable output, its output SHALL be passed to `monomd pack` instead of the original args.
 
+The `run` hook's exit code SHALL select the behavior:
+
+- **exit 0 with empty stdout** — hook absent or no transform. `monom()` SHALL fall back to `"$@"`. Absent and empty are merged on purpose: a config that omits the `run` arm exits 0 with no output, and the constitution's zero-ceremony hooks principle forbids requiring a sentinel to disambiguate them.
+- **exit 0 with non-empty stdout** — the hook transformed the args. `monom()` SHALL use the hook's output.
+- **non-zero exit** — hook present and failed. `monom()` SHALL surface the hook's stderr, abort with its exit code, and SHALL NOT fall back or exec. A non-zero exit is an explicit failure the author raised, so surfacing it imposes no ceremony.
+
+The hook's stderr SHALL be captured and forwarded to the user on failure rather than discarded.
+
+The args flow through three parts. Both `monom_cfg run` and `monomd pack` **receive** the args as separate CLI arguments — that input format is identical. The asymmetry is on `run`'s **output**: a hook is a separate process, so it can only emit a flat stdout stream, not an argv array. `monom()` therefore re-splits that stream back into separate args before handing them to `pack`.
+
+The hook may also change the *number* of args — that is its purpose (aliasing, namespace remapping). Below, the hook prepends `custom-folder`, turning 2 args into 3:
+
+```
+monom db migrate
+  → "$@"  = ["db", "migrate"]                       # separate args
+  → monom_cfg run db migrate                        # IN: separate args
+        ↳ prints "custom-folder db migrate\n"       # OUT: one flat stream (transformed: 2 → 3 args)
+  → (monom re-splits the stream on whitespace)
+  → monomd pack custom-folder db migrate            # IN: separate args
+        ↳ joins with "/", resolves custom-folder/db/migrate
+```
+
+Because the hook can emit a different arg count than it received, `monom()` cannot reuse `"$@"` — it must parse the hook's actual output. The re-split SHALL be done via an array, never a bare unquoted string handed to `pack`: zsh does not word-split unquoted parameters by default (`SH_WORD_SPLIT` off), so `monomd pack $string` would pass `"custom-folder db migrate"` as a single argument and fail to resolve `custom-folder/db/migrate`.
+
 #### Scenario: Command execution without run hook
-- **WHEN** `monom deploy` is called and `$MONOM_USER_CONFIG run deploy` produces no output or exits non-zero
+- **WHEN** `monom deploy` is called and `$MONOM_USER_CONFIG run deploy` exits 0 with no output (hook absent or declined)
 - **THEN** `monomd pack deploy` is called and its output is exec'd
 
 #### Scenario: Command execution with run hook
 - **WHEN** `monom deploy` is called and `$MONOM_USER_CONFIG run deploy` outputs `infra deploy`
 - **THEN** `monomd pack infra deploy` is called and its output is exec'd
+
+#### Scenario: run hook failure aborts and surfaces the error
+- **WHEN** `monom deploy` is called and `$MONOM_USER_CONFIG run deploy` exits non-zero
+- **THEN** `monom` forwards the hook's stderr, exits with the hook's exit code, and does not call `monomd pack` or exec anything
+
+#### Scenario: Multi-word command preserves separate args in both shells
+- **WHEN** `monom db migrate` is called (no `run` hook) in either bash or zsh
+- **THEN** `monomd pack` receives `db` and `migrate` as two separate arguments and resolves `db/migrate`, not a single `"db migrate"` argument
 
 #### Scenario: monom exits non-zero when monomd pack fails
 - **WHEN** `monomd pack` exits non-zero (command not found)

@@ -62,16 +62,28 @@ monom() {
     return 1
   fi
 
-  local args
-  # Attempt the run hook; fall back to original args if it produces nothing.
-  args=$(monom_cfg run "$@" 2>/dev/null)
-  if [ -z "$args" ]; then
-    args="$*"
+  local hook_out hook_err hook_status
+  hook_err=$(mktemp)
+  hook_out=$(monom_cfg run "$@" 2>"$hook_err")
+  hook_status=$?
+  if [ "$hook_status" -ne 0 ]; then
+    echo "monom: run hook failed (exit $hook_status)" >&2
+    [ -s "$hook_err" ] && cat "$hook_err" >&2
+    rm -f "$hook_err"
+    return "$hook_status"
+  fi
+  rm -f "$hook_err"
+
+  local unpacked_args
+  if [ -n "$hook_out" ]; then
+    # shellcheck disable=SC2207
+    unpacked_args=($(printf '%s' "$hook_out"))
+  else
+    unpacked_args=("$@")
   fi
 
   local resolved
-  # shellcheck disable=SC2086
-  if ! resolved=$(monomd pack $args 2>&1); then
+  if ! resolved=$(monomd pack "${unpacked_args[@]}" 2>&1); then
     echo "$resolved" >&2
     return 1
   fi
