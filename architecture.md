@@ -4,6 +4,20 @@ This document describes the current intended architecture of monom. Unlike the c
 
 ---
 
+## Entry Points
+
+monom has exactly three entry points — the complete public surface through which anything interacts with it. Everything else (`monomd` subcommands, hooks, env vars) is machinery reached *through* these three.
+
+1. **`source monom`** — bootstrap. The user sources `src/monom` from their rc file. This is the one-time introduction of monom into a shell session: it resolves `MONOM_LIB_ROOT`, defines the `monom()`, `setup_monom()`, `monom_cfg()`, and `monomd()` functions, and sources the shell-specific completion binding (`src/monom.bash` or `src/monom.zsh`). After this, the shell knows the `monom` command and how to complete it. No `monomd` subcommand runs at source time.
+
+2. **`monom <Tab>`** — completion. The user presses Tab while typing a `monom` command. The registered completion function runs discovery (`monom_cfg complete`) and filters it (`monomd filter`) to populate `COMPREPLY`. See [Completion (Tab press)](#completion-tab-press) for the full flow. This path must be fast and never error mid-typing.
+
+3. **`monom [command...]`** — execution. The user runs a resolved command. The `monom()` function optionally transforms args via the `run` hook, resolves them to an absolute executable path (`monomd pack`), and `exec`s it. See [Command execution](#command-execution) for the full flow.
+
+Entry points 2 and 3 both depend on entry point 1 having run first in the session.
+
+---
+
 ## Design Principles
 
 Operational guidelines for designing tools within the monom project (currently `monomd`, and any future tools we build). Unlike the constitution's principles, these are project-design heuristics — they SHOULD be followed, but deviations are allowed when justified. These principles do not apply to the user config interface; CLI authors choose their own conventions there.
