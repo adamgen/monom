@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Pack takes space-separated args, joins with slashes, resolves to an absolute executable path
 `mnmd pack <word...>` SHALL take one or more space-separated command tokens as CLI args, join them with `/` internally to produce a relative file path, resolve it against the project root (discovered via the same algorithm as `mnmd root`), and print the resulting absolute path to stdout. The file MUST exist and MUST be executable; otherwise `mnmd pack` SHALL exit non-zero with an error message on stderr.

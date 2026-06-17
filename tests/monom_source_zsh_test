@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
 # shellcheck disable=SC2034
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 SRC_MONOM="$REPO_ROOT/src/monom"
 
@@ -20,9 +20,9 @@ oneTimeSetUp() {
     echo "FATAL: zsh not found on PATH — cannot run zsh source tests" >&2
     exit 1
   fi
-  # Build monomd (standard helper behaviour).
-  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
-    echo "FATAL: could not build monomd" >&2
+  # Build mnmd (standard helper behaviour).
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/mnmd" 2>/dev/null; then
+    echo "FATAL: could not build mnmd" >&2
     exit 1
   fi
 }

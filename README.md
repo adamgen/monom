@@ -8,7 +8,7 @@ monom is a CLI framework that turns a file tree into a tab-completable command t
 
 monom is built on a few hard principles:
 
-- **Go owns logic, shell owns surface.** All decision-making — discovery, filtering, resolution, argument parsing — lives in a compiled Go binary (`monomd`). Shell code exists only where technically unavoidable: sourcing into the parent process, registering completion hooks, and exec-ing commands.
+- **Go owns logic, shell owns surface.** All decision-making — discovery, filtering, resolution, argument parsing — lives in a compiled Go binary (`mnmd`). Shell code exists only where technically unavoidable: sourcing into the parent process, registering completion hooks, and exec-ing commands.
 - **Minimize subprocess roundtrips.** Every process boundary must justify its existence. Pipes and subprocesses are used only when there is no alternative.
 - **Language-agnostic commands.** Commands can be shell, Python, Node, Ruby — anything with a shebang. monom doesn't care how your scripts are written.
 - **Speed is non-negotiable.** Tab completion must feel instant. monom's own overhead should be imperceptible.
@@ -23,11 +23,11 @@ monom is built on a few hard principles:
 └──────────────┬───────────────────────┬───────────┘
                │ completion            │ execution
                ▼                       ▼
-        monom_completion()          monom()          ← thin shell functions
+        _monom_completion()         monom()          ← thin shell functions
                │                       │
      ┌─────────┴──────────┐    ┌───────┴────────┐
-     │ monom_cfg complete  │    │ monom_cfg run   │   ← user's config file
-     │ monomd filter <pfx> │    │ monomd pack     │   ← Go binary
+     │ _monom_cfg complete │    │ _monom_cfg run  │   ← user's config file
+     │ mnmd filter <pfx>   │    │ mnmd pack       │   ← Go binary
      └─────────────────────┘    └───────┬────────┘
                                         │
                                   exec resolved path

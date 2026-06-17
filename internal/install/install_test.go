@@ -198,13 +198,13 @@ func TestAppendSourceLine_prepends_newline_when_missing(t *testing.T) {
 // --- resolveSrcMonom ---
 
 func TestResolveSrcMonom_sibling_path(t *testing.T) {
-	// Create a fake bin/monomd structure in a temp dir.
+	// Create a fake bin/mnmd structure in a temp dir.
 	dir := t.TempDir()
 	binDir := filepath.Join(dir, "bin")
 	if err := os.Mkdir(binDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	exe := filepath.Join(binDir, "monomd")
+	exe := filepath.Join(binDir, "mnmd")
 	if err := os.WriteFile(exe, []byte(""), 0755); err != nil {
 		t.Fatal(err)
 	}

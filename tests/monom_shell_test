@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
 # shellcheck disable=SC2034
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 SRC_MONOM="$REPO_ROOT/src/monom"
 SRC_MONOM_BASH="$REPO_ROOT/src/monom.bash"
@@ -36,21 +36,21 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# 5.2 — MONOM_LIB_ROOT is set on source
+# _MONOM_LIB_ROOT is set on source
 # ---------------------------------------------------------------------------
 
 test_monom_lib_root_is_set() {
   local output
   output=$(bash --norc --noprofile -c "
     source '$SRC_MONOM'
-    echo \"\$MONOM_LIB_ROOT\"
+    echo \"\$_MONOM_LIB_ROOT\"
   " 2>/dev/null)
-  assertEquals "MONOM_LIB_ROOT should be the src/ directory" \
+  assertEquals "_MONOM_LIB_ROOT should be the src/ directory" \
     "$REPO_ROOT/src" "$output"
 }
 
 # ---------------------------------------------------------------------------
-# 5.3 — setup_monom uses pre-set MONOM_PROJECT_ROOT
+# _setup_monom uses pre-set _MONOM_PROJECT_ROOT
 # ---------------------------------------------------------------------------
 
 test_setup_monom_uses_existing_project_root() {
@@ -61,19 +61,19 @@ test_setup_monom_uses_existing_project_root() {
   output=$(bash --norc --noprofile -c "
     PATH='$REPO_ROOT/bin:$PATH'
     source '$SRC_MONOM'
-    MONOM_PROJECT_ROOT='$proj'
-    setup_monom
-    echo \"\$MONOM_USER_CONFIG\"
+    _MONOM_PROJECT_ROOT='$proj'
+    _setup_monom
+    echo \"\$_MONOM_USER_CONFIG\"
   " 2>/dev/null)
 
-  assertEquals "MONOM_USER_CONFIG should be set from pre-set root" \
+  assertEquals "_MONOM_USER_CONFIG should be set from pre-set root" \
     "$proj/monom" "$output"
 
   rm -rf "$proj"
 }
 
 # ---------------------------------------------------------------------------
-# 5.4 — setup_monom discovers root from PWD
+# _setup_monom discovers root from PWD
 # ---------------------------------------------------------------------------
 
 test_setup_monom_discovers_root() {
@@ -83,44 +83,44 @@ test_setup_monom_discovers_root() {
   local output
   output=$(bash --norc --noprofile -c "
     PATH='$REPO_ROOT/bin:$PATH'
-    unset MONOM_PROJECT_ROOT
+    unset _MONOM_PROJECT_ROOT
     cd '$proj'
     source '$SRC_MONOM'
-    setup_monom
-    echo \"\$MONOM_PROJECT_ROOT\"
-    echo \"\$MONOM_USER_CONFIG\"
+    _setup_monom
+    echo \"\$_MONOM_PROJECT_ROOT\"
+    echo \"\$_MONOM_USER_CONFIG\"
   " 2>/dev/null)
 
   local root config
   root=$(printf '%s' "$output" | head -1)
   config=$(printf '%s' "$output" | tail -1)
 
-  assertEquals "MONOM_PROJECT_ROOT should be discovered" "$proj" "$root"
-  assertEquals "MONOM_USER_CONFIG should be set"         "$proj/monom" "$config"
+  assertEquals "_MONOM_PROJECT_ROOT should be discovered" "$proj" "$root"
+  assertEquals "_MONOM_USER_CONFIG should be set"         "$proj/monom" "$config"
 
   rm -rf "$proj"
 }
 
 # ---------------------------------------------------------------------------
-# 5.5 — setup_monom returns non-zero outside any project
+# _setup_monom returns non-zero outside any project
 # ---------------------------------------------------------------------------
 
 test_setup_monom_fails_outside_project() {
   local exit_code
   exit_code=$(bash --norc --noprofile -c "
     PATH='$REPO_ROOT/bin:$PATH'
-    unset MONOM_PROJECT_ROOT
+    unset _MONOM_PROJECT_ROOT
     cd /tmp
     source '$SRC_MONOM'
-    setup_monom
+    _setup_monom
     echo \$?
   " 2>/dev/null)
 
-  assertNotEquals "setup_monom should fail outside a project" 0 "$exit_code"
+  assertNotEquals "_setup_monom should fail outside a project" 0 "$exit_code"
 }
 
 # ---------------------------------------------------------------------------
-# 5.6 — monom_cfg forwards args to MONOM_USER_CONFIG
+# _monom_cfg forwards args to _MONOM_USER_CONFIG
 # ---------------------------------------------------------------------------
 
 test_monom_cfg_forwards_args() {
@@ -130,27 +130,27 @@ test_monom_cfg_forwards_args() {
   local output
   output=$(bash --norc --noprofile -c "
     PATH='$REPO_ROOT/bin:$PATH'
-    MONOM_PROJECT_ROOT='$proj'
+    _MONOM_PROJECT_ROOT='$proj'
     source '$SRC_MONOM'
-    setup_monom
-    monom_cfg complete
+    _setup_monom
+    _monom_cfg complete
   " 2>/dev/null)
 
-  assertEquals "monom_cfg complete should return project's paths" \
+  assertEquals "_monom_cfg complete should return project's paths" \
     "$(printf 'cmd1\ncmd2')" "$output"
 
   rm -rf "$proj"
 }
 
 # ---------------------------------------------------------------------------
-# 5.7 — monom_completion is defined and registered in bash
+# _monom_completion is defined and registered in bash
 # ---------------------------------------------------------------------------
 
 test_monom_completion_defined_in_bash() {
   local fn_exists hook_registered
   fn_exists=$(bash --norc --noprofile -c "
     source '$SRC_MONOM_BASH'
-    declare -f monom_completion > /dev/null 2>&1 && echo yes || echo no
+    declare -f _monom_completion > /dev/null 2>&1 && echo yes || echo no
   " 2>/dev/null)
 
   hook_registered=$(bash --norc --noprofile -c "
@@ -158,15 +158,15 @@ test_monom_completion_defined_in_bash() {
     complete -p monom 2>/dev/null
   " 2>/dev/null)
 
-  assertEquals "monom_completion function should exist" "yes" "$fn_exists"
-  # complete -p monom prints something like: complete -F monom_completion monom
-  if ! printf '%s' "$hook_registered" | grep -qF -- "-F monom_completion"; then
-    fail "complete -p monom should show -F monom_completion; got: $hook_registered"
+  assertEquals "_monom_completion function should exist" "yes" "$fn_exists"
+  # complete -p monom prints something like: complete -F _monom_completion monom
+  if ! printf '%s' "$hook_registered" | grep -qF -- "-F _monom_completion"; then
+    fail "complete -p monom should show -F _monom_completion; got: $hook_registered"
   fi
 }
 
 # ---------------------------------------------------------------------------
-# 5.8 — _monom function is defined after sourcing monom.zsh
+# _monom function is defined after sourcing monom.zsh
 # ---------------------------------------------------------------------------
 
 test_monom_zsh_function_defined() {
@@ -185,7 +185,51 @@ test_monom_zsh_function_defined() {
 }
 
 # ---------------------------------------------------------------------------
+# Namespace guard: old bare names and monomd must not exist after sourcing
+# ---------------------------------------------------------------------------
+
+# After sourcing src/monom in bash, verify that:
+# 1. monom is available as a command/function.
+# 2. The old bare names (pre-rename) are not defined as functions or variables.
+# 3. monomd is not a defined function.
+test_no_internals_in_monom_completion_namespace_bash() {
+  # monom itself must be a function.
+  local monom_fn
+  monom_fn=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM'
+    declare -f monom > /dev/null 2>&1 && echo yes || echo no
+  " 2>/dev/null)
+  assertEquals "monom function must be defined after sourcing" "yes" "$monom_fn"
+
+  # Old bare env var names must not be set by sourcing (unset them first to
+  # avoid inheriting values from a pre-existing shell session that may still
+  # have the old names exported).
+  local old_vars
+  old_vars=$(bash --norc --noprofile -c "
+    unset MONOM_BIN MONOM_LIB_ROOT MONOM_PROJECT_ROOT MONOM_USER_CONFIG
+    source '$SRC_MONOM'
+    for v in MONOM_BIN MONOM_LIB_ROOT MONOM_PROJECT_ROOT MONOM_USER_CONFIG; do
+      if [ -n \"\${!v+x}\" ]; then echo \"\$v\"; fi
+    done
+  " 2>/dev/null)
+  if [ -n "$old_vars" ]; then
+    fail "old bare env vars set by sourcing: $old_vars"
+  fi
+
+  # Old bare function names must not be defined.
+  local old_fns
+  old_fns=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM'
+    for fn in setup_monom monom_cfg monom_completion monomd; do
+      if declare -f \"\$fn\" > /dev/null 2>&1; then echo \"\$fn\"; fi
+    done
+  " 2>/dev/null)
+  if [ -n "$old_fns" ]; then
+    fail "old bare function names still defined after sourcing: $old_fns"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 
 # shellcheck disable=SC1090
 . "$SHUNIT2"
-

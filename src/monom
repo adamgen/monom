@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
 # src/monom — sourced from user's rc file (.bashrc or .zshrc).
-# Defines monom(), setup_monom(), and monom_cfg(), then sources the
+# Defines monom(), _setup_monom(), and _monom_cfg(), then sources the
 # shell-specific completion binding.
 
-export MONOM_LIB_ROOT
+export _MONOM_LIB_ROOT
 export MONOM_ACTIVE
 # Resolve the directory containing this file in a shell-agnostic way.
 # ${(%):-%x} is zsh's equivalent of bash's ${BASH_SOURCE[0]} — it gives the
 # path of the currently executing file even when sourced.
 # shellcheck disable=SC2296
 _monom_self="${ZSH_VERSION:+${(%):-%x}}${ZSH_VERSION:-${BASH_SOURCE[0]}}"
-MONOM_LIB_ROOT="$(cd "$(dirname "$_monom_self")" && pwd)"
+_MONOM_LIB_ROOT="$(cd "$(dirname "$_monom_self")" && pwd)"
 unset _monom_self
 MONOM_ACTIVE=1
 
-# The monomd binary ships next to the sources at ../bin/monomd. The monomd()
-# wrapper lets call sites read as `monomd <subcommand>`.
-_monom_bin="$(cd "$MONOM_LIB_ROOT/.." && pwd)/bin/monomd"
-monomd() { "$_monom_bin" "$@"; }
+# mnmd — thin wrapper so call sites read as `mnmd <subcommand>`.
+# The binary ships next to the sources at ../bin/mnmd.
+mnmd() { "$(cd "$_MONOM_LIB_ROOT/.." && pwd)/bin/mnmd" "$@"; }
 
 # _monom_log — append a timestamped debug line to $MONOM_DEBUG_LOG.
 # No-op (and no subprocess spawned) when MONOM_DEBUG_LOG is unset or empty.
@@ -27,44 +26,44 @@ _monom_log() {
   printf '[%s] %s\n' "$(date +%T)" "$*" >> "$MONOM_DEBUG_LOG"
 }
 
-# monom_cfg — thin wrapper so call sites read as `monom_cfg complete`
-# instead of `"$MONOM_USER_CONFIG" complete`.
-monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }
+# _monom_cfg — thin wrapper so call sites read as `_monom_cfg complete`
+# instead of `"$_MONOM_USER_CONFIG" complete`.
+_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
 
-# setup_monom — ensures MONOM_PROJECT_ROOT and MONOM_USER_CONFIG are set.
-# Short-circuits if MONOM_PROJECT_ROOT is already exported.
+# _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set.
+# Short-circuits if _MONOM_PROJECT_ROOT is already exported.
 # Returns non-zero when no project root can be found.
-setup_monom() {
-  _monom_log "[setup_monom] PWD=$PWD MONOM_PROJECT_ROOT=${MONOM_PROJECT_ROOT:-<unset>}"
-  if [ -n "$MONOM_PROJECT_ROOT" ]; then
-    export MONOM_USER_CONFIG="$MONOM_PROJECT_ROOT/monom"
-    _monom_log "[setup_monom] short-circuit: using existing root=$MONOM_PROJECT_ROOT"
+_setup_monom() {
+  _monom_log "[_setup_monom] PWD=$PWD _MONOM_PROJECT_ROOT=${_MONOM_PROJECT_ROOT:-<unset>}"
+  if [ -n "$_MONOM_PROJECT_ROOT" ]; then
+    export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
+    _monom_log "[_setup_monom] short-circuit: using existing root=$_MONOM_PROJECT_ROOT"
     return 0
   fi
 
   local root root_err
-  root=$(monomd root 2>/tmp/_monom_root_err) || {
+  root=$(mnmd root 2>/tmp/_monom_root_err) || {
     root_err=$(cat /tmp/_monom_root_err 2>/dev/null)
-    _monom_log "[setup_monom] monomd root failed: $root_err"
+    _monom_log "[_setup_monom] mnmd root failed: $root_err"
     return 1
   }
 
-  _monom_log "[setup_monom] monomd root found: $root"
-  export MONOM_PROJECT_ROOT="$root"
-  export MONOM_USER_CONFIG="$MONOM_PROJECT_ROOT/monom"
+  _monom_log "[_setup_monom] mnmd root found: $root"
+  export _MONOM_PROJECT_ROOT="$root"
+  export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
 }
 
 # monom — the command the user calls. Resolves args to an executable path
-# via monomd pack and runs it in a subshell via exec.
+# via mnmd pack and runs it in a subshell via exec.
 monom() {
-  if ! setup_monom; then
+  if ! _setup_monom; then
     echo "monom: no project root found" >&2
     return 1
   fi
 
   local hook_out hook_err hook_status
   hook_err=$(mktemp)
-  hook_out=$(monom_cfg run "$@" 2>"$hook_err")
+  hook_out=$(_monom_cfg run "$@" 2>"$hook_err")
   hook_status=$?
   if [ "$hook_status" -ne 0 ]; then
     echo "monom: run hook failed (exit $hook_status)" >&2
@@ -83,7 +82,7 @@ monom() {
   fi
 
   local resolved
-  if ! resolved=$(monomd pack "${unpacked_args[@]}" 2>&1); then
+  if ! resolved=$(mnmd pack "${unpacked_args[@]}" 2>&1); then
     echo "$resolved" >&2
     return 1
   fi
@@ -95,8 +94,8 @@ monom() {
 # Source the shell-specific completion binding.
 if [ -n "$ZSH_VERSION" ]; then
   # shellcheck disable=SC1091
-  . "$MONOM_LIB_ROOT/monom.zsh"
+  . "$_MONOM_LIB_ROOT/monom.zsh"
 elif [ -n "$BASH_VERSION" ]; then
   # shellcheck disable=SC1091
-  . "$MONOM_LIB_ROOT/monom.bash"
+  . "$_MONOM_LIB_ROOT/monom.bash"
 fi

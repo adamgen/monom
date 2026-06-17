@@ -1,4 +1,9 @@
-## ADDED Requirements
+## RENAMED Requirements
+
+- FROM: `### Requirement: Check requires MONOM_USER_CONFIG to be set`
+- TO: `### Requirement: Check requires _MONOM_USER_CONFIG to be set`
+
+## MODIFIED Requirements
 
 ### Requirement: Check runs the project's complete output and reports problems
 `mnmd check` SHALL invoke `$_MONOM_USER_CONFIG complete`, read all output paths, validate each one, and report any problems to stdout. It SHALL exit 0 if no problems are found and exit non-zero if any problems are found.

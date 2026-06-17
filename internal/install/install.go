@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Run executes `monomd install`: detects the user's shell, resolves the
+// Run executes `mnmd install`: detects the user's shell, resolves the
 // src/monom path relative to the running binary, and appends a source line
 // to the appropriate rc/profile file if not already present.
 func Run(executable string) error {

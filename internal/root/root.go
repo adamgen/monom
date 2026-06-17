@@ -8,12 +8,12 @@ import (
 
 // FindProjectRoot returns the absolute path of the nearest monom project root.
 //
-// It first checks $MONOM_PROJECT_ROOT: if set and the directory contains an
+// It first checks $_MONOM_PROJECT_ROOT: if set and the directory contains an
 // executable file named "monom", that directory is returned without walking.
 // Otherwise it walks upward from $PWD until it finds such a directory or
 // reaches the filesystem root, in which case it returns an error.
 func FindProjectRoot() (string, error) {
-	if envRoot := os.Getenv("MONOM_PROJECT_ROOT"); envRoot != "" {
+	if envRoot := os.Getenv("_MONOM_PROJECT_ROOT"); envRoot != "" {
 		if isValidProjectRoot(envRoot) {
 			resolved, err := filepath.EvalSymlinks(envRoot)
 			if err != nil {

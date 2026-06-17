@@ -1,18 +1,18 @@
 #!/bin/bash
-# shUnit2 e2e tests for the monomd binary.
-# Run directly: bash tests/monomd_test
+# shUnit2 e2e tests for the mnmd binary.
+# Run directly: bash tests/mnmd_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 
 # ---------------------------------------------------------------------------
-# Build helper — compiles bin/monomd before the suite runs.
+# Build helper — compiles bin/mnmd before the suite runs.
 # ---------------------------------------------------------------------------
 oneTimeSetUp() {
-  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
-    echo "FATAL: could not build monomd" >&2
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/mnmd" 2>/dev/null; then
+    echo "FATAL: could not build mnmd" >&2
     exit 1
   fi
 }
@@ -86,7 +86,7 @@ assert_output_lacks_line() {
 }
 
 # ---------------------------------------------------------------------------
-# monomd filter
+# mnmd filter
 # ---------------------------------------------------------------------------
 
 test_filter_no_args_returns_top_level_tokens() {
@@ -188,13 +188,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# monomd root
+# mnmd root
 # ---------------------------------------------------------------------------
 
 test_root_env_var_honored() {
   tmp=$(make_tmp_project)
-  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" root)
-  assertEquals "root should return MONOM_PROJECT_ROOT" "$tmp" "$result"
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" root)
+  assertEquals "root should return _MONOM_PROJECT_ROOT" "$tmp" "$result"
   rm -rf "$tmp"
 }
 
@@ -202,7 +202,7 @@ test_root_walk_finds_parent() {
   tmp=$(make_tmp_project)
   subdir="$tmp/a/b/c"
   mkdir -p "$subdir"
-  result=$(cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root)
+  result=$(cd "$subdir" && _MONOM_PROJECT_ROOT="" "$MONOMD" root)
   assertEquals "root should walk up to project root" "$tmp" "$result"
   rm -rf "$tmp"
 }
@@ -211,19 +211,19 @@ test_root_not_found_exits_nonzero() {
   tmp=$(mktemp -d)
   subdir="$tmp/no_project"
   mkdir -p "$subdir"
-  (cd "$subdir" && MONOM_PROJECT_ROOT="" "$MONOMD" root) 2>/dev/null
+  (cd "$subdir" && _MONOM_PROJECT_ROOT="" "$MONOMD" root) 2>/dev/null
   assertNotEquals "root must exit non-zero when not found" 0 $?
   rm -rf "$tmp"
 }
 
 # ---------------------------------------------------------------------------
-# monomd pack
+# mnmd pack
 # ---------------------------------------------------------------------------
 
 test_pack_resolves_single_token_to_absolute_path() {
   tmp=$(make_tmp_project)
   make_cmd "$tmp/command1"
-  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1)
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1)
   assertEquals "pack should resolve single token to absolute path" "$tmp/command1" "$result"
   rm -rf "$tmp"
 }
@@ -231,14 +231,14 @@ test_pack_resolves_single_token_to_absolute_path() {
 test_pack_joins_multiple_tokens_with_slashes() {
   tmp=$(make_tmp_project)
   make_cmd "$tmp/category1/sub_command1"
-  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack category1 sub_command1)
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack category1 sub_command1)
   assertEquals "pack should join tokens with slashes" "$tmp/category1/sub_command1" "$result"
   rm -rf "$tmp"
 }
 
 test_pack_exits_nonzero_when_resolved_file_does_not_exist() {
   tmp=$(make_tmp_project)
-  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
   assertNotEquals "pack must exit non-zero when resolved file does not exist" 0 $?
   assertContains "error must mention 'command not found'" "$err" "command not found"
   rm -rf "$tmp"
@@ -250,7 +250,7 @@ test_pack_exits_nonzero_when_resolved_file_is_not_executable() {
 #!/bin/sh
 EOF
   # deliberately not chmod +x
-  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
   assertNotEquals "pack must exit non-zero when resolved file is not executable" 0 $?
   assertContains "error must mention 'not executable'" "$err" "not executable"
   rm -rf "$tmp"
@@ -258,14 +258,14 @@ EOF
 
 test_pack_exits_nonzero_when_no_root_found() {
   tmp=$(mktemp -d)
-  err=$( (cd "$tmp" && MONOM_PROJECT_ROOT="" "$MONOMD" pack command1) 2>&1)
+  err=$( (cd "$tmp" && _MONOM_PROJECT_ROOT="" "$MONOMD" pack command1) 2>&1)
   assertNotEquals "pack must exit non-zero when no root found" 0 $?
   assertContains "error must mention 'monom project root'" "$err" "monom project root"
   rm -rf "$tmp"
 }
 
 # ---------------------------------------------------------------------------
-# monomd check
+# mnmd check
 # ---------------------------------------------------------------------------
 
 test_check_clean_project_exits_0() {
@@ -275,7 +275,7 @@ category1/sub2
 command1
 EOF
   )
-  MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
+  _MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
   assertEquals "check must exit 0 for clean project" 0 $?
   rm -rf "$(dirname "$cfg")"
 }
@@ -286,18 +286,18 @@ my command/sub
 command1
 EOF
   )
-  MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
+  _MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
   assertNotEquals "check must exit non-zero for path with space" 0 $?
   rm -rf "$(dirname "$cfg")"
 }
 
 test_check_no_user_config_exits_nonzero() {
-  MONOM_USER_CONFIG="" "$MONOMD" check 2>/dev/null
-  assertNotEquals "check must exit non-zero when MONOM_USER_CONFIG unset" 0 $?
+  _MONOM_USER_CONFIG="" "$MONOMD" check 2>/dev/null
+  assertNotEquals "check must exit non-zero when _MONOM_USER_CONFIG unset" 0 $?
 }
 
 # ---------------------------------------------------------------------------
-# monomd unknown subcommand / no args
+# mnmd unknown subcommand / no args
 # ---------------------------------------------------------------------------
 
 test_unknown_subcommand_exits_nonzero() {

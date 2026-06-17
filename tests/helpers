@@ -1,10 +1,10 @@
 # shellcheck shell=bash
-# Shared helpers for monomd shUnit2 e2e tests.
+# Shared helpers for mnmd shUnit2 e2e tests.
 # Source this file; do not execute it directly.
 #
 # Requires REPO_ROOT and MONOMD to be set by the sourcing file.
 
-# Suppress the "run monomd install" nudge in all test suites that source this
+# Suppress the "run mnmd install" nudge in all test suites that source this
 # file. Tests that specifically exercise the nudge manage MONOM_ACTIVE themselves.
 export MONOM_ACTIVE=1
 
@@ -12,10 +12,10 @@ export MONOM_ACTIVE=1
 # Build
 # ---------------------------------------------------------------------------
 
-# oneTimeSetUp — compiles bin/monomd before the suite runs (shUnit2 hook).
+# oneTimeSetUp — compiles bin/mnmd before the suite runs (shUnit2 hook).
 oneTimeSetUp() {
-  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/monomd" 2>/dev/null; then
-    echo "FATAL: could not build monomd" >&2
+  if ! go build -o "$MONOMD" "$REPO_ROOT/cmd/mnmd" 2>/dev/null; then
+    echo "FATAL: could not build mnmd" >&2
     exit 1
   fi
 }

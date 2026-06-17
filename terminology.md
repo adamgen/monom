@@ -12,13 +12,13 @@ How it works: Organize your executable scripts in a folder structure, add a `mon
 
 **Discovery** — the process by which monom finds all possible commands for a single project. Discovery can be as simple or complex as required. Implemented by the `complete` subcommand of the monom config file.
 
-**Command packing** — the process by which a command invocation is transformed back into the full path of the executable to run. Implemented by `monomd pack`, which takes the user's space-separated command tokens as CLI arguments, joins them with `/`, resolves against the project root, and prints the absolute executable path to stdout.
+**Command packing** — the process by which a command invocation is transformed back into the full path of the executable to run. Implemented by `mnmd pack`, which takes the user's space-separated command tokens as CLI arguments, joins them with `/`, resolves against the project root, and prints the absolute executable path to stdout.
 
-**monom config file** — the `monom` executable at the project root, written by the CLI author. Exposes `complete` and `run`. Referenced via env var `$MONOM_USER_CONFIG`. In shell scripts, wrapped as `monom_cfg() { "$MONOM_USER_CONFIG" "$@"; }` for readability.
+**monom config file** — the `monom` executable at the project root, written by the CLI author. Exposes `complete` and optional hooks such as `run`. The shell binding locates it as `<project-root>/monom` and invokes it via the internal `_monom_cfg` helper. The internal env var `$_MONOM_USER_CONFIG` holds its resolved path as a shell-to-Go plumbing detail; authors do not need to know or set it.
 
-**Project root** — the directory containing the monom config file. Referenced via env var `$MONOM_PROJECT_ROOT`.
+**Project root** — the directory containing the monom config file (the executable `monom` file). monom discovers it by walking upward from `$PWD`. Authors may pre-set `$_MONOM_PROJECT_ROOT` to skip discovery; this is an internal shell↔Go plumbing affordance, not a required step.
 
-**monomd** — the compiled Go binary. The engine of monom. Implements all internal logic.
+**mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more.
 
 **CLI author** — the developer building a CLI tool using monom.
 

@@ -17,18 +17,18 @@ import (
 // not executable.
 func Check(userConfig string) ([]string, error) {
 	if userConfig == "" {
-		return nil, fmt.Errorf("check: MONOM_USER_CONFIG is not set")
+		return nil, fmt.Errorf("check: _MONOM_USER_CONFIG is not set")
 	}
 
 	fi, err := os.Stat(userConfig)
 	if err != nil {
-		return nil, fmt.Errorf("check: cannot stat MONOM_USER_CONFIG (%s): %w", userConfig, err)
+		return nil, fmt.Errorf("check: cannot stat _MONOM_USER_CONFIG (%s): %w", userConfig, err)
 	}
 	if fi.IsDir() {
-		return nil, fmt.Errorf("check: MONOM_USER_CONFIG (%s) is a directory", userConfig)
+		return nil, fmt.Errorf("check: _MONOM_USER_CONFIG (%s) is a directory", userConfig)
 	}
 	if fi.Mode()&0o111 == 0 {
-		return nil, fmt.Errorf("check: MONOM_USER_CONFIG (%s) is not executable", userConfig)
+		return nil, fmt.Errorf("check: _MONOM_USER_CONFIG (%s) is not executable", userConfig)
 	}
 
 	cmd := exec.Command(userConfig, "complete")

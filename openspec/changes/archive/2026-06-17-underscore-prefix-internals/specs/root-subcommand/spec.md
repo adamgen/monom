@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Root honors $MONOM_PROJECT_ROOT when set to a valid project
 `mnmd root` SHALL first check `$_MONOM_PROJECT_ROOT`. If the env var is set AND points to a directory that contains an executable file named `monom`, `mnmd root` SHALL print that absolute path to stdout and exit 0 without walking from `$PWD`.

@@ -1,23 +1,23 @@
 #!/bin/bash
-# shUnit2 e2e tests for: monomd pack
-# Run directly: bash tests/monomd_pack_test
+# shUnit2 e2e tests for: mnmd pack
+# Run directly: bash tests/mnmd_pack_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/helpers"
 
 # ---------------------------------------------------------------------------
-# monomd pack
+# mnmd pack
 # ---------------------------------------------------------------------------
 
 test_pack_resolves_single_token_to_absolute_path() {
   tmp=$(make_tmp_project)
   make_cmd "$tmp/command1"
-  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1)
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1)
   assertEquals "pack should resolve single token to absolute path" "$tmp/command1" "$result"
   rm -rf "$tmp"
 }
@@ -25,14 +25,14 @@ test_pack_resolves_single_token_to_absolute_path() {
 test_pack_joins_multiple_tokens_with_slashes() {
   tmp=$(make_tmp_project)
   make_cmd "$tmp/category1/sub_command1"
-  result=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack category1 sub_command1)
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack category1 sub_command1)
   assertEquals "pack should join tokens with slashes" "$tmp/category1/sub_command1" "$result"
   rm -rf "$tmp"
 }
 
 test_pack_exits_nonzero_when_resolved_file_does_not_exist() {
   tmp=$(make_tmp_project)
-  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
   assertNotEquals "pack must exit non-zero when resolved file does not exist" 0 $?
   assertContains "error must mention 'command not found'" "$err" "command not found"
   rm -rf "$tmp"
@@ -44,7 +44,7 @@ test_pack_exits_nonzero_when_resolved_file_is_not_executable() {
 #!/bin/sh
 EOF
   # deliberately not chmod +x
-  err=$(MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack command1 2>&1)
   assertNotEquals "pack must exit non-zero when resolved file is not executable" 0 $?
   assertContains "error must mention 'not executable'" "$err" "not executable"
   rm -rf "$tmp"
@@ -52,7 +52,7 @@ EOF
 
 test_pack_exits_nonzero_when_no_root_found() {
   tmp=$(mktemp -d)
-  err=$( (cd "$tmp" && MONOM_PROJECT_ROOT="" "$MONOMD" pack command1) 2>&1)
+  err=$( (cd "$tmp" && _MONOM_PROJECT_ROOT="" "$MONOMD" pack command1) 2>&1)
   assertNotEquals "pack must exit non-zero when no root found" 0 $?
   assertContains "error must mention 'monom project root'" "$err" "monom project root"
   rm -rf "$tmp"

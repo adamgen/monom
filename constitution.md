@@ -64,7 +64,7 @@ A chain of subprocesses passing data through pipes is hard to reason about, hard
 
 ## Principle: Pluggability via Hooks
 
-monom defines a small set of default behaviors (command discovery, path resolution, etc.). For each, the CLI author MAY expose a hook in their user config to intercept, transform, or extend the default. Hooks are discovered by convention: they are subcommands of `$MONOM_USER_CONFIG`. If a hook is absent, monom uses its default behavior.
+monom defines a small set of default behaviors (command discovery, path resolution, etc.). For each, the CLI author MAY expose a hook in their user config to intercept, transform, or extend the default. Hooks are discovered by convention: they are subcommands of the monom config file. If a hook is absent, monom uses its default behavior.
 
 **Hooks are freely optional with zero ceremony.** An author adds a hook by implementing its subcommand and omits it by not implementing it — no registration, no opt-out marker, no signal to *decline* a hook. Calling an absent hook MUST fall back to the default without error, inferred from the hook's natural "did nothing" behavior. monom MUST NOT require a sentinel exit code or any other protocol an author must satisfy to indicate a hook is unimplemented.
 
@@ -76,12 +76,12 @@ The current hooks are documented in `architecture.md`.
 
 ## Principle: The Required User Config Interface Requires a Constitution Amendment to Change
 
-The user config (`$MONOM_USER_CONFIG`) is the seam between monom and the author's project. The set of subcommands monom *requires* the user config to expose is part of monom's stability contract — projects that comply today must continue to work tomorrow.
+The monom config file (the executable `monom` at the project root) is the seam between monom and the author's project. The set of subcommands monom *requires* it to expose is part of monom's stability contract — projects that comply today must continue to work tomorrow.
 
 The currently required interface is:
 
 ```
-$MONOM_USER_CONFIG complete   # prints all discoverable command paths, one per line
+<monom-config-file> complete   # prints all discoverable command paths, one per line
 ```
 
 Adding to this required set, removing from it, or changing the contract of any required subcommand requires an amendment to this document. Optional hooks are documented in `architecture.md` and may evolve there without amendment.

@@ -4,6 +4,6 @@
 monom_tools
 .DS_Store
 **/.DS_Store
-bin/monomd
+bin/mnmd
 tmp/*
 !tmp/.gitkeep

@@ -29,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	debuglog.Log("[monomd] dispatch: args=(%s)", strings.Join(os.Args[1:], " "))
+	debuglog.Log("[mnmd] dispatch: args=(%s)", strings.Join(os.Args[1:], " "))
 
 	switch os.Args[1] {
 	case "filter":
@@ -43,26 +43,26 @@ func main() {
 	case "install":
 		runInstall()
 	default:
-		debuglog.Log("[monomd] unknown subcommand: %q", os.Args[1])
-		fmt.Fprintf(os.Stderr, "monomd: unknown subcommand %q\n", os.Args[1])
+		debuglog.Log("[mnmd] unknown subcommand: %q", os.Args[1])
+		fmt.Fprintf(os.Stderr, "mnmd: unknown subcommand %q\n", os.Args[1])
 		usage()
 		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: monomd <subcommand> [args...]")
+	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
 	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
-// (MONOM_ACTIVE unset), except when the user is already running `monomd install`.
+// (MONOM_ACTIVE unset), except when the user is already running `mnmd install`.
 func checkNudge(subcommand string) {
 	if subcommand == "install" {
 		return
 	}
 	if os.Getenv("MONOM_ACTIVE") == "" {
-		fmt.Fprintln(os.Stderr, "hint: run 'monomd install' to activate shell integration")
+		fmt.Fprintln(os.Stderr, "hint: run 'mnmd install' to activate shell integration")
 	}
 }
 
@@ -84,13 +84,13 @@ func runFilter() {
 	}
 	// Ignore scanner.Err() — filter must always exit 0.
 
-	debuglog.Log("[monomd filter] words=(%s) commands=%d", strings.Join(words, " "), len(commands))
+	debuglog.Log("[mnmd filter] words=(%s) commands=%d", strings.Join(words, " "), len(commands))
 
 	results := filter.Filter(commands, words)
 	for _, r := range results {
 		fmt.Println(r)
 	}
-	debuglog.Log("[monomd filter] returning %d token(s): (%s)", len(results), strings.Join(results, " "))
+	debuglog.Log("[mnmd filter] returning %d token(s): (%s)", len(results), strings.Join(results, " "))
 	os.Exit(0)
 }
 
@@ -99,11 +99,11 @@ func runFilter() {
 func runRoot() {
 	projectRoot, err := root.FindProjectRoot()
 	if err != nil {
-		debuglog.Log("[monomd root] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "monomd root:", err)
+		debuglog.Log("[mnmd root] failed: %v", err)
+		fmt.Fprintln(os.Stderr, "mnmd root:", err)
 		os.Exit(1)
 	}
-	debuglog.Log("[monomd root] found: %s", projectRoot)
+	debuglog.Log("[mnmd root] found: %s", projectRoot)
 	fmt.Println(projectRoot)
 }
 
@@ -111,39 +111,39 @@ func runRoot() {
 // or prints an error to stderr and exits 1.
 func runPack() {
 	words := os.Args[2:]
-	debuglog.Log("[monomd pack] words=(%s)", strings.Join(words, " "))
+	debuglog.Log("[mnmd pack] words=(%s)", strings.Join(words, " "))
 	absPath, err := pack.Pack(words)
 	if err != nil {
-		debuglog.Log("[monomd pack] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "monomd pack:", err)
+		debuglog.Log("[mnmd pack] failed: %v", err)
+		fmt.Fprintln(os.Stderr, "mnmd pack:", err)
 		os.Exit(1)
 	}
-	debuglog.Log("[monomd pack] resolved: %s", absPath)
+	debuglog.Log("[mnmd pack] resolved: %s", absPath)
 	fmt.Println(absPath)
 }
 
-// runCheck runs MONOM_USER_CONFIG complete, reports problems, and exits
+// runCheck runs _MONOM_USER_CONFIG complete, reports problems, and exits
 // non-zero if any are found.
 func runCheck() {
-	userConfig := os.Getenv("MONOM_USER_CONFIG")
-	debuglog.Log("[monomd check] config=%s", userConfig)
+	userConfig := os.Getenv("_MONOM_USER_CONFIG")
+	debuglog.Log("[mnmd check] config=%s", userConfig)
 	problems, err := check.Check(userConfig)
 	if err != nil {
-		debuglog.Log("[monomd check] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "monomd check:", err)
+		debuglog.Log("[mnmd check] failed: %v", err)
+		fmt.Fprintln(os.Stderr, "mnmd check:", err)
 		os.Exit(1)
 	}
 	if len(problems) == 0 {
 		n := countLines(userConfig)
-		debuglog.Log("[monomd check] OK: %d commands", n)
+		debuglog.Log("[mnmd check] OK: %d commands", n)
 		fmt.Printf("✔ %d commands OK\n", n)
 		return
 	}
-	debuglog.Log("[monomd check] %d problem(s) found", len(problems))
+	debuglog.Log("[mnmd check] %d problem(s) found", len(problems))
 	for _, p := range problems {
 		fmt.Println(p)
 	}
-	fmt.Fprintf(os.Stderr, "monomd check: %d problem(s) found\n", len(problems))
+	fmt.Fprintf(os.Stderr, "mnmd check: %d problem(s) found\n", len(problems))
 	os.Exit(1)
 }
 
@@ -151,11 +151,11 @@ func runCheck() {
 func runInstall() {
 	exe, err := os.Executable()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "monomd install: could not determine binary path:", err)
+		fmt.Fprintln(os.Stderr, "mnmd install: could not determine binary path:", err)
 		os.Exit(1)
 	}
 	if err := install.Run(exe); err != nil {
-		fmt.Fprintln(os.Stderr, "monomd install:", err)
+		fmt.Fprintln(os.Stderr, "mnmd install:", err)
 		os.Exit(1)
 	}
 }

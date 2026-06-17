@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Filter bridges slash-delimited stdin and space-separated word arguments
 `mnmd filter [word...]` SHALL read newline-delimited command paths from stdin (slash-delimited, e.g. `category1/sub_command1`) and accept zero or more word arguments (space-separated tokens the user has typed, e.g. `category1` `sub`). It SHALL join the word arguments with `/` internally to produce a prefix, then match that prefix against the stdin paths to determine next-level completions. No word arguments SHALL return all top-level tokens.

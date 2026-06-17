@@ -12,22 +12,19 @@ _monom() {
   # SC2154: referenced but not assigned — false positive for zsh completion variables.
   # shellcheck disable=SC2154
   _monom_log "[zsh] completion triggered: words=(${words[*]})"
-  if ! setup_monom 2>/dev/null; then
-    _monom_log "[zsh] setup_monom failed"
+  if ! _setup_monom 2>/dev/null; then
+    _monom_log "[zsh] _setup_monom failed"
     return 0
   fi
-  _monom_log "[zsh] setup_monom OK: root=$MONOM_PROJECT_ROOT"
+  _monom_log "[zsh] _setup_monom OK: root=$_MONOM_PROJECT_ROOT"
   local raw_completions
-  raw_completions=$(monom_cfg complete 2>/dev/null)
-  _monom_log "[zsh] monom_cfg complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
+  raw_completions=$(_monom_cfg complete 2>/dev/null)
+  _monom_log "[zsh] _monom_cfg complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
   _monom_log "[zsh] raw_completions first line: $(printf '%s' "$raw_completions" | head -1)"
   local filter_words=("${words[@]:1}")
   _monom_log "[zsh] filter words=(${filter_words[*]})"
   local filter_output
-  # monomd() is the wrapper defined in src/monom; it invokes the executable
-  # resolved at source time rather than the bare name `monomd`, which may only
-  # exist as a user alias and would not resolve inside this completion widget.
-  filter_output=$(printf '%s\n' "$raw_completions" | monomd filter "${filter_words[@]}" 2>/dev/null)
+  filter_output=$(printf '%s\n' "$raw_completions" | mnmd filter "${filter_words[@]}" 2>/dev/null)
   _monom_log "[zsh] filter raw output: $(printf '%s' "$filter_output" | wc -l | tr -d ' ') lines: $filter_output"
   # No completions (leaf reached): return without calling compadd. Splitting an
   # empty string with ${(@f)...} yields a single empty-string element, and

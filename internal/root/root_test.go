@@ -70,7 +70,7 @@ func withWd(t *testing.T, dir string) {
 
 func TestFindProjectRoot_EnvVarHonoredWhenValid(t *testing.T) {
 	project := makeProject(t)
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 	withWd(t, t.TempDir()) // cwd has no monom — env var must win
 
 	got, err := FindProjectRoot()
@@ -84,7 +84,7 @@ func TestFindProjectRoot_EnvVarHonoredWhenValid(t *testing.T) {
 
 func TestFindProjectRoot_EnvVarIgnoredWhenMissingFile(t *testing.T) {
 	emptyDir := realPath(t, t.TempDir()) // no monom file inside
-	withEnv(t, "MONOM_PROJECT_ROOT", emptyDir)
+	withEnv(t, "_MONOM_PROJECT_ROOT", emptyDir)
 
 	project := makeProject(t)
 	withWd(t, project)
@@ -100,7 +100,7 @@ func TestFindProjectRoot_EnvVarIgnoredWhenMissingFile(t *testing.T) {
 
 func TestFindProjectRoot_EnvVarIgnoredWhenMissingDir(t *testing.T) {
 	nonExistentDir := filepath.Join(t.TempDir(), "does_not_exist")
-	withEnv(t, "MONOM_PROJECT_ROOT", nonExistentDir)
+	withEnv(t, "_MONOM_PROJECT_ROOT", nonExistentDir)
 
 	project := makeProject(t)
 	withWd(t, project)
@@ -116,7 +116,7 @@ func TestFindProjectRoot_EnvVarIgnoredWhenMissingDir(t *testing.T) {
 
 func TestFindProjectRoot_FoundInCurrentPWD(t *testing.T) {
 	project := makeProject(t)
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, project)
 
 	got, err := FindProjectRoot()
@@ -135,7 +135,7 @@ func TestFindProjectRoot_FoundInParent(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, subdir)
 
 	got, err := FindProjectRoot()
@@ -149,7 +149,7 @@ func TestFindProjectRoot_FoundInParent(t *testing.T) {
 
 func TestFindProjectRoot_NotFoundAnywhere(t *testing.T) {
 	emptyDir := t.TempDir()
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, emptyDir)
 
 	_, err := FindProjectRoot()
@@ -170,7 +170,7 @@ func TestFindProjectRoot_NonExecutableMonom_SkippedDuringWalk(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, subdir)
 
 	got, err := FindProjectRoot()
@@ -184,7 +184,7 @@ func TestFindProjectRoot_NonExecutableMonom_SkippedDuringWalk(t *testing.T) {
 
 func TestFindProjectRoot_WalkStopsAtFilesystemRoot(t *testing.T) {
 	emptyDir := t.TempDir()
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, emptyDir)
 
 	_, err := FindProjectRoot()
@@ -196,7 +196,7 @@ func TestFindProjectRoot_WalkStopsAtFilesystemRoot(t *testing.T) {
 func TestFindProjectRoot_NonExecProject_Unused(t *testing.T) {
 	// Ensure makeNonExecProject compiles and is valid.
 	dir := makeNonExecProject(t)
-	withEnv(t, "MONOM_PROJECT_ROOT", dir)
+	withEnv(t, "_MONOM_PROJECT_ROOT", dir)
 	withWd(t, t.TempDir())
 
 	_, err := FindProjectRoot()

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# shUnit2 e2e tests for `monomd install` and the install nudge.
-# Run directly: bash tests/monomd_install_test
+# shUnit2 e2e tests for `mnmd install` and the install nudge.
+# Run directly: bash tests/mnmd_install_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 
 # shellcheck disable=SC1091
@@ -15,18 +15,18 @@ SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 # ---------------------------------------------------------------------------
 
 # make_fake_install_tree — creates a temp directory tree resembling:
-#   <root>/bin/monomd  (the binary symlink target)
+#   <root>/bin/mnmd  (the binary symlink target)
 #   <root>/src/monom   (the file the source line points at)
-# Returns the bin/monomd path.
+# Returns the bin/mnmd path.
 make_fake_install_tree() {
   local root
   root=$(mktemp -d)
   root=$(cd "$root" && pwd -P)
   mkdir -p "$root/bin" "$root/src"
   # Copy the real binary so it is executable.
-  cp "$MONOMD" "$root/bin/monomd"
+  cp "$MONOMD" "$root/bin/mnmd"
   touch "$root/src/monom"
-  printf '%s/bin/monomd' "$root"
+  printf '%s/bin/mnmd' "$root"
 }
 
 # ---------------------------------------------------------------------------
@@ -37,21 +37,21 @@ test_nudge_fires_when_monom_active_unset() {
   local stderr
   stderr=$(MONOM_ACTIVE='' "$MONOMD" root 2>&1 >/dev/null) || true
   assertContains "nudge should appear on stderr when MONOM_ACTIVE unset" \
-    "$stderr" "monomd install"
+    "$stderr" "mnmd install"
 }
 
 test_nudge_fires_when_no_subcommand_given() {
   local stderr
   stderr=$(MONOM_ACTIVE='' "$MONOMD" 2>&1 >/dev/null) || true
-  assertContains "nudge should appear on stderr when monomd called with no args" \
-    "$stderr" "monomd install"
+  assertContains "nudge should appear on stderr when mnmd called with no args" \
+    "$stderr" "mnmd install"
 }
 
 test_nudge_suppressed_when_monom_active_set() {
   local stderr
   stderr=$(MONOM_ACTIVE=1 "$MONOMD" root 2>&1 >/dev/null) || true
   assertNotContains "nudge should not appear when MONOM_ACTIVE=1" \
-    "$stderr" "monomd install"
+    "$stderr" "mnmd install"
 }
 
 test_nudge_suppressed_for_install_subcommand() {
@@ -68,9 +68,9 @@ test_nudge_suppressed_for_install_subcommand() {
 
 test_nudge_stdout_is_clean() {
   local stdout
-  # monomd root will exit non-zero (no project), but stdout must be empty of nudge.
+  # mnmd root will exit non-zero (no project), but stdout must be empty of nudge.
   stdout=$(MONOM_ACTIVE='' "$MONOMD" root 2>/dev/null) || true
-  assertNotContains "nudge must not appear on stdout" "$stdout" "monomd install"
+  assertNotContains "nudge must not appear on stdout" "$stdout" "mnmd install"
 }
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ test_install_writes_zsh_rc() {
   tmprc=$(mktemp -d)
 
   MONOM_ACTIVE=1 HOME="$tmprc" SHELL="/bin/zsh" "$tmpbin" install > /dev/null
-  assertEquals "monomd install should exit 0 for zsh" 0 $?
+  assertEquals "mnmd install should exit 0 for zsh" 0 $?
 
   local content
   content=$(cat "$tmprc/.zshrc" 2>/dev/null)

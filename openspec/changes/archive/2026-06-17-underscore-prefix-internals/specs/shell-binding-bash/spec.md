@@ -1,8 +1,15 @@
-## Purpose
+## RENAMED Requirements
 
-Document the bash completion binding `src/monom.bash`: the `_monom_completion` handler, its registration via the `complete` builtin, the interactive-safety constraint that it always exits 0 without writing to stderr, how it populates `COMPREPLY` from the `mnmd` binary, and the shellcheck cleanliness requirement.
+- FROM: `### Requirement: monom_completion is defined`
+- TO: `### Requirement: _monom_completion is defined`
 
-## Requirements
+- FROM: `### Requirement: monom_completion always exits 0 and never writes to stderr`
+- TO: `### Requirement: _monom_completion always exits 0 and never writes to stderr`
+
+- FROM: `### Requirement: monom_completion populates COMPREPLY via the monomd binary`
+- TO: `### Requirement: _monom_completion populates COMPREPLY via the mnmd binary`
+
+## MODIFIED Requirements
 
 ### Requirement: _monom_completion is defined
 `src/monom.bash` SHALL define `_monom_completion()` — the bash completion handler called by the `complete` builtin. The name `_monom_completion` follows bash convention (a descriptive `<command>_completion` pattern, since bash enforces no naming scheme) while carrying the leading-underscore prefix that keeps it out of the `monom<Tab>` completion candidate list. The zsh equivalent uses `_monom` because zsh's completion system identifies completion functions by the `_<command>` prefix convention.
@@ -26,7 +33,7 @@ Document the bash completion binding `src/monom.bash`: the `_monom_completion` h
 - **THEN** `COMPREPLY` is empty, nothing is written to stderr, and `_monom_completion` exits 0
 
 ### Requirement: _monom_completion populates COMPREPLY via the mnmd binary
-`_monom_completion()` SHALL call `_setup_monom`, then populate `COMPREPLY` with the output of `_monom_cfg complete | mnmd filter "${COMP_WORDS[@]:1}"`. `mnmd` here resolves via the wrapper function defined in `src/monom`.
+`_monom_completion()` SHALL call `_setup_monom`, then populate `COMPREPLY` with the output of `_monom_cfg complete | "$_MONOM_BIN" filter "${COMP_WORDS[@]:1}"`. It SHALL invoke the resolved `$_MONOM_BIN` binary rather than the bare name `mnmd` (see the `shell-binding-core` _MONOM_BIN requirement).
 
 #### Scenario: COMPREPLY is populated on Tab
 - **WHEN** `_monom_completion` is invoked with `COMP_WORDS=("monom" "")` and `COMP_CWORD=1`
@@ -35,10 +42,3 @@ Document the bash completion binding `src/monom.bash`: the `_monom_completion` h
 #### Scenario: COMPREPLY is empty and exit 0 on filter failure
 - **WHEN** `mnmd filter` exits non-zero or produces no output
 - **THEN** `COMPREPLY` is empty and `_monom_completion` exits 0
-
-### Requirement: src/monom.bash passes shellcheck
-`src/monom.bash` SHALL pass `shellcheck` with shell `bash` and no suppressions except those documented inline with an explanation.
-
-#### Scenario: shellcheck clean
-- **WHEN** `shellcheck --shell=bash src/monom.bash` is run
-- **THEN** it exits 0

@@ -31,7 +31,7 @@ func captureStderr(t *testing.T, fn func()) string {
 func TestCheckNudge_fires_when_MONOM_ACTIVE_unset(t *testing.T) {
 	t.Setenv("MONOM_ACTIVE", "")
 	out := captureStderr(t, func() { checkNudge("filter") })
-	if !strings.Contains(out, "monomd install") {
+	if !strings.Contains(out, "mnmd install") {
 		t.Errorf("expected nudge on stderr, got: %q", out)
 	}
 }

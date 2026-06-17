@@ -26,12 +26,12 @@ The `tmp/` directory at the repo root is for scratch and temporary files (scratc
 
 ## Testing
 
-> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/monomd_<subcommand>_test`. See `openspec/changes/monomd-binary/`.
+> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/mnmd_<subcommand>_test`. See `openspec/changes/monomd-binary/`.
 
 ### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- shUnit2 e2e tests: one file per subcommand under `tests/`, named `monomd_<subcommand>_test`.
+- shUnit2 e2e tests: one file per subcommand under `tests/`, named `mnmd_<subcommand>_test`.
 - shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.
 
@@ -42,7 +42,7 @@ The `tmp/` directory at the repo root is for scratch and temporary files (scratc
 | Logic edge cases not observable from the binary surface | Go unit test |
 | Pure function correctness (return values, error messages) | Go unit test |
 | Full CLI binary surface (stdin, args, stdout, exit codes) | shUnit2 e2e test |
-| Env var integration (`MONOM_PROJECT_ROOT`, `MONOM_USER_CONFIG`) | shUnit2 e2e test |
+| Env var integration (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`) | shUnit2 e2e test |
 | Cross-package integration (e.g. `pack` calling `root`) | shUnit2 e2e test |
 | Completion behavior in a real shell environment | shUnit2 completion e2e test |
 | Shell binding files | shUnit2 test |
@@ -51,14 +51,14 @@ The `tmp/` directory at the repo root is for scratch and temporary files (scratc
 
 ### shUnit2 e2e test structure
 
-One test file per subcommand under `tests/`, named `monomd_<subcommand>_test`. Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly.
+One test file per subcommand under `tests/`, named `mnmd_<subcommand>_test`. Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly.
 
 Each test file follows this pattern:
 
 ```sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 
 . "$SCRIPT_DIR/helpers"
 
@@ -76,20 +76,20 @@ test_something() { ... }
 ### Build
 
 ```
-make build    # compiles bin/monomd
+make build    # compiles bin/mnmd
 make test     # go test ./...
 make check    # test + shUnit2 e2e + shellcheck (pending build infrastructure change)
 ```
 
-### Add a monomd subcommand
+### Add a mnmd subcommand
 
-The four subcommands in scope for the initial binary are `filter`, `root`, `pack`, and `check`. `monomd args` is documented in `architecture.md` as TBD and is out of scope until a separate change defines it.
+The four subcommands in scope for the initial binary are `filter`, `root`, `pack`, and `check`. `mnmd args` is documented in `architecture.md` as TBD and is out of scope until a separate change defines it.
 
 To add or extend a subcommand:
 
 1. Add or update the logic package under `internal/<subcommand>/` with a `*_test.go` covering edge cases not testable from outside the binary
-2. Wire the dispatch in `cmd/monomd/main.go`
-3. Add or update `tests/monomd_<subcommand>_test` covering stdin, args, stdout, exit codes, and env var integration
+2. Wire the dispatch in `cmd/mnmd/main.go`
+3. Add or update `tests/mnmd_<subcommand>_test` covering stdin, args, stdout, exit codes, and env var integration
 4. Run `make check`
 
 ### Add a new shell binding

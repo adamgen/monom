@@ -1,17 +1,17 @@
 #!/bin/bash
-# shUnit2 e2e tests for: monomd filter
-# Run directly: bash tests/monomd_filter_test
+# shUnit2 e2e tests for: mnmd filter
+# Run directly: bash tests/mnmd_filter_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/helpers"
 
 # ---------------------------------------------------------------------------
-# monomd filter
+# mnmd filter
 # ---------------------------------------------------------------------------
 
 test_filter_no_args_returns_top_level_tokens() {

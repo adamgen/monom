@@ -6,7 +6,7 @@
 #
 # Regression coverage: a multi-token command (e.g. `monom db migrate`) must
 # resolve to the slash-delimited file `db/migrate`. zsh does not word-split
-# unquoted parameters by default, so a string-based `monomd pack $args` passes
+# unquoted parameters by default, so a string-based `mnmd pack $args` passes
 # "db migrate" as a single argument and fails. The fix preserves tokens via an
 # array, so these tests pin the behaviour in both shells.
 #
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
 # shellcheck disable=SC2034
-MONOMD="$REPO_ROOT/bin/monomd"
+MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 SRC_MONOM="$REPO_ROOT/src/monom"
 
@@ -130,19 +130,19 @@ run_monom_in() {
     cmd="$cmd $a"
   done
 
-  # src/monom resolves the monomd binary via an absolute path, so PATH does not
-  # need adjusting. MONOM_PROJECT_ROOT is pinned so root discovery is skipped.
+  # src/monom resolves the mnmd binary via an absolute path, so PATH does not
+  # need adjusting. _MONOM_PROJECT_ROOT is pre-set so root discovery is skipped.
   case "$shell" in
     bash)
       bash --norc --noprofile -c "
-        export MONOM_PROJECT_ROOT='$proj'
+        export _MONOM_PROJECT_ROOT='$proj'
         source '$SRC_MONOM'
         $cmd
       " 2>&1
       ;;
     zsh)
       zsh --no-rcs -c "
-        export MONOM_PROJECT_ROOT='$proj'
+        export _MONOM_PROJECT_ROOT='$proj'
         source '$SRC_MONOM'
         $cmd
       " 2>&1
@@ -166,7 +166,7 @@ status_monom_in() {
   case "$shell" in
     bash)
       bash --norc --noprofile -c "
-        export MONOM_PROJECT_ROOT='$proj'
+        export _MONOM_PROJECT_ROOT='$proj'
         source '$SRC_MONOM'
         $cmd >/dev/null 2>&1
         echo \$?
@@ -174,7 +174,7 @@ status_monom_in() {
       ;;
     zsh)
       zsh --no-rcs -c "
-        export MONOM_PROJECT_ROOT='$proj'
+        export _MONOM_PROJECT_ROOT='$proj'
         source '$SRC_MONOM'
         $cmd >/dev/null 2>&1
         echo \$?

@@ -76,7 +76,7 @@ func withWd(t *testing.T, dir string) {
 func TestPack_SingleToken(t *testing.T) {
 	project := makeProject(t)
 	writeExec(t, filepath.Join(project, "command1"), "#!/bin/sh\n")
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	got, err := Pack([]string{"command1"})
 	if err != nil {
@@ -91,7 +91,7 @@ func TestPack_SingleToken(t *testing.T) {
 func TestPack_TwoTokensJoinedWithSlash(t *testing.T) {
 	project := makeProject(t)
 	writeExec(t, filepath.Join(project, "category1", "sub_command1"), "#!/bin/sh\n")
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	got, err := Pack([]string{"category1", "sub_command1"})
 	if err != nil {
@@ -106,7 +106,7 @@ func TestPack_TwoTokensJoinedWithSlash(t *testing.T) {
 func TestPack_NestedPath(t *testing.T) {
 	project := makeProject(t)
 	writeExec(t, filepath.Join(project, "infra", "cloud", "deploy"), "#!/bin/sh\n")
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	got, err := Pack([]string{"infra", "cloud", "deploy"})
 	if err != nil {
@@ -120,7 +120,7 @@ func TestPack_NestedPath(t *testing.T) {
 
 func TestPack_NoProjectRoot(t *testing.T) {
 	emptyDir := t.TempDir()
-	withEnv(t, "MONOM_PROJECT_ROOT", "")
+	withEnv(t, "_MONOM_PROJECT_ROOT", "")
 	withWd(t, emptyDir)
 
 	_, err := Pack([]string{"command1"})
@@ -131,7 +131,7 @@ func TestPack_NoProjectRoot(t *testing.T) {
 
 func TestPack_FileNotFound(t *testing.T) {
 	project := makeProject(t)
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	_, err := Pack([]string{"nonexistent"})
 	if err == nil {
@@ -142,7 +142,7 @@ func TestPack_FileNotFound(t *testing.T) {
 func TestPack_FileExistsButNotExecutable(t *testing.T) {
 	project := makeProject(t)
 	writeNonExec(t, filepath.Join(project, "command1"), "#!/bin/sh\n")
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	_, err := Pack([]string{"command1"})
 	if err == nil {
@@ -152,7 +152,7 @@ func TestPack_FileExistsButNotExecutable(t *testing.T) {
 
 func TestPack_EmptyWordsSlice(t *testing.T) {
 	project := makeProject(t)
-	withEnv(t, "MONOM_PROJECT_ROOT", project)
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
 
 	_, err := Pack([]string{})
 	if err == nil {

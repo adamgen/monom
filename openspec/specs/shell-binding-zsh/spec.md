@@ -1,11 +1,11 @@
 ## Purpose
 
-Document the zsh completion binding `src/monom.zsh`: the `_monom` completion function, its registration via the guarded `compdef` mechanism, the interactive-safety constraint that it always exits 0 without writing to stderr, how it populates completions from the `monomd` binary, the skip-`compadd`-when-empty behavior that avoids a spurious trailing space at leaf commands, and the shellcheck cleanliness requirement.
+Document the zsh completion binding `src/monom.zsh`: the `_monom` completion function, its registration via the guarded `compdef` mechanism, the interactive-safety constraint that it always exits 0 without writing to stderr, how it populates completions from the `mnmd` binary, the skip-`compadd`-when-empty behavior that avoids a spurious trailing space at leaf commands, and the shellcheck cleanliness requirement.
 
 ## Requirements
 
 ### Requirement: _monom completion function is defined
-`src/monom.zsh` SHALL define `_monom()` — the zsh completion function called by the `compdef` mechanism. The `_<command>` naming convention is the zsh standard: zsh's completion system discovers and invokes completion functions by looking for `_<command>` by name. The bash equivalent uses `monom_completion` because bash has no such convention and uses a descriptive name instead.
+`src/monom.zsh` SHALL define `_monom()` — the zsh completion function called by the `compdef` mechanism. The `_<command>` naming convention is the zsh standard: zsh's completion system discovers and invokes completion functions by looking for `_<command>` by name. The bash equivalent uses `_monom_completion` because bash has no such convention and uses a descriptive name instead.
 
 #### Scenario: _monom is callable after sourcing
 - **WHEN** `src/monom.zsh` is sourced in zsh
@@ -23,24 +23,24 @@ Document the zsh completion binding `src/monom.zsh`: the `_monom` completion fun
 - **THEN** the file sources without error and exits 0 (compdef registration is skipped)
 
 ### Requirement: _monom always exits 0 and never writes to stderr
-`_monom()` SHALL always exit 0 and SHALL never write anything to stderr, regardless of any internal failure. Tab completion is interactive — a non-zero exit or any stderr output mid-typing degrades the experience or corrupts the terminal prompt. This mirrors the hard constraint on `monomd filter`.
+`_monom()` SHALL always exit 0 and SHALL never write anything to stderr, regardless of any internal failure. Tab completion is interactive — a non-zero exit or any stderr output mid-typing degrades the experience or corrupts the terminal prompt. This mirrors the hard constraint on `mnmd filter`.
 
-#### Scenario: empty completions and exit 0 when setup_monom fails
-- **WHEN** `_monom` is invoked and `setup_monom` returns non-zero (no project root found)
+#### Scenario: empty completions and exit 0 when _setup_monom fails
+- **WHEN** `_monom` is invoked and `_setup_monom` returns non-zero (no project root found)
 - **THEN** no completions are added, nothing is written to stderr, and `_monom` exits 0
 
-### Requirement: _monom populates completions via the monomd binary
-`_monom()` SHALL call `setup_monom`, then pass the output of `monom_cfg complete | monomd filter "${words[@]:1}"` to `compadd`. It SHALL invoke the `monomd()` wrapper (which runs the resolved executable) rather than relying on the bare name being on `PATH` (see the `shell-binding-core` monomd wrapper requirement).
+### Requirement: _monom populates completions via the mnmd binary
+`_monom()` SHALL call `_setup_monom`, then pass the output of `_monom_cfg complete | mnmd filter "${words[@]:1}"` to `compadd`. `mnmd` here resolves via the wrapper function defined in `src/monom`.
 
 #### Scenario: completions are added on Tab
 - **WHEN** `_monom` is invoked with `words=("monom" "")` and `CURRENT=2`
-- **THEN** `compadd` is called with the top-level completions returned by `monomd filter`
+- **THEN** `compadd` is called with the top-level completions returned by `mnmd filter`
 
 ### Requirement: _monom skips compadd when there are no completions
 When the filter produces no output (e.g. a leaf command has been fully typed, or the filter fails), `_monom()` SHALL return without calling `compadd`. Splitting empty filter output with `${(@f)...}` yields a single empty-string element; calling `compadd -- ""` registers an empty match that zsh "completes" by inserting a trailing space on every Tab press. Skipping `compadd` entirely avoids that spurious space.
 
 #### Scenario: no spurious space at a leaf
-- **WHEN** `monomd filter` exits non-zero or produces no output
+- **WHEN** `mnmd filter` exits non-zero or produces no output
 - **THEN** `compadd` is not called, no empty match is registered, and `_monom` exits 0
 
 ### Requirement: src/monom.zsh passes shellcheck
