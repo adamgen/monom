@@ -58,5 +58,50 @@ test_pack_exits_nonzero_when_no_root_found() {
   rm -rf "$tmp"
 }
 
+# ---------------------------------------------------------------------------
+# mnmd pack: command groups (directories) exit 3 as a pure signal.
+# pack does NOT enumerate children — stdout and stderr are both empty. The
+# child listing is the caller's job via the `complete` discovery hook.
+# ---------------------------------------------------------------------------
+
+test_pack_group_exits_3_with_empty_stdout() {
+  tmp=$(make_tmp_project)
+  make_cmd "$tmp/infra/cloud"
+  make_cmd "$tmp/infra/local"
+  out=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack infra 2>/dev/null)
+  status=$?
+  assertEquals "pack must exit 3 for a command group" 3 "$status"
+  assertEquals "pack must not enumerate children on stdout" "" "$out"
+  rm -rf "$tmp"
+}
+
+test_pack_group_writes_nothing_to_stderr() {
+  tmp=$(make_tmp_project)
+  make_cmd "$tmp/infra/cloud"
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack infra 2>&1 1>/dev/null)
+  assertEquals "pack group outcome must keep stderr empty" "" "$err"
+  rm -rf "$tmp"
+}
+
+test_pack_nested_group_exits_3() {
+  tmp=$(make_tmp_project)
+  make_cmd "$tmp/infra/cloud/deploy"
+  out=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack infra cloud 2>/dev/null)
+  status=$?
+  assertEquals "nested group must exit 3" 3 "$status"
+  assertEquals "nested group prints nothing to stdout" "" "$out"
+  rm -rf "$tmp"
+}
+
+test_pack_empty_group_exits_3_with_empty_stdout() {
+  tmp=$(make_tmp_project)
+  mkdir -p "$tmp/empty"
+  out=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" pack empty 2>/dev/null)
+  status=$?
+  assertEquals "empty group must exit 3" 3 "$status"
+  assertEquals "empty group prints nothing to stdout" "" "$out"
+  rm -rf "$tmp"
+}
+
 # shellcheck disable=SC1090
 . "$SHUNIT2"

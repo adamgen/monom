@@ -81,14 +81,48 @@ monom() {
     unpacked_args=("$@")
   fi
 
-  local resolved
-  if ! resolved=$(mnmd pack "${unpacked_args[@]}" 2>&1); then
-    echo "$resolved" >&2
+  local pack_out pack_err pack_status
+  pack_err=$(mktemp)
+  pack_out=$(mnmd pack "${unpacked_args[@]}" 2>"$pack_err")
+  pack_status=$?
+
+  if [ "$pack_status" -eq 0 ]; then
+    rm -f "$pack_err"
+    # Run via exec in a subshell so the user's interactive session is not replaced.
+    ( exec "$pack_out" )
+    return
+  fi
+
+  if [ "$pack_status" -eq 3 ]; then
+    rm -f "$pack_err"
+    # Last typed token names the group. Iterating the array lands on the final
+    # element in both bash and zsh without relying on shell-specific indexing.
+    local group_name=""
+    local _w
+    for _w in "${unpacked_args[@]}"; do
+      group_name="$_w"
+    done
+    echo "monom: '$group_name' is a command group" >&2
+    # List the group's children from the canonical discovery source: the same
+    # `complete | filter` pipeline tab-completion uses. A trailing "" tells
+    # filter to drill into this level's children. pack deliberately does not
+    # enumerate the tree, so `complete` stays the single source of truth and the
+    # listing matches `monom <group> <Tab>` (including any run-hook remapping).
+    local children
+    children=$(_monom_cfg complete 2>/dev/null | mnmd filter "${unpacked_args[@]}" "" 2>/dev/null)
+    if [ -n "$children" ]; then
+      local available
+      available=$(printf '%s' "$children" | tr '\n' ' ')
+      available="${available% }"
+      echo "available: ${available// /, }" >&2
+    fi
     return 1
   fi
 
-  # Run via exec in a subshell so the user's interactive session is not replaced.
-  ( exec "$resolved" )
+  # Any other non-zero exit is a real error; forward pack's stderr verbatim.
+  [ -s "$pack_err" ] && cat "$pack_err" >&2
+  rm -f "$pack_err"
+  return 1
 }
 
 # Source the shell-specific completion binding.

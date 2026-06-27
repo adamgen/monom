@@ -45,7 +45,7 @@ make_run_project() {
   cat > "$d/monom" <<'EOF'
 #!/bin/sh
 case "$1" in
-  complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\n' ;;
+  complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\ninfra/local/start\n' ;;
 esac
 EOF
   chmod +x "$d/monom"
@@ -53,6 +53,7 @@ EOF
   make_cmd "$d/release"
   make_cmd "$d/db/migrate"
   make_cmd "$d/infra/cloud/deploy"
+  make_cmd "$d/infra/local/start"
 
   # Overwrite stubs with unique markers so we can assert which file ran.
   cat > "$d/release" <<'EOF'
@@ -333,6 +334,91 @@ test_zsh_run_hook_failure_surfaces_error_and_aborts() {
     "$output" "ran release"
   assertEquals "monom should exit with the hook's status in zsh" "3" "$status"
 
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# command groups: invoking a directory lists children instead of running
+# ---------------------------------------------------------------------------
+# make_run_project provides the group tree, with the children sourced from the
+# `complete` hook (the single source of truth — pack no longer reads the disk):
+#   infra/        -> children: cloud, local
+#   infra/cloud/  -> children: deploy
+# so `monom infra` and `monom infra cloud` both resolve to directories.
+
+test_bash_group_invocation_lists_children_and_does_not_run() {
+  local proj output status
+  proj=$(make_run_project)
+
+  output=$(run_monom_in bash "$proj" infra)
+  status=$?
+
+  assert_output_contains_line "group message names the group in bash" \
+    "$output" "monom: 'infra' is a command group"
+  assert_output_contains_line "group lists available children in bash" \
+    "$output" "available: cloud, local"
+  assert_output_lacks_line "group invocation must not run a command in bash" \
+    "$output" "ran infra/cloud/deploy"
+  assertNotEquals "group invocation must exit non-zero in bash" 0 "$status"
+  rm -rf "$proj"
+}
+
+test_bash_group_message_uses_last_typed_token() {
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in bash "$proj" infra cloud)
+  assert_output_contains_line "group name is the last typed token in bash" \
+    "$output" "monom: 'cloud' is a command group"
+  assert_output_contains_line "nested group lists its children in bash" \
+    "$output" "available: deploy"
+  rm -rf "$proj"
+}
+
+test_bash_empty_group_reported_without_available_list() {
+  local proj output
+  proj=$(make_run_project)
+  mkdir -p "$proj/empty"
+  output=$(run_monom_in bash "$proj" empty)
+  assert_output_contains_line "empty group is still reported in bash" \
+    "$output" "monom: 'empty' is a command group"
+  assert_output_lacks_line "empty group prints no available list in bash" \
+    "$output" "available: "
+  rm -rf "$proj"
+}
+
+test_zsh_group_invocation_lists_children_and_does_not_run() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output status
+  proj=$(make_run_project)
+
+  output=$(run_monom_in zsh "$proj" infra)
+  status=$?
+
+  assert_output_contains_line "group message names the group in zsh" \
+    "$output" "monom: 'infra' is a command group"
+  assert_output_contains_line "group lists available children in zsh" \
+    "$output" "available: cloud, local"
+  assert_output_lacks_line "group invocation must not run a command in zsh" \
+    "$output" "ran infra/cloud/deploy"
+  assertNotEquals "group invocation must exit non-zero in zsh" 0 "$status"
+  rm -rf "$proj"
+}
+
+test_zsh_group_message_uses_last_typed_token() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_run_project)
+  output=$(run_monom_in zsh "$proj" infra cloud)
+  assert_output_contains_line "group name is the last typed token in zsh" \
+    "$output" "monom: 'cloud' is a command group"
+  assert_output_contains_line "nested group lists its children in zsh" \
+    "$output" "available: deploy"
   rm -rf "$proj"
 }
 

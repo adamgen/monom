@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -107,13 +108,17 @@ func runRoot() {
 	fmt.Println(projectRoot)
 }
 
-// runPack resolves os.Args[2:] to an absolute executable path and prints it,
-// or prints an error to stderr and exits 1.
+// runPack resolves os.Args[2:] to an absolute executable path and prints it.
 func runPack() {
 	words := os.Args[2:]
 	debuglog.Log("[mnmd pack] words=(%s)", strings.Join(words, " "))
 	absPath, err := pack.Pack(words)
 	if err != nil {
+		var ge *pack.GroupError
+		if errors.As(err, &ge) {
+			debuglog.Log("[mnmd pack] command group: %s", ge.Path)
+			os.Exit(3)
+		}
 		debuglog.Log("[mnmd pack] failed: %v", err)
 		fmt.Fprintln(os.Stderr, "mnmd pack:", err)
 		os.Exit(1)
