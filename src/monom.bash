@@ -23,3 +23,17 @@ _monom_completion() {
 }
 
 complete -F _monom_completion monom
+
+# _mnmd_completion — bash completion handler for the mnmd binary.
+# Completes the first argument with the list of known mnmd subcommands.
+_mnmd_completion() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local subcommands="filter root pack check install completion"
+  # Only complete the first positional argument (subcommand slot).
+  if [[ "${COMP_CWORD}" -eq 1 ]]; then
+    # shellcheck disable=SC2207
+    COMPREPLY=($(compgen -W "$subcommands" -- "$cur"))
+  fi
+}
+
+complete -F _mnmd_completion mnmd

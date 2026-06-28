@@ -50,3 +50,21 @@ _monom() {
 if (( ${+functions[compdef]} )); then
   compdef _monom monom
 fi
+
+# _mnmd — zsh completion function for the mnmd binary.
+# Completes the first argument with the list of known mnmd subcommands.
+_mnmd() {
+  local -a subcommands
+  subcommands=(filter root pack check install completion)
+  # Only complete the first positional argument (subcommand slot).
+  # $words is set by zsh's completion system; $words[1] is "mnmd".
+  # SC2154: referenced but not assigned — false positive for zsh completion variables.
+  # shellcheck disable=SC2154
+  if [[ "${#words[@]}" -le 2 ]]; then
+    compadd -- "${subcommands[@]}"
+  fi
+}
+
+if (( ${+functions[compdef]} )); then
+  compdef _mnmd mnmd
+fi

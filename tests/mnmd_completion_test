@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: mnmd Tab completion (bash and zsh)
+# Run directly: bash tests/mnmd_completion_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM_BASH="$REPO_ROOT/src/monom.bash"
+SRC_MONOM_ZSH="$REPO_ROOT/src/monom.zsh"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# The canonical list of mnmd subcommands exposed for completion.
+EXPECTED_SUBCOMMANDS="filter root pack check install completion"
+
+# ---------------------------------------------------------------------------
+# bash: _mnmd_completion is defined and registered
+# ---------------------------------------------------------------------------
+
+test_mnmd_completion_function_defined_in_bash() {
+  local fn_exists
+  fn_exists=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    declare -f _mnmd_completion > /dev/null 2>&1 && echo yes || echo no
+  " 2>/dev/null)
+  assertEquals "_mnmd_completion function should exist in bash" "yes" "$fn_exists"
+}
+
+test_mnmd_completion_registered_for_mnmd_in_bash() {
+  local hook_registered
+  hook_registered=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    complete -p mnmd 2>/dev/null
+  " 2>/dev/null)
+  if ! printf '%s' "$hook_registered" | grep -qF -- "-F _mnmd_completion"; then
+    fail "complete -p mnmd should show -F _mnmd_completion; got: $hook_registered"
+  fi
+}
+
+test_mnmd_completion_returns_all_subcommands_with_empty_prefix_bash() {
+  local completions
+  completions=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    COMP_WORDS=(mnmd '')
+    COMP_CWORD=1
+    COMPREPLY=()
+    _mnmd_completion
+    printf '%s\n' \"\${COMPREPLY[@]}\"
+  " 2>/dev/null)
+
+  for sub in $EXPECTED_SUBCOMMANDS; do
+    if ! printf '%s\n' "$completions" | grep -qFx "$sub"; then
+      fail "bash completion missing subcommand '$sub'; got: $completions"
+    fi
+  done
+}
+
+test_mnmd_completion_filters_by_prefix_bash() {
+  local completions
+  completions=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    COMP_WORDS=(mnmd 'fi')
+    COMP_CWORD=1
+    COMPREPLY=()
+    _mnmd_completion
+    printf '%s\n' \"\${COMPREPLY[@]}\"
+  " 2>/dev/null)
+
+  if ! printf '%s\n' "$completions" | grep -qFx "filter"; then
+    fail "bash completion should include 'filter' for prefix 'fi'; got: $completions"
+  fi
+  if printf '%s\n' "$completions" | grep -qFx "root"; then
+    fail "bash completion should not include 'root' for prefix 'fi'; got: $completions"
+  fi
+}
+
+test_mnmd_completion_does_not_complete_beyond_subcommand_bash() {
+  local completions
+  completions=$(bash --norc --noprofile -c "
+    source '$SRC_MONOM_BASH'
+    COMP_WORDS=(mnmd filter '')
+    COMP_CWORD=2
+    COMPREPLY=()
+    _mnmd_completion
+    printf '%s\n' \"\${COMPREPLY[@]}\"
+  " 2>/dev/null)
+
+  assertEquals "completion beyond subcommand slot should be empty" "" "$completions"
+}
+
+# ---------------------------------------------------------------------------
+# zsh: _mnmd function is defined and registered
+# ---------------------------------------------------------------------------
+
+test_mnmd_zsh_function_defined() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+
+  local fn_defined
+  fn_defined=$(zsh --no-rcs -c "
+    source '$SRC_MONOM_ZSH'
+    if [[ -n \"\${functions[_mnmd]}\" ]]; then echo yes; else echo no; fi
+  " 2>/dev/null)
+
+  assertEquals "_mnmd function should be defined in zsh" "yes" "$fn_defined"
+}
+
+test_mnmd_zsh_sources_without_error_before_compinit() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+
+  # zsh --no-rcs does not call compinit, so compdef is undefined.
+  # The guard in src/monom.zsh should skip compdef registration silently.
+  local stderr exit_code
+  stderr=$(zsh --no-rcs -c "source '$SRC_MONOM_ZSH'" 2>&1 >/dev/null)
+  exit_code=$?
+
+  assertEquals "sourcing monom.zsh before compinit should exit 0" 0 "$exit_code"
+  assertEquals "sourcing monom.zsh before compinit should produce no stderr" "" "$stderr"
+}
+
+test_mnmd_zsh_completion_returns_all_subcommands() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+
+  # Simulate zsh completion by calling _mnmd with words=(mnmd '') and capturing
+  # compadd output via a mock. We replace compadd with a function that prints
+  # its arguments and verify each expected subcommand appears.
+  local completions
+  completions=$(zsh --no-rcs -c "
+    source '$SRC_MONOM_ZSH'
+    compadd() { printf '%s\n' \"\$@\"; }
+    words=(mnmd '')
+    _mnmd
+  " 2>/dev/null)
+
+  for sub in $EXPECTED_SUBCOMMANDS; do
+    if ! printf '%s\n' "$completions" | grep -qFx "$sub"; then
+      fail "zsh completion missing subcommand '$sub'; got: $completions"
+    fi
+  done
+}
+
+test_mnmd_zsh_completion_does_not_complete_beyond_subcommand() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+
+  local completions
+  completions=$(zsh --no-rcs -c "
+    source '$SRC_MONOM_ZSH'
+    compadd() { printf '%s\n' \"\$@\"; }
+    words=(mnmd filter '')
+    _mnmd
+  " 2>/dev/null)
+
+  assertEquals "zsh completion beyond subcommand slot should be empty" "" "$completions"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"
