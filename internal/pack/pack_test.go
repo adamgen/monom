@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/adamgen/monom/internal/cli"
 )
 
 // makeProject creates a temp project root with an executable "monom" file and
@@ -219,6 +221,21 @@ func TestPack_LeafIsNotAGroupError(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGroupError_SatisfiesCodedError(t *testing.T) {
+	project := makeProject(t)
+	writeExec(t, filepath.Join(project, "infra", "cloud"), "#!/bin/sh\n")
+	withEnv(t, "_MONOM_PROJECT_ROOT", project)
+
+	_, err := Pack([]string{"infra"})
+	var ce cli.CodedError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected CodedError, got %T: %v", err, err)
+	}
+	if ce.ExitCode() != cli.ExitCodes.GroupError {
+		t.Errorf("ExitCode() = %d, want %d", ce.ExitCode(), cli.ExitCodes.GroupError)
 	}
 }
 

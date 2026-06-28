@@ -62,6 +62,12 @@ A chain of subprocesses passing data through pipes is hard to reason about, hard
 
 ---
 
+## Principle: Errors Carry Their Own Exit Code
+
+A subcommand's outcome is determined by the typed error it returns, not by its call site in `main.go`. Every error carries its own exit code via the `CodedError` interface, and all exit codes are defined in a single central registry (`internal/cli/cli.go`). The dispatcher resolves exit codes uniformly — no per-subcommand branching.
+
+---
+
 ## Principle: Pluggability via Hooks
 
 monom defines a small set of default behaviors (command discovery, path resolution, etc.). For each, the CLI author MAY expose a hook in their user config to intercept, transform, or extend the default. Hooks are discovered by convention: they are subcommands of the monom config file. If a hook is absent, monom uses its default behavior.

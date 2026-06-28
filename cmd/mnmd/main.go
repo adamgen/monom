@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/adamgen/monom/internal/check"
+	"github.com/adamgen/monom/internal/cli"
 	"github.com/adamgen/monom/internal/debuglog"
 	"github.com/adamgen/monom/internal/filter"
 	"github.com/adamgen/monom/internal/install"
@@ -27,28 +28,32 @@ func main() {
 
 	if subcommand == "" {
 		usage()
-		os.Exit(1)
+		os.Exit(cli.ExitCodes.Error)
 	}
 
 	debuglog.Log("[mnmd] dispatch: args=(%s)", strings.Join(os.Args[1:], " "))
 
+	var err error
 	switch os.Args[1] {
 	case "filter":
 		runFilter()
+		return
 	case "root":
-		runRoot()
+		err = runRoot()
 	case "pack":
-		runPack()
+		err = runPack()
 	case "check":
-		runCheck()
+		err = runCheck()
 	case "install":
-		runInstall()
+		err = runInstall()
 	default:
 		debuglog.Log("[mnmd] unknown subcommand: %q", os.Args[1])
 		fmt.Fprintf(os.Stderr, "mnmd: unknown subcommand %q\n", os.Args[1])
 		usage()
-		os.Exit(1)
+		os.Exit(cli.ExitCodes.Error)
 	}
+
+	handleError(os.Args[1], err)
 }
 
 func usage() {
@@ -67,9 +72,27 @@ func checkNudge(subcommand string) {
 	}
 }
 
-// runFilter reads newline-delimited command paths from stdin, applies Filter
-// with the words from os.Args[2:], and prints matching tokens one per line.
-// Always exits 0 — any error results in empty output per spec.
+// handleError is the uniform error→exit-code dispatch tail. It resolves the
+// exit code from a CodedError when present, defaults to ExitCodes.Error
+// otherwise. The GroupError code suppresses stderr (it is a payload-free
+// signal).
+func handleError(sub string, err error) {
+	if err == nil {
+		return
+	}
+	var ce cli.CodedError
+	if errors.As(err, &ce) {
+		if ce.ExitCode() != cli.ExitCodes.GroupError {
+			fmt.Fprintln(os.Stderr, "mnmd "+sub+":", ce)
+		}
+		os.Exit(ce.ExitCode())
+	}
+	fmt.Fprintln(os.Stderr, "mnmd "+sub+":", err)
+	os.Exit(cli.ExitCodes.Error)
+}
+
+// runFilter always exits 0 — any error results in empty output per spec.
+// It is exempt from the CodedError dispatch.
 func runFilter() {
 	defer func() { recover() }() //nolint:errcheck
 
@@ -83,7 +106,6 @@ func runFilter() {
 			commands = append(commands, line)
 		}
 	}
-	// Ignore scanner.Err() — filter must always exit 0.
 
 	debuglog.Log("[mnmd filter] words=(%s) commands=%d", strings.Join(words, " "), len(commands))
 
@@ -92,24 +114,21 @@ func runFilter() {
 		fmt.Println(r)
 	}
 	debuglog.Log("[mnmd filter] returning %d token(s): (%s)", len(results), strings.Join(results, " "))
-	os.Exit(0)
+	os.Exit(cli.ExitCodes.Success)
 }
 
-// runRoot prints the project root to stdout and exits 0, or prints an error
-// to stderr and exits 1.
-func runRoot() {
+func runRoot() error {
 	projectRoot, err := root.FindProjectRoot()
 	if err != nil {
 		debuglog.Log("[mnmd root] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "mnmd root:", err)
-		os.Exit(1)
+		return cli.WrapError(err)
 	}
 	debuglog.Log("[mnmd root] found: %s", projectRoot)
 	fmt.Println(projectRoot)
+	return nil
 }
 
-// runPack resolves os.Args[2:] to an absolute executable path and prints it.
-func runPack() {
+func runPack() error {
 	words := os.Args[2:]
 	debuglog.Log("[mnmd pack] words=(%s)", strings.Join(words, " "))
 	absPath, err := pack.Pack(words)
@@ -117,52 +136,46 @@ func runPack() {
 		var ge *pack.GroupError
 		if errors.As(err, &ge) {
 			debuglog.Log("[mnmd pack] command group: %s", ge.Path)
-			os.Exit(3)
+			return err
 		}
 		debuglog.Log("[mnmd pack] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "mnmd pack:", err)
-		os.Exit(1)
+		return cli.WrapError(err)
 	}
 	debuglog.Log("[mnmd pack] resolved: %s", absPath)
 	fmt.Println(absPath)
+	return nil
 }
 
-// runCheck runs _MONOM_USER_CONFIG complete, reports problems, and exits
-// non-zero if any are found.
-func runCheck() {
+func runCheck() error {
 	userConfig := os.Getenv("_MONOM_USER_CONFIG")
 	debuglog.Log("[mnmd check] config=%s", userConfig)
 	problems, err := check.Check(userConfig)
 	if err != nil {
 		debuglog.Log("[mnmd check] failed: %v", err)
-		fmt.Fprintln(os.Stderr, "mnmd check:", err)
-		os.Exit(1)
+		return cli.WrapError(err)
 	}
 	if len(problems) == 0 {
 		n := countLines(userConfig)
 		debuglog.Log("[mnmd check] OK: %d commands", n)
 		fmt.Printf("✔ %d commands OK\n", n)
-		return
+		return nil
 	}
 	debuglog.Log("[mnmd check] %d problem(s) found", len(problems))
 	for _, p := range problems {
 		fmt.Println(p)
 	}
-	fmt.Fprintf(os.Stderr, "mnmd check: %d problem(s) found\n", len(problems))
-	os.Exit(1)
+	return cli.WrapError(fmt.Errorf("%d problem(s) found", len(problems)))
 }
 
-// runInstall writes a source line for src/monom into the user's shell rc file.
-func runInstall() {
+func runInstall() error {
 	exe, err := os.Executable()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mnmd install: could not determine binary path:", err)
-		os.Exit(1)
+		return cli.WrapError(fmt.Errorf("could not determine binary path: %w", err))
 	}
 	if err := install.Run(exe); err != nil {
-		fmt.Fprintln(os.Stderr, "mnmd install:", err)
-		os.Exit(1)
+		return cli.WrapError(err)
 	}
+	return nil
 }
 
 // countLines runs userConfig complete and counts non-empty output lines.

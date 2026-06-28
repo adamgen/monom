@@ -171,13 +171,7 @@ $ mnmd pack category1 sub_command1
 
 Pack is the symmetric counterpart of `filter`: both take space-separated tokens as CLI args and bridge to the slash-delimited file tree. Pack's specific job is to replace spaces with slashes and resolve to an absolute, executable path.
 
-**Exit codes.** Pack signals its outcome through the exit code so the shell can branch without parsing strings:
-
-| Exit | Meaning | Output |
-| ---- | ------- | ------ |
-| `0` | A leaf command resolved | absolute path on stdout |
-| `3` | The tokens resolved to a **command group** (a directory, not a runnable file) | none — stdout and stderr both empty |
-| `1` | A real error (no args, not found, not executable, no project root) | message on stderr |
+**Exit codes.** Pack signals its outcome through the exit code so the shell can branch without parsing strings. All exit codes are defined in the central registry at `internal/cli/cli.go` (see constitution: *Errors Carry Their Own Exit Code*).
 
 Exit code `3` is **reserved exclusively** for the command-group outcome. A directory is a noun in monom's noun→verb file tree — it is not a command, but it is also not a failure, so it gets its own signal. Exit 3 is a *pure signal*: pack writes nothing and, crucially, does **not** enumerate the group's children. Discovery is the `complete` hook's job (see [terminology](terminology.md) and the [user config interface](#the-user-config-interface)); pack stays a pure resolver that returns a path xor a non-leaf signal. The `monom()` function turns exit 3 into a user-facing listing by sourcing the children from the canonical discovery pipeline — `monom_cfg complete | mnmd filter <tokens> ""`, the same path tab-completion uses — so the listing matches `monom <group> <Tab>` and honors any `run`-hook surface tree, rather than re-deriving it from a direct filesystem read. The result is `monom: 'infra' is a command group` / `available: cloud, local`; see [shell files](#shell-files).
 

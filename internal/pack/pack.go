@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/adamgen/monom/internal/cli"
 	"github.com/adamgen/monom/internal/root"
 )
 
@@ -23,9 +24,8 @@ type GroupError struct {
 	Path string // absolute path of the resolved group directory
 }
 
-func (e *GroupError) Error() string {
-	return "resolved path is a command group: " + e.Path
-}
+func (e *GroupError) Error() string    { return "resolved path is a command group: " + e.Path }
+func (e *GroupError) ExitCode() int    { return cli.ExitCodes.GroupError }
 
 // Pack resolves a space-separated command token sequence to an absolute
 // executable path within the monom project.
