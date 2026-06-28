@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # monom user config for the demo-project fixture.
-# Called by monomd to discover commands and run hooks.
+# Called by mnmd to discover commands and run hooks.
 
 case "$1" in
   complete)

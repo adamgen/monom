@@ -1,8 +1,8 @@
 ## Context
 
-The `monomd args` binary subcommand provides single-flag parsing. CLI authors call it as `PROP=$(monomd args prop -- "$@")`. For scripts with many flags, this pattern repeats on every line. Additionally, there's no standard "bail out with an error" function — authors write ad-hoc `echo >&2; exit 1` every time.
+The `mnmd args` binary subcommand provides single-flag parsing. CLI authors call it as `PROP=$(mnmd args prop -- "$@")`. For scripts with many flags, this pattern repeats on every line. Additionally, there's no standard "bail out with an error" function — authors write ad-hoc `echo >&2; exit 1` every time.
 
-These two shell helpers are thin wrappers that provide ergonomics on top of the binary. They follow the constitution's "Go owns logic, shell owns surface" principle: the parsing logic stays in `monomd args`; the shell function only handles variable assignment (which requires parent-shell scope) and the multi-flag declaration syntax.
+These two shell helpers are thin wrappers that provide ergonomics on top of the binary. They follow the constitution's "Go owns logic, shell owns surface" principle: the parsing logic stays in `mnmd args`; the shell function only handles variable assignment (which requires parent-shell scope) and the multi-flag declaration syntax.
 
 ## Goals / Non-Goals
 
@@ -13,9 +13,9 @@ These two shell helpers are thin wrappers that provide ergonomics on top of the 
 - Both functions are available to CLI author command scripts after sourcing monom
 
 **Non-Goals:**
-- Adding parsing logic to shell — `monom_args` delegates entirely to `monomd args`
+- Adding parsing logic to shell — `monom_args` delegates entirely to `mnmd args`
 - Help/usage generation — out of scope
-- Argument validation beyond what `monomd args` already provides
+- Argument validation beyond what `mnmd args` already provides
 - Making these functions available outside of monom-sourced environments
 
 ## Decisions
@@ -27,7 +27,7 @@ These two shell helpers are thin wrappers that provide ergonomics on top of the 
 monom_args [modifiers...] <name> [modifiers...] <name> ... -- "$@"
 ```
 
-The `--` separates the flag declarations from the raw args. Before `--`, tokens are grouped: each bare word is a variable name (and flag name), and `--`-prefixed tokens before it are modifiers for that flag. After `--` is the raw argument list passed through to `monomd args`.
+The `--` separates the flag declarations from the raw args. Before `--`, tokens are grouped: each bare word is a variable name (and flag name), and `--`-prefixed tokens before it are modifiers for that flag. After `--` is the raw argument list passed through to `mnmd args`.
 
 **Example:**
 ```bash
@@ -35,17 +35,17 @@ monom_args --short=e env --short p port --boolean verbose -- "$@"
 # Sets: $env, $port, $verbose
 ```
 
-**Rationale:** Mirrors the `monomd args` modifier syntax exactly. CLI authors learn one pattern. The shell function just splits the declaration into individual `monomd args` calls.
+**Rationale:** Mirrors the `mnmd args` modifier syntax exactly. CLI authors learn one pattern. The shell function just splits the declaration into individual `mnmd args` calls.
 
 ### Decision: `monom_args` sets variables via `printf -v`
 
-**Choice:** Use `printf -v "$name" '%s' "$(monomd args ...)"` to set variables in the caller's scope.
+**Choice:** Use `printf -v "$name" '%s' "$(mnmd args ...)"` to set variables in the caller's scope.
 
 **Rationale:** `printf -v` sets a variable by name in the calling scope without `eval`. Works in both bash and zsh. Avoids the security and linting concerns of `eval`.
 
 ### Decision: `monom_args` boolean variables get "true" or empty string
 
-**Choice:** For `--boolean` flags, set the variable to `"true"` if the flag is present (exit 0 from `monomd args`), or `""` (empty) if absent.
+**Choice:** For `--boolean` flags, set the variable to `"true"` if the flag is present (exit 0 from `mnmd args`), or `""` (empty) if absent.
 
 **Rationale:** Shell idiom: `if [[ "$verbose" ]]; then ...` works naturally. Empty = falsy, non-empty = truthy. Using `"true"` (not `"1"`) is more readable in debug output.
 

@@ -7,8 +7,8 @@
 
 - [ ] 2.1 Implement `monom_args` in `src/monom` — parse declaration block, split on `--`, loop through flag specs
 - [ ] 2.2 Handle modifier grouping — `--`-prefixed tokens before a bare word apply to that flag
-- [ ] 2.3 For value flags, set variable via `printf -v` (or zsh equivalent) from `monomd args` output
-- [ ] 2.4 For `--boolean` flags, set variable to `"true"` (exit 0) or `""` (exit 1) based on `monomd args` exit code
+- [ ] 2.3 For value flags, set variable via `printf -v` (or zsh equivalent) from `mnmd args` output
+- [ ] 2.4 For `--boolean` flags, set variable to `"true"` (exit 0) or `""` (exit 1) based on `mnmd args` exit code
 - [ ] 2.5 Error if `--` separator is missing from the call
 - [ ] 2.6 Verify it works in both bash and zsh
 

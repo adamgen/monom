@@ -1,6 +1,6 @@
 ## Context
 
-The project has a clearly specified target architecture (`architecture.md`, `constitution.md`) for a new `monomd` binary with a clean shell/Go separation. However, the current working tree contains a substantial body of prototype-era code that predates and conflicts with this design:
+The project has a clearly specified target architecture (`architecture.md`, `constitution.md`) for a new `mnmd` binary with a clean shell/Go separation. However, the current working tree contains a substantial body of prototype-era code that predates and conflicts with this design:
 
 - `src/` — prototype shell scripts (`monom`, `monom_tools`, `monom_usage`, `run`, `completion`, `usage_completion`, `make_monom_alias`, `monom_test`), sh_utils (`get_monom_project_root`, `log`), and an early Go implementation (`main.go`, `go_utils/finder.go`, `go_utils/remvoe_prefix.go`) that uses a `complete` subcommand instead of the intended `filter`/`pack`/`root` model.
 - `test_projects/` — two prototype test fixtures (`file_commands`, `monorepo1`) using the old command model.
@@ -19,7 +19,7 @@ These files are not being deleted — they may be useful as reference material d
 
 **Non-Goals:**
 - Deleting the prototype code entirely.
-- Updating `go.mod` or any import paths (that belongs to the `monomd-binary` change).
+- Updating `go.mod` or any import paths (that belongs to the `mnmd-binary` change).
 - Creating any new source files or test files.
 - Modifying any markdown or OpenSpec documents.
 
@@ -39,7 +39,7 @@ The scripts `build`, `check`, `go_e2e_test`, `sh_test_runner`, `shellcheck`, `in
 
 ### Decision: Keep `go.mod` at the repo root, do not move it
 
-`go.mod` defines the Go module root. It must remain at the repo root for `go` tooling to work. The module path and dependencies will be updated when the new `monomd` implementation is built. Moving it would break the Go toolchain.
+`go.mod` defines the Go module root. It must remain at the repo root for `go` tooling to work. The module path and dependencies will be updated when the new `mnmd` implementation is built. Moving it would break the Go toolchain.
 
 ### Decision: Keep `dependencies/` structure intact in the archive
 
@@ -47,6 +47,6 @@ The scripts `build`, `check`, `go_e2e_test`, `sh_test_runner`, `shellcheck`, `in
 
 ## Risks / Trade-offs
 
-- **`./check` and other root scripts become unavailable** → Mitigation: This is intentional and expected. `CLAUDE.md` references `./check`; a follow-up update to `CLAUDE.md` will note this is pending the `monomd-binary` implementation. No code is lost.
-- **`go.mod` module path `github.com/adamgen/monom/src/go_utils` still references `src/`** → Mitigation: The import path will break if `go build` is run, but that's acceptable. The module is currently not buildable to a clean `monomd` anyway. This will be corrected in the `monomd-binary` change.
+- **`./check` and other root scripts become unavailable** → Mitigation: This is intentional and expected. `CLAUDE.md` references `./check`; a follow-up update to `CLAUDE.md` will note this is pending the `mnmd-binary` implementation. No code is lost.
+- **`go.mod` module path `github.com/adamgen/monom/src/go_utils` still references `src/`** → Mitigation: The import path will break if `go build` is run, but that's acceptable. The module is currently not buildable to a clean `mnmd` anyway. This will be corrected in the `mnmd-binary` change.
 - **Prototype tests are no longer runnable** → Expected. The prototype test harness is being archived along with the code it tests. This is not a regression — the prototype tests tested prototype behavior.

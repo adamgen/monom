@@ -15,15 +15,15 @@
 
 ## 3. Install Nudge
 
-- [x] 3.1 Add a `checkNudge()` helper in `cmd/monomd/main.go` (or a shared `internal/nudge/` package) that prints the hint to stderr when `$MONOM_ACTIVE` is unset
+- [x] 3.1 Add a `checkNudge()` helper in `cmd/mnmd/main.go` (or a shared `internal/nudge/` package) that prints the hint to stderr when `$MONOM_ACTIVE` is unset
 - [x] 3.2 Call `checkNudge()` at the top of `main()`, skipping it when the subcommand is `install`
 - [x] 3.3 Add Go unit test verifying nudge fires when `MONOM_ACTIVE` is unset and is suppressed when set
-- [x] 3.4 Add shUnit2 e2e scenario to `tests/monomd_install_test` verifying nudge appears on stderr for non-install subcommands when `MONOM_ACTIVE` is unset
+- [x] 3.4 Add shUnit2 e2e scenario to `tests/mnmd_install_test` verifying nudge appears on stderr for non-install subcommands when `MONOM_ACTIVE` is unset
 
-## 4. monomd install Subcommand
+## 4. mnmd install Subcommand
 
-- [x] 4.1 Wire `install` dispatch in `cmd/monomd/main.go` calling `internal/install.Run()`
-- [x] 4.2 Create `tests/monomd_install_test` with shUnit2 e2e tests covering: zsh rc write, bash rc write, idempotency, unknown shell error, stdout/stderr separation
+- [x] 4.1 Wire `install` dispatch in `cmd/mnmd/main.go` calling `internal/install.Run()`
+- [x] 4.2 Create `tests/mnmd_install_test` with shUnit2 e2e tests covering: zsh rc write, bash rc write, idempotency, unknown shell error, stdout/stderr separation
 
 ## 5. Validation
 
@@ -31,4 +31,4 @@
 - [x] 5.2 Run `go test ./...` — all tests pass
 - [x] 5.3 Run `shellcheck src/monom` — no new warnings
 - [x] 5.4 Run `bash tests/monom_source_zsh_test` — passes
-- [x] 5.5 Run `bash tests/monomd_install_test` — passes
+- [x] 5.5 Run `bash tests/mnmd_install_test` — passes

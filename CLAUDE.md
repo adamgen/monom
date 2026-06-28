@@ -26,7 +26,7 @@ The `tmp/` directory at the repo root is for scratch and temporary files (scratc
 
 ## Testing
 
-> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `monomd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/mnmd_<subcommand>_test`. See `openspec/changes/monomd-binary/`.
+> **Note:** The test runner (`make check`) is pending build infrastructure — a separate change after `mnmd-binary`. To run Go tests directly in the interim, use `go test ./...` from the repo root. To run a shUnit2 suite directly, use `bash tests/mnmd_<subcommand>_test`. See `openspec/changes/mnmd-binary/`.
 
 ### Conventions
 

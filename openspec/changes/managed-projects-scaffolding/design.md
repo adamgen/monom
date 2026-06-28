@@ -2,7 +2,7 @@
 
 monom currently has one project model: the user writes an executable `monom` file implementing `complete` and `run`. This gives full flexibility but creates friction for new users who just want a conventional file-tree-based CLI.
 
-The proposal introduces a second model — "managed projects" — where a declarative `monom.yaml` replaces the executable config. For managed projects, `monomd` handles discovery and resolution internally, and scaffolding commands help users create projects and commands.
+The proposal introduces a second model — "managed projects" — where a declarative `monom.yaml` replaces the executable config. For managed projects, `mnmd` handles discovery and resolution internally, and scaffolding commands help users create projects and commands.
 
 Key constraints:
 - The existing custom project model must remain fully supported and first-class
@@ -32,7 +32,7 @@ Key constraints:
 
 | Mode | Marker file | Who handles discovery/resolution |
 |------|-------------|----------------------------------|
-| Managed | `monom.yaml` | `monomd` internally |
+| Managed | `monom.yaml` | `mnmd` internally |
 | Custom | `monom` (executable) | User's script via `complete`/`run` interface |
 
 **Why not just one mode**: The executable interface is powerful but requires writing discovery logic. Most projects just want "files in a folder = commands." The managed mode serves the 80% case with zero logic.
@@ -64,7 +64,7 @@ Optional properties (can evolve without constitutional amendment):
 
 **Why minimal**: Every property added is a maintenance burden and a potential source of confusion. Start with the minimum and add only when there's proven need.
 
-**Why `commands` is the only required property**: It's the one thing monomd can't guess. Everything else has sensible defaults.
+**Why `commands` is the only required property**: It's the one thing mnmd can't guess. Everything else has sensible defaults.
 
 ### Decision 3: Hybrid mode — YAML with script delegation
 
@@ -75,25 +75,25 @@ commands: ./commands
 run: ./monom-run    # delegate 'run' resolution to this script
 ```
 
-This allows a project to be mostly managed (monomd handles discovery) but with custom resolution logic. The script interface for delegated operations is the same as the custom project interface — `$script run <args>`.
+This allows a project to be mostly managed (mnmd handles discovery) but with custom resolution logic. The script interface for delegated operations is the same as the custom project interface — `$script run <args>`.
 
 **Why**: Some projects need conventional discovery (simple tree walk) but non-trivial resolution (e.g., checking permissions, selecting variants). This avoids forcing them fully into custom mode.
 
 **Open question**: Should `complete` also be delegatable? Or just `run`? Leaning toward both for symmetry, but it might be YAGNI.
 
-### Decision 4: Scaffolding lives in monomd
+### Decision 4: Scaffolding lives in mnmd
 
-**Choice**: All scaffolding commands are subcommands of `monomd`:
-- `monomd init` — creates `monom.yaml` + `commands/` directory in current project
-- `monomd new command <path>` — creates an executable command script
+**Choice**: All scaffolding commands are subcommands of `mnmd`:
+- `mnmd init` — creates `monom.yaml` + `commands/` directory in current project
+- `mnmd new command <path>` — creates an executable command script
 
-**Why in monomd**: Single binary, Go owns logic, one tool to learn. No reason for a separate binary.
+**Why in mnmd**: Single binary, Go owns logic, one tool to learn. No reason for a separate binary.
 
-**Why not `monomd new project`**: It's just `mkdir <name> && cd <name> && monomd init`. Adding a command for two trivial steps adds surface area without value.
+**Why not `mnmd new project`**: It's just `mkdir <name> && cd <name> && mnmd init`. Adding a command for two trivial steps adds surface area without value.
 
 ### Decision 5: Scaffolding language selection
 
-**Choice**: `monomd init` and `monomd new command` ask for a language (or accept a flag):
+**Choice**: `mnmd init` and `mnmd new command` ask for a language (or accept a flag):
 - bash (default)
 - python
 - node
@@ -105,9 +105,9 @@ The generated command script includes:
 
 **Why these three**: They're the most common scripting languages. More can be added later. The generated script is so minimal that language choice mainly means "which shebang."
 
-### Decision 6: monomd root discovers both markers
+### Decision 6: mnmd root discovers both markers
 
-**Choice**: `monomd root` walks up from `$PWD` looking for either `monom.yaml` or `monom` (executable). First match wins. If both exist in the same directory, `monom.yaml` takes precedence.
+**Choice**: `mnmd root` walks up from `$PWD` looking for either `monom.yaml` or `monom` (executable). First match wins. If both exist in the same directory, `monom.yaml` takes precedence.
 
 **Why YAML takes precedence**: If you have both, you're likely migrating from custom to managed. The YAML represents your intent.
 
@@ -117,19 +117,19 @@ The generated command script includes:
 
 ```
 Tab press (managed):
-  shell → monomd complete <prefix>    (one call — Go walks tree + filters)
+  shell → mnmd complete <prefix>    (one call — Go walks tree + filters)
 
 Command run (managed):
-  shell → monomd run <args>           (one call — Go resolves directly) → exec
+  shell → mnmd run <args>           (one call — Go resolves directly) → exec
 
 Tab press (custom — unchanged):
-  shell → monom_cfg complete | monomd filter <prefix>
+  shell → monom_cfg complete | mnmd filter <prefix>
 
 Command run (custom — unchanged):
-  shell → monomd run → monom_cfg run → print path → exec
+  shell → mnmd run → monom_cfg run → print path → exec
 ```
 
-**Why**: The "minimize subprocess roundtrips" principle. For managed projects, monomd has all the information it needs — no reason to spawn a user script.
+**Why**: The "minimize subprocess roundtrips" principle. For managed projects, mnmd has all the information it needs — no reason to spawn a user script.
 
 ### Decision 8: Constitutional principle text
 
@@ -145,11 +145,11 @@ Also add "managed project" and "custom project" to `terminology.md`.
 
 ### Decision 9: Scaffolding hints for non-managed projects
 
-**Choice**: When a user runs `monomd new command` in a custom project, monomd prints a helpful message:
+**Choice**: When a user runs `mnmd new command` in a custom project, mnmd prints a helpful message:
 
 ```
 This is a custom project (uses executable monom config).
-monomd can't scaffold commands because your config defines the structure.
+mnmd can't scaffold commands because your config defines the structure.
 Create your command manually according to your project's conventions.
 ```
 
@@ -167,8 +167,8 @@ Create your command manually according to your project's conventions.
 
 ## Open Questions
 
-1. **Should the user's monom executable be able to expose additional functions beyond `complete`/`run`?** For example, a `scaffold` function that tells monomd where to put new commands. This would let custom projects opt into scaffolding. Deferred — solve only if users actually ask for it.
+1. **Should the user's monom executable be able to expose additional functions beyond `complete`/`run`?** For example, a `scaffold` function that tells mnmd where to put new commands. This would let custom projects opt into scaffolding. Deferred — solve only if users actually ask for it.
 
-2. **Should `monom.yaml` support a `name` property for alias setup?** e.g., `name: acme` would make `monomd init` also set up `acme` as an alias. Deferred — alias story is a separate concern.
+2. **Should `monom.yaml` support a `name` property for alias setup?** e.g., `name: acme` would make `mnmd init` also set up `acme` as an alias. Deferred — alias story is a separate concern.
 
 3. **Exact behavior when both `monom.yaml` and executable `monom` exist**: Is this an error, a warning, or silently YAML-wins? Current decision is YAML-wins silently, but could revisit.

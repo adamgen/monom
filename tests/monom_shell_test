@@ -185,13 +185,13 @@ test_monom_zsh_function_defined() {
 }
 
 # ---------------------------------------------------------------------------
-# Namespace guard: old bare names and monomd must not exist after sourcing
+# Namespace guard: old bare names and mnmd must not exist after sourcing
 # ---------------------------------------------------------------------------
 
 # After sourcing src/monom in bash, verify that:
 # 1. monom is available as a command/function.
 # 2. The old bare names (pre-rename) are not defined as functions or variables.
-# 3. monomd is not a defined function.
+# 3. mnmd is not a defined function.
 test_no_internals_in_monom_completion_namespace_bash() {
   # monom itself must be a function.
   local monom_fn
@@ -220,7 +220,7 @@ test_no_internals_in_monom_completion_namespace_bash() {
   local old_fns
   old_fns=$(bash --norc --noprofile -c "
     source '$SRC_MONOM'
-    for fn in setup_monom monom_cfg monom_completion monomd; do
+    for fn in setup_monom monom_cfg monom_completion mnmd; do
       if declare -f \"\$fn\" > /dev/null 2>&1; then echo \"\$fn\"; fi
     done
   " 2>/dev/null)
