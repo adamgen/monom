@@ -423,6 +423,40 @@ test_zsh_group_message_uses_last_typed_token() {
 }
 
 # ---------------------------------------------------------------------------
+# no-args: lists top-level commands
+# ---------------------------------------------------------------------------
+
+test_bash_no_args_lists_top_level_commands() {
+  local proj output status
+  proj=$(make_run_project)
+  output=$(run_monom_in bash "$proj")
+  status=$?
+  assert_output_contains_line "no-args shows monom label in bash" \
+    "$output" "monom: monom"
+  assert_output_contains_line "no-args lists top-level commands in bash" \
+    "$output" "available: release, db, infra"
+  assertNotEquals "no-args exits non-zero in bash" 0 "$status"
+  rm -rf "$proj"
+}
+
+test_zsh_no_args_lists_top_level_commands() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output status
+  proj=$(make_run_project)
+  output=$(run_monom_in zsh "$proj")
+  status=$?
+  assert_output_contains_line "no-args shows monom label in zsh" \
+    "$output" "monom: monom"
+  assert_output_contains_line "no-args lists top-level commands in zsh" \
+    "$output" "available: release, db, infra"
+  assertNotEquals "no-args exits non-zero in zsh" 0 "$status"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
 
 # shellcheck disable=SC1090
 . "$SHUNIT2"

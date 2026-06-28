@@ -53,11 +53,35 @@ _setup_monom() {
   export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
 }
 
+# _monom_list_group — prints a "command group" message and lists children.
+# $1: label (e.g. "monom" or "'infra' is a command group")
+# remaining args: filter prefix tokens (omit for top-level)
+_monom_list_group() {
+  local label="$1"
+  shift
+  echo "monom: $label" >&2
+  local children
+  # A trailing "" tells filter to drill into this level's children. complete
+  # stays the single source of truth so the listing matches <Tab>.
+  children=$(_monom_cfg complete 2>/dev/null | mnmd filter "$@" "" 2>/dev/null)
+  if [ -n "$children" ]; then
+    local available
+    available=$(printf '%s' "$children" | tr '\n' ' ')
+    available="${available% }"
+    echo "available: ${available// /, }" >&2
+  fi
+}
+
 # monom — the command the user calls. Resolves args to an executable path
 # via mnmd pack and runs it in a subshell via exec.
 monom() {
   if ! _setup_monom; then
     echo "monom: no project root found" >&2
+    return 1
+  fi
+
+  if [ $# -eq 0 ]; then
+    _monom_list_group "monom"
     return 1
   fi
 
@@ -102,20 +126,7 @@ monom() {
     for _w in "${unpacked_args[@]}"; do
       group_name="$_w"
     done
-    echo "monom: '$group_name' is a command group" >&2
-    # List the group's children from the canonical discovery source: the same
-    # `complete | filter` pipeline tab-completion uses. A trailing "" tells
-    # filter to drill into this level's children. pack deliberately does not
-    # enumerate the tree, so `complete` stays the single source of truth and the
-    # listing matches `monom <group> <Tab>` (including any run-hook remapping).
-    local children
-    children=$(_monom_cfg complete 2>/dev/null | mnmd filter "${unpacked_args[@]}" "" 2>/dev/null)
-    if [ -n "$children" ]; then
-      local available
-      available=$(printf '%s' "$children" | tr '\n' ' ')
-      available="${available% }"
-      echo "available: ${available// /, }" >&2
-    fi
+    _monom_list_group "'$group_name' is a command group" "${unpacked_args[@]}"
     return 1
   fi
 
