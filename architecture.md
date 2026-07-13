@@ -263,6 +263,25 @@ When the hook is present and produces usable output, monom uses it. When the hoo
 
 Useful for: aliasing, namespace remapping, project-specific routing where the surface command tree differs from the file tree. This is also the sanctioned way to make a **command group runnable**: by default invoking a group (a directory) lists its children and exits non-zero (see [`mnmd pack`](#mnmd-pack-word) exit code 3), but a `run` hook can map a bare group token to a concrete leaf path, keeping that override explicit and per-project instead of a monom-wide catch-all.
 
+### Hook: `debug` — project-local debug log path
+
+Lets a project route debug logging to its own file — including turning logging on for itself while the global switch is off. Takes no input; prints a single absolute file path on stdout, or nothing.
+
+```
+$ _monom_cfg debug
+/home/me/proj/.monom-debug.log
+```
+
+`_setup_monom` queries the hook once per invocation, on both the completion (Tab) and execution paths. Validation and precedence:
+
+- Hook prints a **single-line path that is writable** → that path is exported as `MONOM_DEBUG_LOG` for the invocation: **local overrides global**.
+- Hook prints **multiline output** (invalid) or a **single-line path that is not writable** → monom falls back to the inherited global `MONOM_DEBUG_LOG` (set or unset) and emits a diagnostic: a stderr warning on the command path (the command still runs); via `_monom_log` on the completion path, which never writes to stderr mid-Tab.
+- Hook is **absent or prints nothing** → the global value stands untouched.
+
+Both read sites (`_monom_log` in the shell and `debuglog.Log` in Go) keep reading `MONOM_DEBUG_LOG`; the export in `_setup_monom` is the single resolution point, so the layers cannot disagree.
+
+Cost: one unconditional subprocess spawn per invocation — the config file is opaque, so running it is the only way to discover whether it defines `debug` — plus one writability check when the hook prints a path. Same attempt-and-fallback cost model as the `run` hook.
+
 ---
 
 ## Environment Variables
@@ -278,7 +297,7 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 | `mnmd()` (function)     | `src/monom` at source time                                | Shell function wrapper that invokes `bin/mnmd`. Internal — not exported or user-facing.                                                                                               |
 | `_MONOM_PROJECT_ROOT`   | `_setup_monom()` via `mnmd root` discovery, or user       | Path to the currently active monom project root. Pre-setting this skips auto-discovery. All call sites read this via the `mnmd root` algorithm.                                       |
 | `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — the `monom` executable at `$_MONOM_PROJECT_ROOT/monom`. Shell scripts invoke it via `_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }` for readability. |
-| `MONOM_DEBUG_LOG`       | user (optional)                                           | If set to a file path, `mnmd` and shell functions append timestamped debug lines to that file. Intentionally unprefixed: it is a user-facing diagnostic, not internal plumbing.      |
+| `MONOM_DEBUG_LOG`       | user (optional), or `_setup_monom()` via the `debug` hook | If set to a file path, `mnmd` and shell functions append timestamped debug lines to that file. Intentionally unprefixed: it is a user-facing diagnostic, not internal plumbing. A project may override the global value via the [`debug` hook](#hook-debug--project-local-debug-log-path) when the hook path is valid (single-line) and writable. |
 
 
 ---

@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: the `debug` hook resolves a project-local debug log path.
+#
+# _setup_monom queries `_monom_cfg debug` once per invocation. A single-line
+# writable path overrides the inherited global MONOM_DEBUG_LOG (local wins);
+# multiline or unwritable hook output falls back to the global with a
+# diagnostic (stderr on the command path, _monom_log on the Tab path); an
+# absent or empty hook leaves the global untouched.
+#
+# Run directly: bash tests/monom_debug_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# make_debug_project <mode> — creates a temp monom project whose config
+# implements `complete` (printing "release") plus a `debug` hook variant:
+#   writable   — prints <proj>/.monom-debug.log (writable)
+#   unwritable — prints a path under a nonexistent directory
+#   multiline  — prints two lines (invalid hook output)
+#   empty      — hook exists but prints nothing
+#   none       — config has no debug case at all
+# Prints the resolved absolute project dir.
+make_debug_project() {
+  local mode="$1" d debug_case
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+
+  case "$mode" in
+    writable)   debug_case="debug) printf '%s\n' '$d/.monom-debug.log' ;;" ;;
+    unwritable) debug_case="debug) printf '%s\n' '$d/no-such-dir/debug.log' ;;" ;;
+    multiline)  debug_case="debug) printf 'line1\nline2\n' ;;" ;;
+    empty)      debug_case="debug) : ;;" ;;
+    none)       debug_case="" ;;
+  esac
+
+  cat > "$d/monom" <<EOF
+#!/bin/sh
+case "\$1" in
+  complete) printf 'release\n' ;;
+  $debug_case
+esac
+EOF
+  chmod +x "$d/monom"
+
+  cat > "$d/release" <<'EOF'
+#!/bin/sh
+echo "ran release"
+EOF
+  chmod +x "$d/release"
+
+  printf '%s' "$d"
+}
+
+# run_monom_debug <shell> <project> <global_log_or_empty> <args...> — sources
+# src/monom in the named shell with _MONOM_PROJECT_ROOT pinned and the global
+# MONOM_DEBUG_LOG exported (or unset when empty), then runs monom <args>.
+# Prints the combined stdout+stderr of the monom invocation.
+run_monom_debug() {
+  local shell="$1" proj="$2" global="$3"
+  shift 3
+
+  local cmd="monom"
+  local a
+  for a in "$@"; do
+    cmd="$cmd $a"
+  done
+
+  local env_line
+  if [ -n "$global" ]; then
+    env_line="export MONOM_DEBUG_LOG='$global'"
+  else
+    env_line="unset MONOM_DEBUG_LOG"
+  fi
+
+  case "$shell" in
+    bash)
+      bash --norc --noprofile -c "
+        export _MONOM_PROJECT_ROOT='$proj'
+        $env_line
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+    zsh)
+      zsh --no-rcs -c "
+        export _MONOM_PROJECT_ROOT='$proj'
+        $env_line
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+  esac
+}
+
+# tab_stderr_bash <project> <global_log_or_empty> — triggers the bash
+# completion handler once and prints ONLY what it wrote to stderr.
+tab_stderr_bash() {
+  local proj="$1" global="$2"
+
+  local env_line
+  if [ -n "$global" ]; then
+    env_line="export MONOM_DEBUG_LOG='$global'"
+  else
+    env_line="unset MONOM_DEBUG_LOG"
+  fi
+
+  {
+    bash --norc --noprofile -c "
+      export _MONOM_PROJECT_ROOT='$proj'
+      $env_line
+      source '$SRC_MONOM'
+      COMP_WORDS=(monom '')
+      COMP_CWORD=1
+      _monom_completion
+    " > /dev/null
+  } 2>&1
+}
+
+# assert_log_has <msg> <file> <fragment> — passes if file exists and some
+# line contains the fragment.
+assert_log_has() {
+  local msg="$1" file="$2" fragment="$3"
+  if [ ! -f "$file" ]; then
+    fail "$msg: expected log file $file to exist"
+    return
+  fi
+  if ! grep -qF "$fragment" "$file"; then
+    fail "$msg: expected <$fragment> in $file; got: $(cat "$file")"
+  fi
+}
+
+# assert_log_lacks <msg> <file> <fragment> — passes if file is absent or no
+# line contains the fragment.
+assert_log_lacks() {
+  local msg="$1" file="$2" fragment="$3"
+  [ -f "$file" ] || return 0
+  if grep -qF "$fragment" "$file"; then
+    fail "$msg: unexpected <$fragment> in $file: $(cat "$file")"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# writable hook path overrides global (local wins), both layers log to it
+# ---------------------------------------------------------------------------
+
+test_bash_local_debug_path_overrides_global() {
+  local proj global_log local_log output
+  proj=$(make_debug_project writable)
+  global_log="$proj/global.log"
+  local_log="$proj/.monom-debug.log"
+
+  output=$(run_monom_debug bash "$proj" "$global_log" release)
+
+  assert_output_contains_line "command should still run" "$output" "ran release"
+  assert_log_has "shell lines go to the local path" \
+    "$local_log" "[_setup_monom] effective MONOM_DEBUG_LOG=$local_log"
+  assert_log_has "mnmd lines go to the local path" \
+    "$local_log" "[mnmd] dispatch"
+  assert_log_lacks "mnmd lines must not go to the global path" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+test_zsh_local_debug_path_overrides_global() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj global_log local_log output
+  proj=$(make_debug_project writable)
+  global_log="$proj/global.log"
+  local_log="$proj/.monom-debug.log"
+
+  output=$(run_monom_debug zsh "$proj" "$global_log" release)
+
+  assert_output_contains_line "command should still run in zsh" "$output" "ran release"
+  assert_log_has "shell lines go to the local path in zsh" \
+    "$local_log" "[_setup_monom] effective MONOM_DEBUG_LOG=$local_log"
+  assert_log_has "mnmd lines go to the local path in zsh" \
+    "$local_log" "[mnmd] dispatch"
+  assert_log_lacks "mnmd lines must not go to the global path in zsh" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# writable hook path activates logging even when global is unset
+# ---------------------------------------------------------------------------
+
+test_bash_local_debug_path_used_when_global_unset() {
+  local proj local_log output
+  proj=$(make_debug_project writable)
+  local_log="$proj/.monom-debug.log"
+
+  output=$(run_monom_debug bash "$proj" "" release)
+
+  assert_output_contains_line "command should still run" "$output" "ran release"
+  assert_log_has "shell lines go to the local path with global unset" \
+    "$local_log" "[_setup_monom] effective MONOM_DEBUG_LOG=$local_log"
+  assert_log_has "mnmd lines go to the local path with global unset" \
+    "$local_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# no debug hook: global behavior unchanged
+# ---------------------------------------------------------------------------
+
+test_bash_no_debug_hook_uses_global_when_set() {
+  local proj global_log output
+  proj=$(make_debug_project none)
+  global_log="$proj/global.log"
+
+  output=$(run_monom_debug bash "$proj" "$global_log" release)
+
+  assert_output_contains_line "command should still run" "$output" "ran release"
+  assert_log_has "shell lines go to the global path" \
+    "$global_log" "[_setup_monom]"
+  assert_log_has "mnmd lines go to the global path" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+test_bash_no_debug_hook_no_file_io_when_global_unset() {
+  local proj output
+  proj=$(make_debug_project none)
+
+  output=$(run_monom_debug bash "$proj" "" release)
+
+  assert_output_contains_line "command should still run" "$output" "ran release"
+  if [ -e "$proj/.monom-debug.log" ]; then
+    fail "no debug file should be created when neither local nor global is set"
+  fi
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# empty hook output: falls back to global
+# ---------------------------------------------------------------------------
+
+test_bash_empty_debug_hook_falls_back_to_global() {
+  local proj global_log output
+  proj=$(make_debug_project empty)
+  global_log="$proj/global.log"
+
+  output=$(run_monom_debug bash "$proj" "$global_log" release)
+
+  assert_output_contains_line "command should still run" "$output" "ran release"
+  assert_log_has "empty hook output leaves the global path in use" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# multiline hook output: fall back to global; warn on command path only
+# ---------------------------------------------------------------------------
+
+test_bash_multiline_debug_hook_command_warns_and_runs() {
+  local proj global_log output
+  proj=$(make_debug_project multiline)
+  global_log="$proj/global.log"
+
+  output=$(run_monom_debug bash "$proj" "$global_log" release)
+
+  assert_output_contains_line "command path warns about multiline hook output" \
+    "$output" "monom: ignoring debug hook: multiline output"
+  assert_output_contains_line "command still runs after the warning" \
+    "$output" "ran release"
+  assert_log_has "global path stays in use after multiline fallback" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+test_zsh_multiline_debug_hook_command_warns_and_runs() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj global_log output
+  proj=$(make_debug_project multiline)
+  global_log="$proj/global.log"
+
+  output=$(run_monom_debug zsh "$proj" "$global_log" release)
+
+  assert_output_contains_line "command path warns about multiline hook output in zsh" \
+    "$output" "monom: ignoring debug hook: multiline output"
+  assert_output_contains_line "command still runs after the warning in zsh" \
+    "$output" "ran release"
+  assert_log_has "global path stays in use after multiline fallback in zsh" \
+    "$global_log" "[mnmd] dispatch"
+
+  rm -rf "$proj"
+}
+
+test_bash_multiline_debug_hook_tab_is_silent_and_logs_diagnostic() {
+  local proj global_log stderr_out
+  proj=$(make_debug_project multiline)
+  global_log="$proj/global.log"
+
+  stderr_out=$(tab_stderr_bash "$proj" "$global_log")
+
+  assertEquals "Tab must write nothing to stderr on multiline hook output" \
+    "" "$stderr_out"
+  assert_log_has "Tab records the multiline diagnostic via _monom_log" \
+    "$global_log" "debug hook printed multiline output"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# unwritable hook path: fall back to global; warn on command path only
+# ---------------------------------------------------------------------------
+
+test_bash_unwritable_debug_hook_command_warns_and_runs() {
+  local proj global_log output
+  proj=$(make_debug_project unwritable)
+  global_log="$proj/global.log"
+
+  output=$(run_monom_debug bash "$proj" "$global_log" release)
+
+  assert_output_contains_line "command path warns about the unwritable hook path" \
+    "$output" "monom: ignoring debug hook: path not writable: $proj/no-such-dir/debug.log"
+  assert_output_contains_line "command still runs after the warning" \
+    "$output" "ran release"
+  assert_log_has "global path stays in use after unwritable fallback" \
+    "$global_log" "[mnmd] dispatch"
+  if [ -e "$proj/no-such-dir/debug.log" ]; then
+    fail "the unwritable hook path must not be created"
+  fi
+
+  rm -rf "$proj"
+}
+
+test_bash_unwritable_debug_hook_tab_is_silent_and_logs_diagnostic() {
+  local proj global_log stderr_out
+  proj=$(make_debug_project unwritable)
+  global_log="$proj/global.log"
+
+  stderr_out=$(tab_stderr_bash "$proj" "$global_log")
+
+  assertEquals "Tab must write nothing to stderr on an unwritable hook path" \
+    "" "$stderr_out"
+  assert_log_has "Tab records the unwritable-path diagnostic via _monom_log" \
+    "$global_log" "debug hook path not writable"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"
