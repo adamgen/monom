@@ -30,27 +30,54 @@ _monom_log() {
 # instead of `"$_MONOM_USER_CONFIG" complete`.
 _monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
 
-# _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set.
-# Short-circuits if _MONOM_PROJECT_ROOT is already exported.
+# _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set,
+# then resolves the effective MONOM_DEBUG_LOG via the optional `debug` hook.
+# Short-circuits root discovery if _MONOM_PROJECT_ROOT is already exported.
 # Returns non-zero when no project root can be found.
 _setup_monom() {
   _monom_log "[_setup_monom] PWD=$PWD _MONOM_PROJECT_ROOT=${_MONOM_PROJECT_ROOT:-<unset>}"
   if [ -n "$_MONOM_PROJECT_ROOT" ]; then
     export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
     _monom_log "[_setup_monom] short-circuit: using existing root=$_MONOM_PROJECT_ROOT"
-    return 0
+  else
+    local root root_err
+    root=$(mnmd root 2>/tmp/_monom_root_err) || {
+      root_err=$(cat /tmp/_monom_root_err 2>/dev/null)
+      _monom_log "[_setup_monom] mnmd root failed: $root_err"
+      return 1
+    }
+
+    _monom_log "[_setup_monom] mnmd root found: $root"
+    export _MONOM_PROJECT_ROOT="$root"
+    export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
   fi
 
-  local root root_err
-  root=$(mnmd root 2>/tmp/_monom_root_err) || {
-    root_err=$(cat /tmp/_monom_root_err 2>/dev/null)
-    _monom_log "[_setup_monom] mnmd root failed: $root_err"
-    return 1
-  }
-
-  _monom_log "[_setup_monom] mnmd root found: $root"
-  export _MONOM_PROJECT_ROOT="$root"
-  export _MONOM_USER_CONFIG="$_MONOM_PROJECT_ROOT/monom"
+  # The optional `debug` hook may print a project-local debug log path that
+  # overrides the inherited global MONOM_DEBUG_LOG (local overrides global).
+  # Invalid (multiline) or unwritable hook output falls back to the inherited
+  # value. Stderr diagnostics never reach the user mid-Tab: the completion
+  # handlers call `_setup_monom 2>/dev/null`.
+  local debug_candidate
+  debug_candidate=$(_monom_cfg debug 2>/dev/null)
+  case "$debug_candidate" in
+    '') ;; # hook absent or printed nothing: inherited global stands
+    *$'\n'*)
+      echo "monom: ignoring debug hook: multiline output" >&2
+      _monom_log "[_setup_monom] debug hook printed multiline output; keeping inherited MONOM_DEBUG_LOG"
+      ;;
+    *)
+      # Probe append-writability in a subshell so a redirection failure
+      # cannot abort the caller (`:` is a POSIX special builtin).
+      if ( : >> "$debug_candidate" ) 2>/dev/null; then
+        export MONOM_DEBUG_LOG="$debug_candidate"
+      else
+        echo "monom: ignoring debug hook: path not writable: $debug_candidate" >&2
+        _monom_log "[_setup_monom] debug hook path not writable: $debug_candidate; keeping inherited MONOM_DEBUG_LOG"
+      fi
+      ;;
+  esac
+  [ -z "$MONOM_DEBUG_LOG" ] || _monom_log "[_setup_monom] effective MONOM_DEBUG_LOG=$MONOM_DEBUG_LOG"
+  return 0
 }
 
 # _monom_list_group — prints a "command group" message and lists children.
