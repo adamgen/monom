@@ -18,7 +18,7 @@ How it works: Organize your executable scripts in a folder structure, add a `mon
 
 **Project root** — the directory containing the monom config file (the executable `monom` file). monom discovers it by walking upward from `$PWD`. Authors may pre-set `$_MONOM_PROJECT_ROOT` to skip discovery; this is an internal shell↔Go plumbing affordance, not a required step.
 
-**mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more.
+**mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more. Sourcing `src/monom` defines a user-facing `mnmd()` shell function, so `mnmd` is callable by name in the user's shell without `bin/` being on `$PATH`.
 
 **CLI author** — the developer building a CLI tool using monom.
 

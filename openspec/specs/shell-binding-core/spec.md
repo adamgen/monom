@@ -12,11 +12,15 @@ When `src/monom` is sourced, it SHALL export `_MONOM_LIB_ROOT` as the absolute p
 - **THEN** `$_MONOM_LIB_ROOT` is set to the absolute path of the `src/` directory
 
 ### Requirement: mnmd wrapper function is defined
-When `src/monom` is sourced, it SHALL define `mnmd()` as a thin wrapper that invokes the `mnmd` binary that ships next to the sources at `$_MONOM_LIB_ROOT/../bin/mnmd`. All call sites in `src/monom` and both completion bindings SHALL call `mnmd <subcommand>` via this wrapper. No path variable is exported.
+When `src/monom` is sourced, it SHALL define `mnmd()` as a thin wrapper that invokes the `mnmd` binary that ships next to the sources at `$_MONOM_LIB_ROOT/../bin/mnmd`. The wrapper is user-facing: after sourcing, the user can invoke `mnmd <subcommand>` by name without `bin/` being on `$PATH`. All call sites in `src/monom` and both completion bindings SHALL call `mnmd <subcommand>` via this wrapper. No path variable is exported.
 
 #### Scenario: mnmd wrapper is callable after sourcing
 - **WHEN** a user sources `src/monom`
 - **THEN** `mnmd <subcommand>` resolves and invokes the binary at `bin/mnmd` relative to the install root
+
+#### Scenario: mnmd remains defined in the user's shell
+- **WHEN** a user sources `src/monom`
+- **THEN** `mnmd` is defined as a shell function in the interactive session (it is part of the user-facing surface, not an internal name)
 
 ### Requirement: _setup_monom uses _MONOM_PROJECT_ROOT if set
 `_setup_monom()` SHALL use an already-exported `$_MONOM_PROJECT_ROOT` without calling `mnmd root`, and SHALL export `_MONOM_USER_CONFIG` as `"$_MONOM_PROJECT_ROOT/monom"`.
