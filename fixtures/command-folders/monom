@@ -20,11 +20,27 @@ root="$(cd "$(dirname "$0")" && pwd)"
 
 case "$1" in
   complete)
-    # Every directory holding a run.sh is a command; print its path relative to
-    # the project root, one per line.
+    # Discovery. For every command (a folder holding a run.sh) print:
+    #   1. the command path itself, and
+    #   2. one deeper path per extra completion its complete.sh emits, e.g.
+    #      `infra/cloud/deploy/--region`.
+    #
+    # mnmd filter treats each deeper path as a child of the command, so
+    # `monom infra cloud deploy <Tab>` surfaces --region/--profile/... — that is
+    # what makes per-command flag/argument completion work. complete.sh runs
+    # HERE, i.e. during tab completion, since `complete` is the single source of
+    # truth the completion binding reads (`_monom_cfg complete | mnmd filter`).
     find "$root" -type f -name run.sh -print \
       | sed -e "s#^$root/##" -e 's#/run\.sh$##' \
-      | sort
+      | sort \
+      | while IFS= read -r cmd; do
+          printf '%s\n' "$cmd"
+          if [ -x "$root/$cmd/complete.sh" ]; then
+            "$root/$cmd/complete.sh" | while IFS= read -r extra; do
+              [ -n "$extra" ] && printf '%s/%s\n' "$cmd" "$extra"
+            done
+          fi
+        done
     ;;
   run)
     shift

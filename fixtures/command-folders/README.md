@@ -51,18 +51,31 @@ command-folders/
 The `monom` config file bridges this folder-per-command layout to monom's model
 using two hooks (see `architecture.md`):
 
-- **`complete` (discovery)** — prints every folder that contains a `run.sh`,
-  slash-delimited, one per line. This is the command tree monom completes against.
+- **`complete` (discovery)** — prints every command (a folder containing a
+  `run.sh`), slash-delimited, and, for each, one deeper path per extra completion
+  its `complete.sh` emits (e.g. `infra/cloud/deploy/--region`). This single
+  stream is the command tree monom completes against — see
+  [Per-command argument completion](#per-command-argument-completion-completesh).
 
   ```
   $ ./monom complete
   db/migrate
+  db/migrate/--step
+  db/migrate/--to
+  db/migrate/--dry-run
   db/seed
+  db/seed/--count
+  db/seed/--truncate
   infra/cloud/deploy
-  infra/cloud/teardown
-  infra/local/start
-  infra/local/stop
+  infra/cloud/deploy/--region
+  infra/cloud/deploy/--profile
+  infra/cloud/deploy/--force
+  infra/cloud/deploy/--dry-run
+  ...
   release
+  release/--dry-run
+  release/--tag
+  release/--skip-tests
   ```
 
 - **`run` (routing)** — receives the user's space-separated command tokens and
@@ -89,6 +102,18 @@ $ infra/cloud/deploy/complete.sh
 --dry-run
 ```
 
-This is the seam for completing additional arguments and flags on top of the base
-`monom <command>` completion. It keeps a command's runner and its completion logic
-colocated in one folder.
+**These run during tab completion.** The completion binding feeds one stream into
+the filter — `_monom_cfg complete | mnmd filter <typed words>` — so `complete` is
+the single source of truth for what `<Tab>` offers. The `complete` hook therefore
+invokes each command's `complete.sh` and re-emits its output as deeper paths under
+that command. `mnmd filter` then treats those as the command's children:
+
+```
+$ monom infra cloud deploy <Tab>
+--region  --profile  --force  --dry-run
+```
+
+This keeps a command's runner (`run.sh`) and its completion logic (`complete.sh`)
+colocated in one folder. Note the cost: `complete` spawns each command's
+`complete.sh` on every `<Tab>` — acceptable for a small tree, but an author with a
+large tree would cache or lazily resolve these.
