@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# monom user config for the command-folders fixture.
+#
+# This fixture models a DIFFERENT project structure from demo-project. Here a
+# command is not a single executable file — it is a *folder* that bundles:
+#
+#   run.sh       the executable the command actually runs
+#   complete.sh  prints extra completions (flags/arguments) for that command,
+#                to complete tokens typed *after* the resolved command
+#
+# A folder is a command when it contains a run.sh. Folders without one are plain
+# command categories (e.g. infra, infra/cloud) — the file tree is still the
+# command tree.
+#
+# Hooks implemented:
+#   complete  discovery — every folder holding a run.sh, slash-delimited
+#   run       routing   — append run.sh so `mnmd pack` resolves the real file
+
+root="$(cd "$(dirname "$0")" && pwd)"
+
+case "$1" in
+  complete)
+    # Every directory holding a run.sh is a command; print its path relative to
+    # the project root, one per line.
+    find "$root" -type f -name run.sh -print \
+      | sed -e "s#^$root/##" -e 's#/run\.sh$##' \
+      | sort
+    ;;
+  run)
+    shift
+    # Join the user's tokens with "/" to test for a matching command folder.
+    path=$(IFS=/; printf '%s' "$*")
+    if [ -n "$path" ] && [ -f "$root/$path/run.sh" ]; then
+      # Route to the real executable inside the command folder.
+      printf '%s ' "$@"
+      printf 'run.sh\n'
+    else
+      # Not a command folder (e.g. a bare category) — pass the args through
+      # unchanged so monom's default group handling still applies.
+      printf '%s\n' "$*"
+    fi
+    ;;
+esac
