@@ -23,3 +23,5 @@ How it works: Organize your executable scripts in a folder structure, add a `mon
 **CLI author** — the developer building a CLI tool using monom.
 
 **CLI user** — the developer using the CLI the author built.
+
+**alias** — a named command bound to a fixed monom project root, created via `mnmd alias <name> <path>`. Invoking the alias (`<name> …`) behaves identically to invoking `monom …` from inside that project — same discovery, hooks, completion, and command packing — except the project root is pinned to `<path>` instead of discovered by walking up from `$PWD`. This lets multiple monom projects be active under distinct command names in a single shell session. An alias is implemented as a generated shell function plus a matching completion binding, **not** a shell `alias` builtin — the builtin cannot carry the pinned root nor bind completion.

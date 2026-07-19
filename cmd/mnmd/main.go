@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/adamgen/monom/internal/alias"
 	"github.com/adamgen/monom/internal/check"
 	"github.com/adamgen/monom/internal/cli"
 	"github.com/adamgen/monom/internal/debuglog"
@@ -46,6 +47,8 @@ func main() {
 		err = runCheck()
 	case "install":
 		err = runInstall()
+	case "alias-save":
+		err = runAliasSave()
 	default:
 		debuglog.Log("[mnmd] unknown subcommand: %q", os.Args[1])
 		fmt.Fprintf(os.Stderr, "mnmd: unknown subcommand %q\n", os.Args[1])
@@ -58,7 +61,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install, alias-save")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
@@ -173,6 +176,19 @@ func runInstall() error {
 		return cli.WrapError(fmt.Errorf("could not determine binary path: %w", err))
 	}
 	if err := install.Run(exe); err != nil {
+		return cli.WrapError(err)
+	}
+	return nil
+}
+
+// runAliasSave persists a define-only bind line for `mnmd alias <name> <path>`.
+// It is invoked by the mnmd() shell wrapper, which handles the in-shell
+// definition; this path only validates and writes to the rc file.
+func runAliasSave() error {
+	if len(os.Args) < 4 {
+		return cli.WrapError(fmt.Errorf("usage: mnmd alias <name> <path>"))
+	}
+	if err := alias.Save(os.Args[2], os.Args[3]); err != nil {
 		return cli.WrapError(err)
 	}
 	return nil

@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: the `mnmd alias` surface.
+#
+# Covers the full alias flow end to end in BOTH bash and zsh — sourcing
+# src/monom, running `mnmd alias <name> <path>`, and then invoking the bound
+# command — plus the rc-file persistence contract and the root-pinning that
+# lets aliases coexist without clobbering bare `monom` discovery.
+#
+# Run directly: bash tests/mnmd_alias_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+# make_alias_project <marker> — creates a temp monom project whose `release`
+# leaf prints "ran <marker>/release" (so coexistence tests can tell projects
+# apart) and whose `infra` group has two children. Prints the resolved dir.
+make_alias_project() {
+  local marker="$1" d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'release\ninfra/cloud/deploy\ninfra/local/start\n' ;;
+esac
+EOF
+  chmod +x "$d/monom"
+
+  make_cmd "$d/release"
+  cat > "$d/release" <<EOF
+#!/bin/sh
+echo "ran $marker/release"
+EOF
+  chmod +x "$d/release"
+  make_cmd "$d/infra/cloud/deploy"
+  make_cmd "$d/infra/local/start"
+
+  printf '%s' "$d"
+}
+
+# alias_session <shell> <home> <snippet> — runs snippet in the named shell with
+# HOME and SHELL pinned to a controlled sandbox (so `mnmd alias` writes to a
+# temp rc, never the real one), after sourcing src/monom. Prints combined
+# stdout+stderr. _MONOM_PROJECT_ROOT is deliberately NOT set, so bare `monom`
+# still auto-discovers from $PWD.
+alias_session() {
+  local shell="$1" home="$2" snippet="$3"
+  case "$shell" in
+    bash)
+      bash --norc --noprofile -c "
+        export HOME='$home'
+        export SHELL='/bin/bash'
+        source '$SRC_MONOM'
+        $snippet
+      " 2>&1
+      ;;
+    zsh)
+      zsh --no-rcs -c "
+        export HOME='$home'
+        export SHELL='/bin/zsh'
+        source '$SRC_MONOM'
+        $snippet
+      " 2>&1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# bash: execution parity
+# ---------------------------------------------------------------------------
+
+test_bash_alias_runs_leaf_immediately() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "mnmd alias myapp '$proj' >/dev/null; myapp release")
+  assert_output_contains_line "alias should run the pinned project's leaf immediately" \
+    "$output" "ran A/release"
+  rm -rf "$proj" "$home"
+}
+
+test_bash_alias_no_args_lists_top_level() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "mnmd alias myapp '$proj' >/dev/null; myapp")
+  # Message prefix is the alias name, not "monom".
+  if ! printf '%s\n' "$output" | grep -q '^myapp:'; then
+    fail "no-args alias listing should be prefixed with 'myapp:'; got: $output"
+  fi
+  assert_output_contains_line "no-args alias listing should include the group's children" \
+    "$output" "available: release, infra"
+  rm -rf "$proj" "$home"
+}
+
+test_bash_alias_lists_command_group() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "mnmd alias myapp '$proj' >/dev/null; myapp infra")
+  assert_output_contains_line "alias should report a command group with its own name prefix" \
+    "$output" "myapp: 'infra' is a command group"
+  assert_output_contains_line "alias group listing should show children" \
+    "$output" "available: cloud, local"
+  rm -rf "$proj" "$home"
+}
+
+# ---------------------------------------------------------------------------
+# bash: completion parity
+# ---------------------------------------------------------------------------
+
+test_bash_alias_completion_yields_project_top_level() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "
+    mnmd alias myapp '$proj' >/dev/null 2>&1
+    COMP_WORDS=(myapp '')
+    COMP_CWORD=1
+    COMPREPLY=()
+    _monom_alias_complete_myapp
+    printf '%s\n' \"\${COMPREPLY[@]}\"
+  ")
+  assert_output_contains_line "alias completion should offer the pinned project's top level" \
+    "$output" "release"
+  assert_output_contains_line "alias completion should offer the pinned project's top level" \
+    "$output" "infra"
+  rm -rf "$proj" "$home"
+}
+
+# ---------------------------------------------------------------------------
+# bash: root pinning does not clobber discovery globals
+# ---------------------------------------------------------------------------
+
+test_bash_bare_monom_still_discovers_after_alias() {
+  local projA projB home output
+  projA=$(make_alias_project A)
+  projB=$(make_alias_project B)
+  home=$(mktemp -d)
+  # Invoke the alias (pins root A via local), then cd into project B and run
+  # bare monom. If the alias had exported the global, monom would resolve A.
+  output=$(alias_session bash "$home" "
+    mnmd alias appa '$projA' >/dev/null
+    appa release
+    cd '$projB'
+    monom release
+  ")
+  assert_output_contains_line "alias should resolve its own root" "$output" "ran A/release"
+  assert_output_contains_line "bare monom should auto-discover project B, not reuse A" \
+    "$output" "ran B/release"
+  rm -rf "$projA" "$projB" "$home"
+}
+
+test_bash_two_aliases_coexist() {
+  local projA projB home output
+  projA=$(make_alias_project A)
+  projB=$(make_alias_project B)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "
+    mnmd alias appa '$projA' >/dev/null
+    mnmd alias appb '$projB' >/dev/null
+    appa release
+    appb release
+  ")
+  assert_output_contains_line "appa should resolve root A" "$output" "ran A/release"
+  assert_output_contains_line "appb should resolve root B" "$output" "ran B/release"
+  rm -rf "$projA" "$projB" "$home"
+}
+
+# ---------------------------------------------------------------------------
+# bash: persistence contract
+# ---------------------------------------------------------------------------
+
+test_bash_alias_persists_direct_bind_line_no_subprocess() {
+  local proj home rc
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  alias_session bash "$home" "mnmd alias myapp '$proj' >/dev/null 2>&1" >/dev/null
+  rc="$home/.bashrc"
+  if [ ! -f "$rc" ]; then
+    fail "mnmd alias should persist to $rc"
+    rm -rf "$proj" "$home"; return
+  fi
+  # The persisted line is a direct call to the shell helper...
+  if ! grep -qF "_monom_bind_alias myapp \"$proj\"" "$rc"; then
+    fail "rc should contain a direct _monom_bind_alias line; got:\n$(cat "$rc")"
+  fi
+  # ...and must NOT invoke the binary at bind time (zero subprocess at startup).
+  if grep '_monom_bind_alias' "$rc" | grep -q 'mnmd'; then
+    fail "the bind line must not call the mnmd binary; got:\n$(cat "$rc")"
+  fi
+  rm -rf "$proj" "$home"
+}
+
+test_bash_alias_idempotent_resave() {
+  local proj home rc count
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  alias_session bash "$home" "
+    mnmd alias myapp '$proj' >/dev/null 2>&1
+    mnmd alias myapp '$proj' >/dev/null 2>&1
+  " >/dev/null
+  rc="$home/.bashrc"
+  count=$(grep -cF "_monom_bind_alias myapp" "$rc")
+  assertEquals "re-saving the same alias should not duplicate the bind line" 1 "$count"
+  rm -rf "$proj" "$home"
+}
+
+# ---------------------------------------------------------------------------
+# bash: validation and error states
+# ---------------------------------------------------------------------------
+
+test_bash_alias_rejects_invalid_name() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "mnmd alias 1bad '$proj'; echo status=\$?")
+  assert_output_contains_line "invalid name should be rejected with a nonzero status" \
+    "$output" "status=1"
+  if ! printf '%s\n' "$output" | grep -q 'invalid alias name'; then
+    fail "should explain the invalid name; got: $output"
+  fi
+  if [ -f "$home/.bashrc" ] && grep -q '_monom_bind_alias' "$home/.bashrc"; then
+    fail "invalid name must not persist a bind line"
+  fi
+  rm -rf "$proj" "$home"
+}
+
+test_bash_alias_rejects_non_project_root() {
+  local empty home output
+  empty=$(mktemp -d) # no executable monom file
+  home=$(mktemp -d)
+  output=$(alias_session bash "$home" "mnmd alias myapp '$empty'; echo status=\$?")
+  assert_output_contains_line "non-project root should be rejected with a nonzero status" \
+    "$output" "status=1"
+  if ! printf '%s\n' "$output" | grep -q 'not a monom project root'; then
+    fail "should explain the invalid root; got: $output"
+  fi
+  rm -rf "$empty" "$home"
+}
+
+test_bash_alias_missing_root_fails_cleanly() {
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  # Bind directly, then delete the project to simulate a root that moved after
+  # aliasing. Invoking the alias must error clearly and exec nothing.
+  output=$(alias_session bash "$home" "
+    _monom_bind_alias gone '$proj'
+    rm -rf '$proj'
+    gone release
+    echo status=\$?
+  ")
+  assert_output_contains_line "a moved root should fail with a nonzero status" \
+    "$output" "status=1"
+  if ! printf '%s\n' "$output" | grep -q 'gone: project config not found'; then
+    fail "should report the missing project config; got: $output"
+  fi
+  if printf '%s\n' "$output" | grep -q 'ran A/release'; then
+    fail "must not exec anything when the pinned root is gone"
+  fi
+  rm -rf "$home"
+}
+
+# ---------------------------------------------------------------------------
+# zsh: parity smoke coverage
+# ---------------------------------------------------------------------------
+
+test_zsh_alias_runs_leaf_immediately() {
+  if ! command -v zsh > /dev/null 2>&1; then echo "SKIP: zsh not available"; return; fi
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session zsh "$home" "mnmd alias myapp '$proj' >/dev/null; myapp release")
+  assert_output_contains_line "zsh alias should run the pinned project's leaf" \
+    "$output" "ran A/release"
+  rm -rf "$proj" "$home"
+}
+
+test_zsh_alias_no_args_lists_top_level() {
+  if ! command -v zsh > /dev/null 2>&1; then echo "SKIP: zsh not available"; return; fi
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  output=$(alias_session zsh "$home" "mnmd alias myapp '$proj' >/dev/null; myapp")
+  if ! printf '%s\n' "$output" | grep -q '^myapp:'; then
+    fail "zsh no-args alias listing should be prefixed with 'myapp:'; got: $output"
+  fi
+  rm -rf "$proj" "$home"
+}
+
+test_zsh_two_aliases_coexist() {
+  if ! command -v zsh > /dev/null 2>&1; then echo "SKIP: zsh not available"; return; fi
+  local projA projB home output
+  projA=$(make_alias_project A)
+  projB=$(make_alias_project B)
+  home=$(mktemp -d)
+  output=$(alias_session zsh "$home" "
+    mnmd alias appa '$projA' >/dev/null
+    mnmd alias appb '$projB' >/dev/null
+    appa release
+    appb release
+  ")
+  assert_output_contains_line "zsh appa should resolve root A" "$output" "ran A/release"
+  assert_output_contains_line "zsh appb should resolve root B" "$output" "ran B/release"
+  rm -rf "$projA" "$projB" "$home"
+}
+
+test_zsh_alias_completion_yields_project_top_level() {
+  if ! command -v zsh > /dev/null 2>&1; then echo "SKIP: zsh not available"; return; fi
+  local proj home output
+  proj=$(make_alias_project A)
+  home=$(mktemp -d)
+  # Mock compadd to print what the alias completion core would offer.
+  output=$(zsh --no-rcs -c "
+    export HOME='$home'
+    export SHELL='/bin/zsh'
+    source '$SRC_MONOM'
+    compadd() { printf '%s\n' \"\$@\"; }
+    mnmd alias myapp '$proj' >/dev/null 2>&1
+    words=(myapp '')
+    _monom_alias_complete_myapp
+  " 2>/dev/null)
+  assert_output_contains_line "zsh alias completion should offer the pinned project's top level" \
+    "$output" "release"
+  assert_output_contains_line "zsh alias completion should offer the pinned project's top level" \
+    "$output" "infra"
+  rm -rf "$proj" "$home"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/adamgen/monom/internal/rc"
 )
 
 // Run executes `mnmd install`: detects the user's shell, resolves the
@@ -16,12 +17,12 @@ func Run(executable string) error {
 		return fmt.Errorf("could not resolve src/monom path: %w", err)
 	}
 
-	rcFile, err := rcFileForShell(os.Getenv("SHELL"))
+	rcFile, err := rc.FileForShell(os.Getenv("SHELL"))
 	if err != nil {
 		return err
 	}
 
-	installed, err := alreadyInstalled(rcFile, srcMonom)
+	installed, err := rc.HasLine(rcFile, srcMonom)
 	if err != nil {
 		return fmt.Errorf("could not read %s: %w", rcFile, err)
 	}
@@ -30,7 +31,8 @@ func Run(executable string) error {
 		return nil
 	}
 
-	if err := appendSourceLine(rcFile, srcMonom); err != nil {
+	line := fmt.Sprintf(`source "%s"`, srcMonom)
+	if err := rc.AppendLine(rcFile, line); err != nil {
 		return fmt.Errorf("could not write to %s: %w", rcFile, err)
 	}
 
@@ -48,87 +50,4 @@ func resolveSrcMonom(executable string) (string, error) {
 	}
 	binDir := filepath.Dir(real)
 	return filepath.Join(binDir, "..", "src", "monom"), nil
-}
-
-// rcFileForShell returns the rc/profile file path for the given $SHELL value.
-func rcFileForShell(shell string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("could not determine home directory: %w", err)
-	}
-
-	switch {
-	case strings.HasSuffix(shell, "/zsh"):
-		return filepath.Join(home, ".zshrc"), nil
-	case strings.HasSuffix(shell, "/bash"):
-		// On macOS, login shells source .bash_profile but not .bashrc.
-		// Prefer .bash_profile so the integration loads for interactive use.
-		profile := filepath.Join(home, ".bash_profile")
-		if _, err := os.Stat(profile); err == nil {
-			return profile, nil
-		}
-		return filepath.Join(home, ".bashrc"), nil
-	default:
-		return "", fmt.Errorf("unsupported shell: %q (only zsh and bash are supported)", shell)
-	}
-}
-
-// alreadyInstalled reports whether rcFile already contains a line referencing srcMonom.
-func alreadyInstalled(rcFile, srcMonom string) (bool, error) {
-	data, err := os.ReadFile(rcFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-		if strings.Contains(line, srcMonom) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// appendSourceLine appends `source "<srcMonom>"` to rcFile, prepending a
-// newline if the file does not already end with one.
-func appendSourceLine(rcFile, srcMonom string) error {
-	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	prefix := needsLeadingNewline(rcFile)
-
-	line := fmt.Sprintf(`source "%s"`, srcMonom)
-	if prefix {
-		_, err = fmt.Fprintf(f, "\n%s\n", line)
-	} else {
-		_, err = fmt.Fprintf(f, "%s\n", line)
-	}
-	return err
-}
-
-// needsLeadingNewline returns true when rcFile exists and its last byte is not '\n'.
-func needsLeadingNewline(rcFile string) bool {
-	f, err := os.Open(rcFile)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-
-	info, err := f.Stat()
-	if err != nil || info.Size() == 0 {
-		return false
-	}
-
-	buf := make([]byte, 1)
-	if _, err := f.ReadAt(buf, info.Size()-1); err != nil {
-		return false
-	}
-	return buf[0] != '\n'
 }

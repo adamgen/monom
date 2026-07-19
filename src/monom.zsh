@@ -4,11 +4,13 @@
 # Requires compinit to have been called before this file is sourced
 # (standard zsh setup order).
 
-# _monom — zsh completion function registered via compdef.
-# Always exits 0 and never writes to stderr; completion is interactive and
-# any noise mid-typing degrades the user experience.
-_monom() {
-  # $words is set by zsh's completion system before _monom is called.
+# _monom_complete_zsh — reusable zsh completion core. Reads _MONOM_PROJECT_ROOT
+# from scope (auto-discovered for `monom`, or pinned by an alias's completion
+# wrapper) and passes filtered completions to compadd. Always exits 0 and never
+# writes to stderr; completion is interactive and any noise mid-typing degrades
+# the user experience.
+_monom_complete_zsh() {
+  # $words is set by zsh's completion system before the handler is called.
   # SC2154: referenced but not assigned — false positive for zsh completion variables.
   # shellcheck disable=SC2154
   _monom_log "[zsh] completion triggered: words=(${words[*]})"
@@ -44,6 +46,9 @@ _monom() {
   return 0
 }
 
+# _monom — the function registered for `monom`; delegates to the core.
+_monom() { _monom_complete_zsh; }
+
 # Guard against sourcing before compinit has been called. compdef is defined
 # by compinit; without it the registration would print an error to the terminal.
 # Standard .zshrc order has compinit run first, so this guard is a safety net.
@@ -55,7 +60,7 @@ fi
 # Completes the first argument with the list of known mnmd subcommands.
 _mnmd() {
   local -a subcommands
-  subcommands=(filter root pack check install completion)
+  subcommands=(filter root pack check install alias completion)
   # Only complete the first positional argument (subcommand slot).
   # $words is set by zsh's completion system; $words[1] is "mnmd".
   # SC2154: referenced but not assigned — false positive for zsh completion variables.

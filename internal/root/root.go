@@ -14,7 +14,7 @@ import (
 // reaches the filesystem root, in which case it returns an error.
 func FindProjectRoot() (string, error) {
 	if envRoot := os.Getenv("_MONOM_PROJECT_ROOT"); envRoot != "" {
-		if isValidProjectRoot(envRoot) {
+		if IsValidProjectRoot(envRoot) {
 			resolved, err := filepath.EvalSymlinks(envRoot)
 			if err != nil {
 				return "", err
@@ -36,7 +36,7 @@ func FindProjectRoot() (string, error) {
 
 	dir := pwd
 	for {
-		if isValidProjectRoot(dir) {
+		if IsValidProjectRoot(dir) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -49,8 +49,8 @@ func FindProjectRoot() (string, error) {
 	return "", fmt.Errorf("no monom project root found (no executable 'monom' file in %s or any parent)", pwd)
 }
 
-// isValidProjectRoot reports whether dir contains an executable file named "monom".
-func isValidProjectRoot(dir string) bool {
+// IsValidProjectRoot reports whether dir contains an executable file named "monom".
+func IsValidProjectRoot(dir string) bool {
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
 		return false

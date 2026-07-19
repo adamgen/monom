@@ -16,7 +16,30 @@ MONOM_ACTIVE=1
 
 # mnmd — thin wrapper so call sites read as `mnmd <subcommand>`.
 # The binary ships next to the sources at ../bin/mnmd.
-mnmd() { "$(cd "$_MONOM_LIB_ROOT/.." && pwd)/bin/mnmd" "$@"; }
+#
+# `alias` is intercepted here rather than passed to the binary: binding an
+# alias must define a function and register completion in the parent shell,
+# which a subprocess cannot do. On interception the alias is persisted once via
+# the binary (`alias-save`, which validates name and root) and, only if that
+# succeeds, defined in the current shell so it is usable immediately.
+mnmd() {
+  local _bin
+  _bin="$(cd "$_MONOM_LIB_ROOT/.." && pwd)/bin/mnmd"
+  if [ "$1" = alias ]; then
+    if [ "$#" -ne 3 ]; then
+      echo "usage: mnmd alias <name> <path>" >&2
+      return 1
+    fi
+    "$_bin" alias-save "$2" "$3" || return $?
+    # alias-save validated "$3" as a project root, so cd cannot fail here.
+    # Pin an absolute path so the in-shell binding survives later `cd`s.
+    local _abs
+    _abs="$(cd "$3" && pwd)"
+    _monom_bind_alias "$2" "$_abs"
+    return 0
+  fi
+  "$_bin" "$@"
+}
 
 # _monom_log — append a timestamped debug line to $MONOM_DEBUG_LOG.
 # No-op (and no subprocess spawned) when MONOM_DEBUG_LOG is unset or empty.
@@ -81,12 +104,13 @@ _setup_monom() {
 }
 
 # _monom_list_group — prints a "command group" message and lists children.
-# $1: label (e.g. "monom" or "'infra' is a command group")
+# $1: display name (e.g. "monom" or an alias name) used as the message prefix
+# $2: label (e.g. the name itself, or "'infra' is a command group")
 # remaining args: filter prefix tokens (omit for top-level)
 _monom_list_group() {
-  local label="$1"
-  shift
-  echo "monom: $label" >&2
+  local name="$1" label="$2"
+  shift 2
+  echo "$name: $label" >&2
   local children
   # A trailing "" tells filter to drill into this level's children. complete
   # stays the single source of truth so the listing matches <Tab>.
@@ -99,16 +123,29 @@ _monom_list_group() {
   fi
 }
 
-# monom — the command the user calls. Resolves args to an executable path
-# via mnmd pack and runs it in a subshell via exec.
-monom() {
+# _monom_run — shared execution core for `monom` and every alias. $1 is the
+# display name used in messages; the rest are the user's command tokens. Reads
+# _MONOM_PROJECT_ROOT from scope — auto-discovered by _setup_monom for bare
+# `monom`, or pinned as a `local` by an alias function. Resolves args to an
+# executable path via mnmd pack and runs it in a subshell via exec.
+_monom_run() {
+  local _name="$1"
+  shift
   if ! _setup_monom; then
-    echo "monom: no project root found" >&2
+    echo "$_name: no project root found" >&2
+    return 1
+  fi
+
+  # A pinned root (from an alias) may have moved or lost its config since it was
+  # bound; _setup_monom's short-circuit does not re-validate. Fail clearly here
+  # rather than surfacing a cryptic exec failure from _monom_cfg.
+  if [ ! -x "$_MONOM_USER_CONFIG" ]; then
+    echo "$_name: project config not found or not executable: $_MONOM_USER_CONFIG" >&2
     return 1
   fi
 
   if [ $# -eq 0 ]; then
-    _monom_list_group "monom"
+    _monom_list_group "$_name" "$_name"
     return 1
   fi
 
@@ -117,7 +154,7 @@ monom() {
   hook_out=$(_monom_cfg run "$@" 2>"$hook_err")
   hook_status=$?
   if [ "$hook_status" -ne 0 ]; then
-    echo "monom: run hook failed (exit $hook_status)" >&2
+    echo "$_name: run hook failed (exit $hook_status)" >&2
     [ -s "$hook_err" ] && cat "$hook_err" >&2
     rm -f "$hook_err"
     return "$hook_status"
@@ -153,7 +190,7 @@ monom() {
     for _w in "${unpacked_args[@]}"; do
       group_name="$_w"
     done
-    _monom_list_group "'$group_name' is a command group" "${unpacked_args[@]}"
+    _monom_list_group "$_name" "'$group_name' is a command group" "${unpacked_args[@]}"
     return 1
   fi
 
@@ -161,6 +198,36 @@ monom() {
   [ -s "$pack_err" ] && cat "$pack_err" >&2
   rm -f "$pack_err"
   return 1
+}
+
+# monom — the command the user calls. A thin caller over the shared core with
+# no pinned root, so _setup_monom auto-discovers from $PWD.
+monom() { _monom_run monom "$@"; }
+
+# _monom_bind_alias — bind command <name> to project <root> in the current
+# shell: a function that pins the root and delegates to _monom_run, plus a
+# matching completion binding that pins the same root and delegates to the
+# shared completion core. This is pure surface — defining a function and
+# registering a completion hook, both shell's job. The eval is unavoidable
+# because <name> is dynamic: bash/zsh cannot declare a variably-named function
+# any other way. Called both interactively (via `mnmd alias`) and at shell
+# startup (from the rc line `mnmd alias-save` writes), spawning no subprocess.
+_monom_bind_alias() {
+  local _name="$1" _root="$2"
+  # `local -x`: the pinned root must be *exported* so the `mnmd pack`/`mnmd
+  # filter` child processes discover it, but stay *local* so it is restored (to
+  # unset, or whatever bare `monom` last exported) when the call returns — that
+  # is what keeps aliases from clobbering each other or bare `monom` discovery.
+  eval "${_name}() { local -x _MONOM_PROJECT_ROOT='${_root}'; _monom_run '${_name}' \"\$@\"; }"
+  if [ -n "$ZSH_VERSION" ]; then
+    eval "_monom_alias_complete_${_name}() { local -x _MONOM_PROJECT_ROOT='${_root}'; _monom_complete_zsh; }"
+    if (( ${+functions[compdef]} )); then
+      compdef "_monom_alias_complete_${_name}" "$_name"
+    fi
+  elif [ -n "$BASH_VERSION" ]; then
+    eval "_monom_alias_complete_${_name}() { local -x _MONOM_PROJECT_ROOT='${_root}'; _monom_complete; }"
+    complete -F "_monom_alias_complete_${_name}" "$_name"
+  fi
 }
 
 # Source the shell-specific completion binding.

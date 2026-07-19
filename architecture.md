@@ -221,14 +221,23 @@ Shell files exist only where a technical constraint makes Go impossible — prim
 **Target shells: bash and zsh only.** monom targets macOS developers, who use bash or zsh. POSIX sh portability is explicitly out of scope — trying to maintain it restricts implementation options (e.g. no `BASH_SOURCE`, no bash arrays) without meaningful benefit to the target audience. Fish, dash, and other shells are not supported.
 
 
-| File             | Purpose                                                                                                      |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| `src/monom`      | Sourced by user's rc file. Defines `monom()`, `_setup_monom()`, and `_monom_cfg()`. Delegates to `mnmd`.    |
-| `src/monom.bash` | Registers bash completion hook (`complete -F _monom_completion monom`).                                      |
-| `src/monom.zsh`  | Registers zsh completion hook (`compdef _monom monom`).                                                      |
+| File             | Purpose                                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/monom`      | Sourced by user's rc file. Defines `mnmd()`, `_setup_monom()`, `_monom_cfg()`, the shared execution core `_monom_run`, the thin `monom()` caller, and `_monom_bind_alias`. Delegates to `mnmd`. |
+| `src/monom.bash` | Defines the bash completion core `_monom_complete` and registers `_monom_completion` for `monom` (`complete -F _monom_completion monom`).                          |
+| `src/monom.zsh`  | Defines the zsh completion core `_monom_complete_zsh` and registers `_monom` for `monom` (`compdef _monom monom`).                                                |
 
 
-The aliasing feature (`make_monom_alias`) exists to let users bind a named command (e.g. `acme`) to a specific project root. How much of this lives in shell vs. Go is still being determined — the principle is to push as much as possible into `mnmd`.
+### Aliases
+
+An **alias** (see [terminology](terminology.md)) binds a chosen command name to a fixed project root so several monom-based CLIs can coexist in one shell session, each invocable from anywhere. `mnmd alias <name> <path>` creates one.
+
+- **Interception, not a new `monom` subcommand.** The `mnmd()` wrapper intercepts `alias`; `monom`'s argument surface stays entirely the user's command tree. Binding must define a function and register completion *in the parent shell*, which a subprocess cannot do — hence the shell-function wrapper handles it while everything else falls through to the binary.
+- **Immediate + persistent, split by owner.** On `mnmd alias myapp /path` the wrapper (a) calls `mnmd alias-save` (Go) to validate the name and root and persist a single line to the rc file, then (b) defines the alias in the current shell via `_monom_bind_alias`, so it works immediately. `alias-save` reuses the same rc machinery as `mnmd install` (`internal/rc`).
+- **Zero-subprocess startup.** The persisted rc line is a direct call — `_monom_bind_alias myapp "/path"` — so new shells bind aliases without spawning `mnmd`.
+- **Root pinning via `local -x`.** `_monom_bind_alias` defines `<name>()` (and a per-name completion function) that set `local -x _MONOM_PROJECT_ROOT="<path>"` and delegate to the shared `_monom_run` / `_monom_complete` cores. `-x` exports the root so the `mnmd pack`/`mnmd filter` children discover it; `local` scopes it to the call so it is restored on return — that is what keeps aliases from clobbering each other or bare `monom`'s `$PWD` discovery. The `eval` is required only because the function name is dynamic; it defines a function and registers a completion hook (shell's job), never decides behavior.
+
+An aliased command therefore behaves identically to `monom` run from inside that project — hooks, group dispatch, completion, and packing all go through the same cores — with messages prefixed by the alias name.
 
 No shell file should contain logic beyond what is technically impossible to move to Go.
 
