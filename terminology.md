@@ -18,7 +18,9 @@ How it works: Organize your executable scripts in a folder structure, add a `mon
 
 **Project root** — the directory containing the monom config file (the executable `monom` file). monom discovers it by walking upward from `$PWD`. Authors may pre-set `$_MONOM_PROJECT_ROOT` to skip discovery; this is an internal shell↔Go plumbing affordance, not a required step.
 
-**mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more. Sourcing `src/monom` defines a user-facing `mnmd()` shell function, so `mnmd` is callable by name in the user's shell without `bin/` being on `$PATH`.
+**Command mapping** — table-driven resolution of command words to a value (typically an executable path), as opposed to the convention-driven resolution of command packing. One mapping table — a string of `<value> <key words...>` lines, passed as the first CLI argument — drives both hooks: `mnmd resolve-run` prints the value of the first entry whose key words equal the remaining args — or the args unchanged when nothing matches, so a miss passes through to default resolution — and `mnmd resolve-complete` prints each entry's key as a slash-delimited path for completion discovery. Values may be absolute paths (typically built from the config's own directory) or project-root-relative. Used chiefly while migrating an existing project to monom, when legacy command names must map to files that do not yet follow the file-tree convention.
+
+**mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more. Sourcing `src/monom` defines a user-facing `mnmd()` shell function, so `mnmd` is callable by name in the user's shell without `bin/` being on `$PATH`. Hook scripts run as child processes and cannot see that function; every config spawn site instead prepends the binary's directory to the child's `$PATH`, so hooks also call `mnmd` by name.
 
 **CLI author** — the developer building a CLI tool using monom.
 

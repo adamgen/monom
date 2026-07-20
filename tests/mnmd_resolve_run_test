@@ -1,0 +1,114 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd resolve-run
+# Run directly: bash tests/mnmd_resolve_run_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# mnmd resolve-run <table> <word...>
+# ---------------------------------------------------------------------------
+
+TABLE='
+api/db/migrate.sh    db migrate
+api/db/seed.sh       db seed
+api/auth/login.sh    auth login
+standalone.sh        deploy
+'
+
+test_resolve_run_multi_word_key_prints_value() {
+  result=$("$MONOMD" resolve-run "$TABLE" db migrate)
+  assertEquals "resolve-run should print the mapped value" "api/db/migrate.sh" "$result"
+}
+
+test_resolve_run_single_word_key_prints_value() {
+  result=$("$MONOMD" resolve-run "$TABLE" deploy)
+  assertEquals "resolve-run should match a single-word key" "standalone.sh" "$result"
+}
+
+test_resolve_run_match_exits_0() {
+  "$MONOMD" resolve-run "$TABLE" db migrate >/dev/null
+  assertEquals "resolve-run must exit 0 on a match" 0 $?
+}
+
+test_resolve_run_miss_passes_words_through_and_exits_0() {
+  result=$("$MONOMD" resolve-run "$TABLE" db drop)
+  status=$?
+  assertEquals "a miss must exit 0 — it is passthrough, not an error" 0 "$status"
+  assertEquals "a miss must print the words unchanged" "db drop" "$result"
+}
+
+test_resolve_run_miss_prints_nothing_to_stderr() {
+  err=$("$MONOMD" resolve-run "$TABLE" db drop 2>&1 >/dev/null)
+  assertEquals "a miss must not write to stderr" "" "$err"
+}
+
+test_resolve_run_ignores_comments_and_blank_lines() {
+  commented='
+
+# legacy commands mapped during the monom migration
+api/db/migrate.sh  db migrate
+'
+  result=$("$MONOMD" resolve-run "$commented" db migrate)
+  assertEquals "comments and blank lines must be skipped" "api/db/migrate.sh" "$result"
+}
+
+test_resolve_run_first_match_wins() {
+  dup='
+first.sh   db migrate
+second.sh  db migrate
+'
+  result=$("$MONOMD" resolve-run "$dup" db migrate)
+  assertEquals "first matching entry must win" "first.sh" "$result"
+}
+
+test_resolve_run_key_prefix_does_not_match() {
+  result=$("$MONOMD" resolve-run "$TABLE" db)
+  assertEquals "a key prefix must pass through, not match a longer key" "db" "$result"
+}
+
+test_resolve_run_longer_than_key_does_not_match() {
+  result=$("$MONOMD" resolve-run "$TABLE" db migrate now)
+  assertEquals "longer words must pass through, not match a shorter key" "db migrate now" "$result"
+}
+
+test_resolve_run_ignores_whitespace_variations() {
+  # Columns may be freely aligned; tabs and runs of spaces are field separators.
+  misaligned=$'  api/db/migrate.sh \t db  \t migrate  '
+  result=$("$MONOMD" resolve-run "$misaligned" db migrate)
+  assertEquals "fields must be whitespace-delimited regardless of alignment" "api/db/migrate.sh" "$result"
+}
+
+test_resolve_run_skips_value_only_lines() {
+  bare='
+orphan.sh
+real.sh  orphan.sh
+'
+  result=$("$MONOMD" resolve-run "$bare" orphan.sh)
+  assertEquals "a bare value line must be skipped, not matched as a key" "real.sh" "$result"
+}
+
+test_resolve_run_no_words_exits_nonzero() {
+  "$MONOMD" resolve-run "$TABLE" 2>/dev/null
+  assertNotEquals "resolve-run must exit non-zero with no word args" 0 $?
+}
+
+test_resolve_run_no_table_exits_nonzero() {
+  "$MONOMD" resolve-run 2>/dev/null
+  assertNotEquals "resolve-run must exit non-zero with no table arg" 0 $?
+}
+
+test_resolve_run_empty_table_passes_words_through() {
+  result=$("$MONOMD" resolve-run '' db migrate)
+  status=$?
+  assertEquals "an empty table must exit 0" 0 "$status"
+  assertEquals "an empty table must pass the words through" "db migrate" "$result"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

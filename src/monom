@@ -14,6 +14,13 @@ _MONOM_LIB_ROOT="$(cd "$(dirname "$_monom_self")" && pwd)"
 unset _monom_self
 MONOM_ACTIVE=1
 
+# _MONOM_BIN_DIR — directory holding the mnmd binary. Not exported: it is
+# read only by functions in this shell. _monom_cfg prepends it to the config
+# subprocess's PATH so hooks can invoke `mnmd` by name — the mnmd() function
+# below is invisible to child processes, and bin/ is deliberately not on the
+# user's own PATH.
+_MONOM_BIN_DIR="$(cd "$_MONOM_LIB_ROOT/.." && pwd)/bin"
+
 # mnmd — thin wrapper so call sites read as `mnmd <subcommand>`.
 # The binary ships next to the sources at ../bin/mnmd.
 #
@@ -23,14 +30,12 @@ MONOM_ACTIVE=1
 # the binary (`alias-save`, which validates name and root) and, only if that
 # succeeds, defined in the current shell so it is usable immediately.
 mnmd() {
-  local _bin
-  _bin="$(cd "$_MONOM_LIB_ROOT/.." && pwd)/bin/mnmd"
   if [ "$1" = alias ]; then
     if [ "$#" -ne 3 ]; then
       echo "usage: mnmd alias <name> <path>" >&2
       return 1
     fi
-    "$_bin" alias-save "$2" "$3" || return $?
+    "$_MONOM_BIN_DIR/mnmd" alias-save "$2" "$3" || return $?
     # alias-save validated "$3" as a project root, so cd cannot fail here.
     # Pin an absolute path so the in-shell binding survives later `cd`s.
     local _abs
@@ -38,7 +43,7 @@ mnmd() {
     _monom_bind_alias "$2" "$_abs"
     return 0
   fi
-  "$_bin" "$@"
+  "$_MONOM_BIN_DIR/mnmd" "$@"
 }
 
 # _monom_log — append a timestamped debug line to $MONOM_DEBUG_LOG.
@@ -50,8 +55,12 @@ _monom_log() {
 }
 
 # _monom_cfg — thin wrapper so call sites read as `_monom_cfg complete`
-# instead of `"$_MONOM_USER_CONFIG" complete`.
-_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
+# instead of `"$_MONOM_USER_CONFIG" complete`. Prepends the binary's
+# directory to the child's PATH — scoped to this spawn, the interactive
+# shell's PATH is untouched — so config hooks invoke `mnmd` by name (the Go
+# binary does the same wherever it spawns the config itself, e.g. `mnmd
+# check`).
+_monom_cfg() { PATH="$_MONOM_BIN_DIR:$PATH" "$_MONOM_USER_CONFIG" "$@"; }
 
 # _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set,
 # then resolves the effective MONOM_DEBUG_LOG via the optional `debug` hook.

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+root="$(cd "$(dirname "$0")" && pwd)"
+
+legacy="
+${root}/scripts/migrate_db.sh   db migrate
+${root}/scripts/seed_db.sh      db seed
+"
+
+case "$1" in
+  complete)
+    mnmd resolve-complete "$legacy"
+    ;;
+  run)
+    shift
+    mnmd resolve-run "$legacy" "$@"
+    ;;
+esac

@@ -1,0 +1,76 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd resolve-complete
+# Run directly: bash tests/mnmd_resolve_complete_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# mnmd resolve-complete <table>
+# ---------------------------------------------------------------------------
+
+TABLE='
+api/db/migrate.sh    db migrate
+api/db/seed.sh       db seed
+api/auth/login.sh    auth login
+standalone.sh        deploy
+'
+
+test_resolve_complete_prints_keys_slash_delimited_in_table_order() {
+  result=$("$MONOMD" resolve-complete "$TABLE")
+  expected="db/migrate
+db/seed
+auth/login
+deploy"
+  assertEquals "keys must print slash-delimited, in table order" "$expected" "$result"
+}
+
+test_resolve_complete_skips_comments_blank_and_value_only_lines() {
+  noisy='
+
+# legacy commands mapped during the monom migration
+orphan.sh
+api/db/migrate.sh  db migrate
+'
+  result=$("$MONOMD" resolve-complete "$noisy")
+  assertEquals "only real entries must yield keys" "db/migrate" "$result"
+}
+
+test_resolve_complete_ignores_whitespace_variations() {
+  misaligned=$'  api/db/migrate.sh \t db  \t migrate  '
+  result=$("$MONOMD" resolve-complete "$misaligned")
+  assertEquals "keys must parse despite misaligned columns" "db/migrate" "$result"
+}
+
+test_resolve_complete_empty_table_prints_nothing_and_exits_0() {
+  result=$("$MONOMD" resolve-complete '')
+  status=$?
+  assertEquals "an empty table must exit 0" 0 "$status"
+  assertEquals "an empty table must print nothing" "" "$result"
+}
+
+test_resolve_complete_output_feeds_mnmd_filter() {
+  # The printed keys must be consumable by the completion pipeline as-is.
+  result=$("$MONOMD" resolve-complete "$TABLE" | "$MONOMD" filter db "")
+  expected="migrate
+seed"
+  assertEquals "resolve-complete | mnmd filter must offer the mapped subcommands" "$expected" "$result"
+}
+
+test_resolve_complete_no_table_exits_nonzero() {
+  "$MONOMD" resolve-complete 2>/dev/null
+  assertNotEquals "resolve-complete must exit non-zero with no table arg" 0 $?
+}
+
+test_resolve_complete_rejects_extra_args() {
+  "$MONOMD" resolve-complete "$TABLE" extra 2>/dev/null
+  assertNotEquals "resolve-complete must exit non-zero when given extra args" 0 $?
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

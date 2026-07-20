@@ -160,7 +160,7 @@ matches := filterByPrefix(strings.Split(strings.TrimSpace(string(out)), "\n"), p
 
 ### `mnmd pack <word...>`
 
-Called by the `monom()` shell function when the user executes a command. Takes the user's space-separated command path as CLI args (e.g. `mnmd pack category1 sub_command1`), joins the tokens with `/` internally, resolves the result against the project root, and prints the absolute path to stdout. The shell then `exec`s that path.
+Called by the `monom()` shell function when the user executes a command. Takes the user's space-separated command path as CLI args (e.g. `mnmd pack category1 sub_command1`), joins the tokens with `/` internally, resolves the result against the project root (an already-absolute token — e.g. a `run`-hook mapping value — is used as-is, with no root discovery), and prints the absolute path to stdout. The shell then `exec`s that path.
 
 Pack is self-sufficient: it discovers the project root itself (same algorithm as `mnmd root` — see below), validates the file exists and is executable, and prints the absolute path. The shell `monom()` function reduces to a single `exec` call.
 
@@ -176,6 +176,33 @@ Pack is the symmetric counterpart of `filter`: both take space-separated tokens 
 Exit code `3` is **reserved exclusively** for the command-group outcome. A directory is a noun in monom's noun→verb file tree — it is not a command, but it is also not a failure, so it gets its own signal. Exit 3 is a *pure signal*: pack writes nothing and, crucially, does **not** enumerate the group's children. Discovery is the `complete` hook's job (see [terminology](terminology.md) and the [user config interface](#the-user-config-interface)); pack stays a pure resolver that returns a path xor a non-leaf signal. The `monom()` function turns exit 3 into a user-facing listing by sourcing the children from the canonical discovery pipeline — `monom_cfg complete | mnmd filter <tokens> ""`, the same path tab-completion uses — so the listing matches `monom <group> <Tab>` and honors any `run`-hook surface tree, rather than re-deriving it from a direct filesystem read. The result is `monom: 'infra' is a command group` / `available: cloud, local`; see [shell files](#shell-files).
 
 **Making a namespace runnable is an author concern, not a monom flag.** monom deliberately does *not* let a group double as a runnable command via some built-in override. Per clig.dev's "don't have a catch-all subcommand", auto-picking a default leaf for a group would be a time bomb: the day the author adds a real leaf with that name, every existing group invocation silently changes meaning. An author who wants `monom infra` to *do* something expresses that explicitly in their own config via the [`run` hook](#hook-run--transform-args-before-path-resolution) (e.g. mapping `infra` → `infra cloud deploy`), keeping the override visible and stable in their project rather than baked into monom's core.
+
+---
+
+### `mnmd resolve-run <table> <word...>` / `mnmd resolve-complete <table>`
+
+Table-driven **command mapping** (see [terminology](terminology.md)) for CLI authors — chiefly mid-migration, when legacy command names must keep working before their files move to tree-shaped homes. Both take the same mapping table as their first argument — a string of `<value> <key words...>` lines; blank lines, `#` comments, and value-only lines are skipped — and each implements one hook contract end to end, so a config's hooks reduce to one line each over a shared table:
+
+```sh
+root="$(cd "$(dirname "$0")" && pwd)"
+
+legacy="
+$root/scripts/migrate_db.sh   db migrate
+$root/scripts/seed_db.sh      db seed
+"
+
+case "$1" in
+  complete)
+    mnmd resolve-complete "$legacy"
+    ;;
+  run)
+    shift
+    mnmd resolve-run "$legacy" "$@"
+    ;;
+esac
+```
+
+`resolve-run` prints the first matching entry's value — a single token `pack` then resolves (an absolute value, as above, is used as-is; a relative one resolves against the project root) — or, when nothing matches, the words unchanged. A miss is passthrough (exit 0, nothing on stderr), not an error, so unmapped commands flow on to default tree resolution with no fallback branch in the hook. `resolve-complete` prints each entry's key as a slash-delimited path (`db migrate` → `db/migrate`), the discovery format the completion pipeline expects, so mapped commands tab-complete exactly like tree commands. Both are pure lookups: no root discovery, values need not exist on disk. See `fixtures/legacy-migration/` for a working project.
 
 ---
 
@@ -259,6 +286,8 @@ monom does not care how the user config is implemented — shell functions, Pyth
 
 Hooks are optional subcommands the CLI author MAY expose on the monom config file to customize monom's default behavior. Each hook has a defined input/output contract and a defined fallback (what monom does when the hook is absent). Hooks are discovered by attempt-and-fallback at the call site — there is no separate registration step. The list of available hooks evolves here in `architecture.md` without requiring a constitution amendment.
 
+Hook scripts can invoke `mnmd` by name: every spawn site of the config (`_monom_cfg` in the shell, `mnmd check` in Go) prepends the binary's directory to the child process's `PATH`. This is part of the hook contract — the `mnmd()` shell function is invisible to child processes, and `bin/` is deliberately never added to the user's own `PATH`.
+
 ### Hook: `run` — transform args before path resolution
 
 Interposes between `monom <user_args...>` and `mnmd pack`. Receives the user's space-separated args, prints transformed space-separated args. monom passes the transformed output to `mnmd pack`.
@@ -270,7 +299,7 @@ infra cloud deploy
 
 When the hook is present and produces usable output, monom uses it. When the hook is absent or doesn't produce usable output, monom falls back to passing the user's original args to `mnmd pack`. The exact detection-and-fallback semantics are left to the implementation.
 
-Useful for: aliasing, namespace remapping, project-specific routing where the surface command tree differs from the file tree. This is also the sanctioned way to make a **command group runnable**: by default invoking a group (a directory) lists its children and exits non-zero (see [`mnmd pack`](#mnmd-pack-word) exit code 3), but a `run` hook can map a bare group token to a concrete leaf path, keeping that override explicit and per-project instead of a monom-wide catch-all.
+Useful for: aliasing, namespace remapping, project-specific routing where the surface command tree differs from the file tree. For table-driven mappings (e.g. legacy command names during a migration), [`mnmd resolve-run`](#mnmd-resolve-run-table-word--mnmd-resolve-complete-table) implements this hook's whole contract in a single call. This is also the sanctioned way to make a **command group runnable**: by default invoking a group (a directory) lists its children and exits non-zero (see [`mnmd pack`](#mnmd-pack-word) exit code 3), but a `run` hook can map a bare group token to a concrete leaf path, keeping that override explicit and per-project instead of a monom-wide catch-all.
 
 ### Hook: `debug` — project-local debug log path
 
@@ -303,6 +332,7 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 | Variable                | Set by                                                    | Description                                                                                                                                                                           |
 | ----------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_MONOM_LIB_ROOT`       | `src/monom` at source time                                | Absolute path to the monom install directory (`src/`).                                                                                                                                |
+| `PATH` (config subprocess only) | `_monom_cfg()` and every Go spawn site of the config (e.g. `mnmd check`) | The binary's directory is prepended to the config child's `PATH`, so hooks invoke `mnmd` by name. Part of the author-facing hook contract, guaranteed at every config spawn site. Scoped to the spawned process — the user's interactive `PATH` is never modified. |
 | `mnmd()` (function)     | `src/monom` at source time                                | Shell function wrapper that invokes `bin/mnmd`. User-facing — makes `mnmd` callable by name after sourcing, without adding `bin/` to `$PATH`.                                          |
 | `_MONOM_PROJECT_ROOT`   | `_setup_monom()` via `mnmd root` discovery, or user       | Path to the currently active monom project root. Pre-setting this skips auto-discovery. All call sites read this via the `mnmd root` algorithm.                                       |
 | `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — the `monom` executable at `$_MONOM_PROJECT_ROOT/monom`. Shell scripts invoke it via `_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }` for readability. |

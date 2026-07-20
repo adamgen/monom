@@ -458,5 +458,91 @@ test_zsh_no_args_lists_top_level_commands() {
 
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# legacy mapping: both hooks are one-liners over mnmd resolve-run / -complete
+# ---------------------------------------------------------------------------
+
+# make_legacy_project — a project mid-migration: `release` lives in the tree,
+# while `db migrate` still points at scripts/migrate_db.sh through a mapping
+# table. The config's hooks contain no lookup logic of their own — each is a
+# single `mnmd resolve-*` call with the shared table as its first argument,
+# relying on _monom_cfg prepending the binary's directory to the config
+# subprocess's PATH. Targets are absolute paths built from the config's own
+# directory, exercising pack's absolute-path resolution end to end.
+make_legacy_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+
+  mkdir -p "$d/scripts"
+  cat > "$d/release" <<'EOF'
+#!/bin/sh
+echo "ran release"
+EOF
+  cat > "$d/scripts/migrate_db.sh" <<'EOF'
+#!/bin/sh
+echo "ran scripts/migrate_db.sh"
+EOF
+  chmod +x "$d/release" "$d/scripts/migrate_db.sh"
+
+  cat > "$d/monom" <<'CFG'
+#!/bin/sh
+root="$(cd "$(dirname "$0")" && pwd)"
+
+legacy="
+$root/scripts/migrate_db.sh   db migrate
+"
+
+case "$1" in
+  complete)
+    printf 'release\n'
+    mnmd resolve-complete "$legacy"
+    ;;
+  run)
+    shift
+    mnmd resolve-run "$legacy" "$@"
+    ;;
+esac
+CFG
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+test_bash_legacy_mapped_command_runs() {
+  local proj output
+  proj=$(make_legacy_project)
+  output=$(run_monom_in bash "$proj" db migrate)
+  assert_output_contains_line "mapped words must run the legacy script in bash" \
+    "$output" "ran scripts/migrate_db.sh"
+  rm -rf "$proj"
+}
+
+test_zsh_legacy_mapped_command_runs() {
+  local proj output
+  proj=$(make_legacy_project)
+  output=$(run_monom_in zsh "$proj" db migrate)
+  assert_output_contains_line "mapped words must run the legacy script in zsh" \
+    "$output" "ran scripts/migrate_db.sh"
+  rm -rf "$proj"
+}
+
+test_bash_legacy_unmapped_command_passes_through_to_tree() {
+  local proj output
+  proj=$(make_legacy_project)
+  output=$(run_monom_in bash "$proj" release)
+  assert_output_contains_line "unmapped words must fall through to tree resolution in bash" \
+    "$output" "ran release"
+  rm -rf "$proj"
+}
+
+test_zsh_legacy_unmapped_command_passes_through_to_tree() {
+  local proj output
+  proj=$(make_legacy_project)
+  output=$(run_monom_in zsh "$proj" release)
+  assert_output_contains_line "unmapped words must fall through to tree resolution in zsh" \
+    "$output" "ran release"
+  rm -rf "$proj"
+}
+
 # shellcheck disable=SC1090
 . "$SHUNIT2"

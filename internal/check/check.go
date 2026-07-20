@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/adamgen/monom/internal/cli"
 )
 
 // Check runs userConfig with the "complete" subcommand, reads all output paths,
@@ -32,6 +34,7 @@ func Check(userConfig string) ([]string, error) {
 	}
 
 	cmd := exec.Command(userConfig, "complete")
+	cmd.Env = cli.ConfigEnv()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

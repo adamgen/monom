@@ -1,0 +1,3 @@
+#!/bin/sh
+# A new-style command already living at its tree-shaped home.
+echo "releasing"

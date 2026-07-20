@@ -16,6 +16,7 @@ import (
 	"github.com/adamgen/monom/internal/filter"
 	"github.com/adamgen/monom/internal/install"
 	"github.com/adamgen/monom/internal/pack"
+	"github.com/adamgen/monom/internal/resolve"
 	"github.com/adamgen/monom/internal/root"
 )
 
@@ -43,6 +44,10 @@ func main() {
 		err = runRoot()
 	case "pack":
 		err = runPack()
+	case "resolve-run":
+		err = runResolveRun()
+	case "resolve-complete":
+		err = runResolveComplete()
 	case "check":
 		err = runCheck()
 	case "install":
@@ -61,7 +66,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install, alias-save")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, resolve-run, resolve-complete, check, install, alias-save")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
@@ -149,6 +154,46 @@ func runPack() error {
 	return nil
 }
 
+// runResolveRun takes a mapping table (`<value> <key word...>` per line) as
+// its first arg, the user's command words after it, and prints the value
+// mapped from the words — or the words unchanged when no entry matches. It
+// implements the `run` hook contract end to end — passthrough miss, exit 0,
+// nothing on stderr — so a user config's run hook can be exactly
+// `shift; mnmd resolve-run "$table" "$@"`.
+func runResolveRun() error {
+	if len(os.Args) < 3 {
+		return cli.WrapError(fmt.Errorf("usage: mnmd resolve-run <table> <word...>"))
+	}
+	table := os.Args[2]
+	words := os.Args[3:]
+
+	debuglog.Log("[mnmd resolve-run] words=(%s) table=%dB", strings.Join(words, " "), len(table))
+	out, err := resolve.Run(table, words)
+	if err != nil {
+		debuglog.Log("[mnmd resolve-run] failed: %v", err)
+		return cli.WrapError(err)
+	}
+	debuglog.Log("[mnmd resolve-run] resolved: %s", out)
+	fmt.Println(out)
+	return nil
+}
+
+// runResolveComplete takes a mapping table as its only arg and prints each
+// entry's key as a slash-delimited path — the `complete` hook's discovery
+// format — so a user config can advertise its mapped commands with
+// `mnmd resolve-complete "$table"` alongside its tree discovery.
+func runResolveComplete() error {
+	if len(os.Args) != 3 {
+		return cli.WrapError(fmt.Errorf("usage: mnmd resolve-complete <table>"))
+	}
+	keys := resolve.Complete(os.Args[2])
+	debuglog.Log("[mnmd resolve-complete] table=%dB keys=%d", len(os.Args[2]), len(keys))
+	for _, k := range keys {
+		fmt.Println(k)
+	}
+	return nil
+}
+
 func runCheck() error {
 	userConfig := os.Getenv("_MONOM_USER_CONFIG")
 	debuglog.Log("[mnmd check] config=%s", userConfig)
@@ -201,6 +246,7 @@ func countLines(userConfig string) int {
 	}
 	var out bytes.Buffer
 	cmd := exec.Command(userConfig, "complete")
+	cmd.Env = cli.ConfigEnv()
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
 		return 0

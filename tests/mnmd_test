@@ -296,6 +296,28 @@ test_check_no_user_config_exits_nonzero() {
   assertNotEquals "check must exit non-zero when _MONOM_USER_CONFIG unset" 0 $?
 }
 
+test_check_puts_mnmd_on_config_path() {
+  # A config hook calls `mnmd` by name: the binary prepends its own directory
+  # to the config subprocess's PATH. The parent PATH is pinned to system dirs
+  # only, so the bare `mnmd` below can resolve solely through that injection.
+  dir=$(mktemp -d)
+  cfg="$dir/user_config"
+  cat > "$cfg" <<'CFG'
+#!/bin/sh
+case "$1" in
+  complete)
+    mnmd resolve-complete "api/db/migrate.sh  db migrate"
+    ;;
+esac
+CFG
+  chmod +x "$cfg"
+  out=$(env PATH=/usr/bin:/bin _MONOM_USER_CONFIG="$cfg" "$MONOMD" check 2>/dev/null)
+  status=$?
+  assertEquals "check must put mnmd on the config's PATH" 0 "$status"
+  assertContains "the mapped command must be discovered and counted" "$out" "1 commands OK"
+  rm -rf "$dir"
+}
+
 # ---------------------------------------------------------------------------
 # mnmd unknown subcommand / no args
 # ---------------------------------------------------------------------------

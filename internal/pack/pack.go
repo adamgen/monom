@@ -32,7 +32,9 @@ func (e *GroupError) ExitCode() int    { return cli.ExitCodes.GroupError }
 //
 // words are the space-separated CLI arguments the user typed (e.g. ["category",
 // "sub_command"]). They are joined with "/" to form a relative file path, which
-// is then resolved against the project root discovered by FindProjectRoot.
+// is then resolved against the project root discovered by FindProjectRoot. An
+// already-absolute path — e.g. a `run` hook's mapping-table value built from
+// the config's own location — is used as-is, with no root discovery at all.
 //
 // Returns an error if words is empty, no project root is found, the resolved
 // path does not exist, or the file is not executable. When the resolved path is
@@ -44,13 +46,14 @@ func Pack(words []string) (string, error) {
 		return "", fmt.Errorf("pack: no command tokens provided")
 	}
 
-	projectRoot, err := root.FindProjectRoot()
-	if err != nil {
-		return "", fmt.Errorf("pack: %w", err)
+	absPath := strings.Join(words, "/")
+	if !filepath.IsAbs(absPath) {
+		projectRoot, err := root.FindProjectRoot()
+		if err != nil {
+			return "", fmt.Errorf("pack: %w", err)
+		}
+		absPath = filepath.Join(projectRoot, absPath)
 	}
-
-	relPath := strings.Join(words, "/")
-	absPath := filepath.Join(projectRoot, relPath)
 
 	fi, err := os.Stat(absPath)
 	if err != nil {

@@ -58,6 +58,32 @@ test_pack_exits_nonzero_when_no_root_found() {
   rm -rf "$tmp"
 }
 
+test_pack_absolute_token_resolves_without_project_root() {
+  # A run hook may output an absolute path (e.g. a mapping-table value built
+  # from the config's own directory). Pack must use it as-is — proven here by
+  # running with no discoverable root at all.
+  tmp=$(mktemp -d)
+  tmp=$(cd "$tmp" && pwd -P)
+  make_cmd "$tmp/legacy_tool"
+  result=$( (cd "$tmp" && _MONOM_PROJECT_ROOT="" "$MONOMD" pack "$tmp/legacy_tool") )
+  assertEquals "an absolute token must resolve without root discovery" 0 $?
+  assertEquals "an absolute token must resolve to itself" "$tmp/legacy_tool" "$result"
+  rm -rf "$tmp"
+}
+
+test_pack_absolute_token_still_requires_executable() {
+  tmp=$(mktemp -d)
+  tmp=$(cd "$tmp" && pwd -P)
+  cat > "$tmp/legacy_tool" <<'EOF'
+#!/bin/sh
+EOF
+  # deliberately not chmod +x
+  err=$(_MONOM_PROJECT_ROOT="" "$MONOMD" pack "$tmp/legacy_tool" 2>&1)
+  assertNotEquals "a non-executable absolute token must fail" 0 $?
+  assertContains "error must mention 'not executable'" "$err" "not executable"
+  rm -rf "$tmp"
+}
+
 # ---------------------------------------------------------------------------
 # mnmd pack: command groups (directories) exit 3 as a pure signal.
 # pack does NOT enumerate children — stdout and stderr are both empty. The

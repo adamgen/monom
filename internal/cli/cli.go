@@ -3,6 +3,35 @@
 // integer literals appear elsewhere.
 package cli
 
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// ConfigEnv returns the environment for spawning the user config: the
+// current environment with this binary's directory prepended to PATH, so
+// config hooks can invoke `mnmd` by name. The mnmd() shell function is
+// invisible to child processes and bin/ is not otherwise on the user's PATH,
+// so every spawn site of the user config must provide this (the shell side's
+// counterpart is _monom_cfg). The PATH entry is replaced in place — a
+// duplicate entry would not reliably win.
+func ConfigEnv() []string {
+	env := os.Environ()
+	exe, err := os.Executable()
+	if err != nil {
+		return env
+	}
+	binDir := filepath.Dir(exe)
+	for i, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			env[i] = "PATH=" + binDir + string(os.PathListSeparator) + strings.TrimPrefix(kv, "PATH=")
+			return env
+		}
+	}
+	return append(env, "PATH="+binDir)
+}
+
 // ExitCodes is the single source of truth for all exit codes used by mnmd.
 //
 //   - Success (0): leaf resolved / normal output.
