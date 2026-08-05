@@ -1,13 +1,18 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
-This is a CLI tool for building cli tools
+monom is a framework for building CLI tools. Its name is always lowercase.
 
-## Tests
+Read `CLAUDE.md` before making changes — it is the working guide and links the
+canonical documents (`constitution.md`, `architecture.md`, `terminology.md`).
 
-1. Tests for a specific util file has a convention of "${file_name}_test".
-2. The testing framework is shunit and is avalable on [shunit2](mdc:dependencies/shunit2)
-3. To validate best practices using shellcheck run `./shellcheck fromthe`
-4. Do not run `chmod +x` unless you got a "permission denied" error, then run it.
+This project is **not** spec-driven. Do not create specification documents,
+change proposals, or task files. High-level decisions go in the canonical
+documents; contested tradeoffs go in a `TRADEOFFS.md` beside the code.
+
+Run `make check` to validate a change (build, vet, Go tests, shUnit2 e2e,
+shellcheck). `make help` lists all targets.
+
+Do not run `chmod +x` unless you got a "permission denied" error, then run it.

@@ -42,4 +42,17 @@ The user's config file (`monom` at the project root) exposes two subcommands: `c
 
 ## Project Status
 
-monom is in **early planning and development**. This is the second attempt at building it — the first stalled out. This time around, the constraint is very little available time, so the approach leans heavily on AI-assisted development and [OpenSpec](https://openspec.dev/) for structured planning. The core design documents (constitution, architecture, terminology) are written and stable. An initial implementation exists with a working Go binary, shell bindings for bash/zsh, tab completion, and an end-to-end test harness. Active work is focused on solidifying the binary's subcommands and refining the shell integration.
+monom is in **early development**. This is the second attempt at building it — the first stalled out. The binding constraint is very little available time, so the approach leans heavily on AI-assisted development.
+
+An implementation exists: a working Go binary (`mnmd`), shell bindings for bash and zsh, tab completion, and an end-to-end test harness. Active work is focused on solidifying the binary's subcommands and refining the shell integration. `BACKLOG.md` lists what's intended next.
+
+## How the project is documented
+
+Deliberately lightly, and in four places:
+
+- **The code and its tests** describe all behavior. Nothing exists only as prose about what a function does.
+- **`constitution.md`, `architecture.md`, `terminology.md`** hold the high-level decisions — invariants, the shape of the system, and names. These answer questions no single file can.
+- **`TRADEOFFS.md`, beside the code** holds decisions that were genuinely contested: what was chosen, what was rejected, why, and what it costs. Read the one next to a package before changing that package's behavior.
+- **`BACKLOG.md`** holds intended work as short statements of intent.
+
+There are no specification documents and no change proposals. The rule is in the constitution under *Documentation Is Load-Bearing or Absent*: if a competent reader could derive it from the code, it doesn't get written.

@@ -7,7 +7,7 @@ description: Best practices for writing bash/sh code in the monom project — sh
 
 ## shUnit2 test structure
 
-- Test files have no extension, named `${script_name}_test`, colocated with the file under test.
+- Test files have no extension and live under `tests/`, named `mnmd_<subcommand>_test` or `monom_<area>_test`.
 - Test functions are named `test_descriptive_name()`.
 - Use `assertEquals`, `assertNotEquals` for exit codes.
 - For line-exact output matching, use `grep -qFx` rather than substring assertions — a substring check on `command1` will also match `sub_command1`.

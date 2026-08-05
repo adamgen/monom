@@ -108,6 +108,22 @@ If something needs a test and it can live in Go, it should. Shell test files are
 
 ---
 
+## Principle: Documentation Is Load-Bearing or Absent
+
+Prose that restates what the code already says is not free — it is a second copy that drifts, and a reader who trusts it is worse off than one who read the source. monom therefore writes documentation in exactly three places, each holding something the code cannot hold on its own.
+
+**The code describes itself.** Behavior, structure, and contract are read from the source and the tests. Nothing may exist only as a written description of what a function does. If the code is hard to read, the fix is the code.
+
+**Canonical documents hold high-level decisions.** `constitution.md` (invariants), `architecture.md` (the intended shape and the interfaces between parts), and `terminology.md` (names). These answer questions no single file can answer, because they are about the relationships between files. A decision belongs here when someone reading any one package would be unable to infer it.
+
+**Co-located documents hold critical tradeoffs.** When a decision was genuinely contested — a real alternative was considered and rejected for a reason that is not obvious from the outcome — that reasoning lives in a `TRADEOFFS.md` next to the code implementing it. It records what was chosen, what was rejected, why, and what the choice costs. Its purpose is to stop a future contributor from "fixing" a deliberate decision, and to let them overturn it honestly if the reasoning has expired.
+
+**Everything else is not written down.** There are no standing specification documents, no change proposals, and no task files. Work is described when it is proposed, done, and then read from the code. Intended-but-unstarted work is a line in `BACKLOG.md`, not a document.
+
+**The test:** before writing prose, ask — "could a competent reader derive this from the code?" If yes, do not write it. If no, ask whether it is a high-level decision (canonical document) or a contested tradeoff (co-located `TRADEOFFS.md`). If it is neither, it probably does not need to be written at all.
+
+---
+
 ## Principle: Static and Lint Checks Must Pass
 
 - All shell files must pass `shellcheck` with no suppressions except those documented inline with an explanation.
@@ -120,4 +136,6 @@ If something needs a test and it can live in Go, it should. Shell test files are
 - `terminology.md` — canonical definitions of all domain terms. Read before naming anything.
 - `architecture.md` — current intended architecture: the binary, shell files, data flow.
 - `CLAUDE.md` — AI working guide (how to work in this repo).
+- `**/TRADEOFFS.md` — contested decisions, next to the code that implements them. Read the one beside a file before changing that file's behavior.
+- `BACKLOG.md` — intended future work. Statements of intent, not commitments.
 - [clig.dev](https://clig.dev/) — CLI design guidelines. Consult when designing or reviewing any user-facing behavior: argument conventions, output format, error messages, help text, exit codes, environment variables, or interactive behavior. Not required reading for every edit — use it as a review standard when the CLI surface is changing.
