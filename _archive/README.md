@@ -10,5 +10,5 @@ Go, and was never intended to be the final implementation.
 The files are kept here solely so that implementation decisions made during prototyping
 remain inspectable. They are not functional, not maintained, and not tested.
 
-Once the `monomd` implementation (see `openspec/changes/monomd-binary/`) is complete
-and stable, this folder should be deleted entirely.
+Once the `mnmd` implementation is complete and stable, this folder should be deleted
+entirely. Tracked in `BACKLOG.md`.
