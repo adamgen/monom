@@ -14,6 +14,7 @@ import (
 	"github.com/adamgen/monom/internal/debuglog"
 	"github.com/adamgen/monom/internal/filter"
 	"github.com/adamgen/monom/internal/install"
+	"github.com/adamgen/monom/internal/mapfile"
 	"github.com/adamgen/monom/internal/pack"
 	"github.com/adamgen/monom/internal/root"
 )
@@ -46,6 +47,8 @@ func main() {
 		err = runCheck()
 	case "install":
 		err = runInstall()
+	case "map":
+		err = runMap()
 	default:
 		debuglog.Log("[mnmd] unknown subcommand: %q", os.Args[1])
 		fmt.Fprintf(os.Stderr, "mnmd: unknown subcommand %q\n", os.Args[1])
@@ -58,7 +61,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install, map")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
@@ -165,6 +168,49 @@ func runCheck() error {
 		fmt.Println(p)
 	}
 	return cli.WrapError(fmt.Errorf("%d problem(s) found", len(problems)))
+}
+
+// runMap dispatches `mnmd map <complete|resolve>` — the command-map backend
+// for the user config's `complete` and `run` hooks. See internal/mapfile.
+func runMap() error {
+	if len(os.Args) < 3 {
+		return cli.WrapError(fmt.Errorf("usage: mnmd map <complete|resolve> [words...]"))
+	}
+
+	projectRoot, err := root.FindProjectRoot()
+	if err != nil {
+		debuglog.Log("[mnmd map] no project root: %v", err)
+		return cli.WrapError(err)
+	}
+	m, err := mapfile.Load(projectRoot)
+	if err != nil {
+		debuglog.Log("[mnmd map] load failed: %v", err)
+		return cli.WrapError(err)
+	}
+
+	switch os.Args[2] {
+	case "complete":
+		paths := mapfile.Complete(m)
+		debuglog.Log("[mnmd map complete] %d command(s)", len(paths))
+		for _, p := range paths {
+			fmt.Println(p)
+		}
+		return nil
+	case "resolve":
+		words := os.Args[3:]
+		out, err := mapfile.Resolve(m, words)
+		if err != nil {
+			debuglog.Log("[mnmd map resolve] words=(%s): %v", strings.Join(words, " "), err)
+			return err // GroupError carries exit 3; stderr stays empty per the group signal
+		}
+		debuglog.Log("[mnmd map resolve] words=(%s) -> %q", strings.Join(words, " "), out)
+		if out != "" {
+			fmt.Println(out)
+		}
+		return nil
+	default:
+		return cli.WrapError(fmt.Errorf("unknown map subcommand %q (expected complete or resolve)", os.Args[2]))
+	}
 }
 
 func runInstall() error {

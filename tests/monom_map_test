@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests: the monom() execution path through the command map.
+#
+# Exercises the brownfield fixture end to end — sourcing src/monom in a real
+# shell against fixtures/brownfield-project, whose config delegates discovery
+# and routing to `mnmd map`. Pins the overlay contract: mapped commands run
+# scattered scripts, unmapped commands fall back to the file tree, and map
+# categories (which have no directory on disk) get the group listing.
+#
+# Run directly: bash tests/monom_map_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+FIXTURE="$REPO_ROOT/fixtures/brownfield-project"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# run_monom_on_fixture <shell> <args...> — sources src/monom in the named
+# shell pinned to the fixture and runs monom <args>. The fixture's config
+# invokes `mnmd` as a subprocess, so the repo's bin/ is prepended to PATH.
+# Prints combined stdout+stderr.
+run_monom_on_fixture() {
+  local shell="$1"
+  shift
+
+  local cmd="monom"
+  local a
+  for a in "$@"; do
+    cmd="$cmd $a"
+  done
+
+  case "$shell" in
+    bash)
+      bash --norc --noprofile -c "
+        export PATH='$REPO_ROOT/bin':\$PATH
+        export _MONOM_PROJECT_ROOT='$FIXTURE'
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+    zsh)
+      zsh --no-rcs -c "
+        export PATH='$REPO_ROOT/bin':\$PATH
+        export _MONOM_PROJECT_ROOT='$FIXTURE'
+        source '$SRC_MONOM'
+        $cmd
+      " 2>&1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# bash
+# ---------------------------------------------------------------------------
+
+test_bash_mapped_command_runs_scattered_script() {
+  local output
+  output=$(run_monom_on_fixture bash db migrate)
+  assert_output_contains_line "monom db migrate should run the mapped legacy script in bash" \
+    "$output" "ran scripts/legacy/run_migrations.sh"
+}
+
+test_bash_object_form_command_runs() {
+  local output
+  output=$(run_monom_on_fixture bash deploy)
+  assert_output_contains_line "monom deploy should run the object-form target in bash" \
+    "$output" "ran ops/full_deploy.sh"
+}
+
+test_bash_unmapped_command_falls_back_to_tree() {
+  local output
+  output=$(run_monom_on_fixture bash native hello)
+  assert_output_contains_line "unmapped commands should fall through to the file tree in bash" \
+    "$output" "ran native/hello"
+}
+
+test_bash_map_category_gets_group_listing() {
+  local output
+  output=$(run_monom_on_fixture bash db)
+  assert_output_contains_line "a map category should be announced as a group in bash" \
+    "$output" "monom: 'db' is a command group"
+  assert_output_contains_line "the listing should come from the map's complete output in bash" \
+    "$output" "available: migrate, seed"
+}
+
+# ---------------------------------------------------------------------------
+# zsh
+# ---------------------------------------------------------------------------
+
+test_zsh_mapped_command_runs_scattered_script() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local output
+  output=$(run_monom_on_fixture zsh db migrate)
+  assert_output_contains_line "monom db migrate should run the mapped legacy script in zsh" \
+    "$output" "ran scripts/legacy/run_migrations.sh"
+}
+
+test_zsh_unmapped_command_falls_back_to_tree() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local output
+  output=$(run_monom_on_fixture zsh native hello)
+  assert_output_contains_line "unmapped commands should fall through to the file tree in zsh" \
+    "$output" "ran native/hello"
+}
+
+test_zsh_map_category_gets_group_listing() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local output
+  output=$(run_monom_on_fixture zsh db)
+  assert_output_contains_line "a map category should be announced as a group in zsh" \
+    "$output" "monom: 'db' is a command group"
+  assert_output_contains_line "the listing should come from the map's complete output in zsh" \
+    "$output" "available: migrate, seed"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

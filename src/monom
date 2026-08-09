@@ -116,6 +116,21 @@ monom() {
   hook_err=$(mktemp)
   hook_out=$(_monom_cfg run "$@" 2>"$hook_err")
   hook_status=$?
+  if [ "$hook_status" -eq 3 ]; then
+    # Exit 3 is the group signal (see internal/cli/cli.go), and the run hook
+    # may emit it too — e.g. `mnmd map resolve` when the typed tokens name a
+    # command-map category that has no directory on disk for pack to see.
+    # Same listing path as pack's exit 3 below; any hook output is ignored
+    # because the signal is payload-free by contract.
+    rm -f "$hook_err"
+    local group_name=""
+    local _w
+    for _w in "$@"; do
+      group_name="$_w"
+    done
+    _monom_list_group "'$group_name' is a command group" "$@"
+    return 1
+  fi
   if [ "$hook_status" -ne 0 ]; then
     echo "monom: run hook failed (exit $hook_status)" >&2
     [ -s "$hook_err" ] && cat "$hook_err" >&2

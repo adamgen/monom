@@ -49,6 +49,22 @@ Touches nearly everything: new terminology, a new constitutional principle, `mnm
 
 ---
 
+## Rich command nodes (command-as-folder)
+
+Today a command is a single executable file, which leaves nowhere to hang per-command richness. The intent: a directory containing an executable `run` file resolves as a runnable command instead of a group, with sibling files adding capability — most valuably a per-command `complete` script so completion continues past the leaf into flags and arguments. Single-file commands stay the zero-ceremony default; the upgrade path is `git mv deploy deploy/run`.
+
+This makes `run`, `complete`, `pre-run`, `post-run` a reserved-name protocol at every tree level (discovery skips them, `mnmd check` flags collisions). The command map already mirrors the node model — a JSON node with a `"run"` key is a command — and reserves the same keys, so the two serializations stay unified. Open question, deliberately shared with the map: whether a node can be a command and a category at once (today the map rejects it).
+
+---
+
+## Lifecycle hooks (`pre-run` / `post-run`)
+
+Hook files that run around command execution, cascading project → category → command on the way in and in reverse on the way out (onion order). The category level is what earns it: a monorepo's `project1/pre-run` activates a toolchain once instead of being copied into every command. Absent file = skip layer, zero ceremony, consistent with the constitution's hook principle.
+
+Settle the runner semantics before starting: any `post-run` in the chain makes `exec` impossible (something must stay resident as parent), which changes signal handling and exit-code flow. Hook existence is a `stat`, so `pack` can detect "plain path, just exec" along its existing walk and projects without lifecycle hooks keep today's exact behavior.
+
+---
+
 ## Delete `_archive/`
 
 `_archive/` holds the prototype codebase, kept only so prototyping decisions stay inspectable. It is not functional, not maintained, and not tested. It should be deleted once the `mnmd` implementation is complete and stable — see `_archive/README.md`.
