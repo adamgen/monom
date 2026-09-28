@@ -62,7 +62,8 @@ make_zero_config_project() {
 }
 
 # make_user_config — creates an executable user-config script whose "complete"
-# subcommand prints the paths given on stdin (one per line). Prints the script path.
+# subcommand prints the paths given on stdin (one per line); every other hook
+# is absent. Prints the script path.
 # Usage:
 #   cfg=$(make_user_config <<'EOF'
 #   category1/sub1
@@ -76,7 +77,9 @@ make_user_config() {
   paths=$(cat)
   cat > "$script" <<EOF
 #!/bin/sh
-printf '%s\n' "$paths"
+case "\$1" in
+  complete) printf '%s\n' "$paths" ;;
+esac
 EOF
   chmod +x "$script"
   printf '%s' "$script"

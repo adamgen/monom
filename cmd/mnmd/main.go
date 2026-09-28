@@ -2,11 +2,9 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -172,25 +170,48 @@ func runDiscover() error {
 	return nil
 }
 
+// runCheck is the doctor. Warnings are printed but never fail the run; any
+// error-severity problem makes it exit non-zero.
 func runCheck() error {
+	projectRoot, rootErr := root.FindProjectRoot()
 	userConfig := os.Getenv("_MONOM_USER_CONFIG")
-	debuglog.Log("[mnmd check] config=%s", userConfig)
-	problems, err := check.Check(userConfig)
+	if userConfig == "" {
+		if rootErr != nil {
+			debuglog.Log("[mnmd check] no root: %v", rootErr)
+			return cli.WrapError(rootErr)
+		}
+		userConfig = filepath.Join(projectRoot, root.ConfigFileName)
+	}
+	debuglog.Log("[mnmd check] root=%s config=%s", projectRoot, userConfig)
+
+	report, err := check.Check(check.Input{
+		Root:         projectRoot,
+		UserConfig:   userConfig,
+		UserSeverity: os.Getenv(check.UserSeverityEnv),
+	})
 	if err != nil {
 		debuglog.Log("[mnmd check] failed: %v", err)
 		return cli.WrapError(err)
 	}
-	if len(problems) == 0 {
-		n := countLines(userConfig)
-		debuglog.Log("[mnmd check] OK: %d commands", n)
-		fmt.Printf("✔ %d commands OK\n", n)
-		return nil
-	}
-	debuglog.Log("[mnmd check] %d problem(s) found", len(problems))
-	for _, p := range problems {
+
+	for _, p := range report.Problems {
 		fmt.Println(p)
 	}
-	return cli.WrapError(fmt.Errorf("%d problem(s) found", len(problems)))
+	errs := report.Count(config.SeverityError)
+	warns := report.Count(config.SeverityWarning)
+	debuglog.Log("[mnmd check] commands=%d errors=%d warnings=%d", len(report.Commands), errs, warns)
+	if errs > 0 {
+		return cli.WrapError(fmt.Errorf("%d error(s), %d warning(s)", errs, warns))
+	}
+	summary := fmt.Sprintf("✔ %d commands OK", len(report.Commands))
+	if report.Discovered {
+		summary += " (default discovery)"
+	}
+	if warns > 0 {
+		summary += fmt.Sprintf(", %d warning(s)", warns)
+	}
+	fmt.Println(summary)
+	return nil
 }
 
 func runInstall() error {
@@ -202,24 +223,4 @@ func runInstall() error {
 		return cli.WrapError(err)
 	}
 	return nil
-}
-
-// countLines runs userConfig complete and counts non-empty output lines.
-func countLines(userConfig string) int {
-	if userConfig == "" {
-		return 0
-	}
-	var out bytes.Buffer
-	cmd := exec.Command(userConfig, "complete")
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return 0
-	}
-	count := 0
-	for _, line := range strings.Split(out.String(), "\n") {
-		if strings.TrimSpace(line) != "" {
-			count++
-		}
-	}
-	return count
 }

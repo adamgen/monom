@@ -1,0 +1,241 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd check (the doctor)
+# Run directly: bash tests/mnmd_check_test
+#
+# Every check reports errors except root-contents, which defaults to a warning
+# and becomes an error via `check.root-contents = error` (project) or
+# MONOM_CHECK_ROOT_CONTENTS=error (user). Warnings never fail the run.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# check_in <project> [VAR=value...] — runs mnmd check from inside the project
+# with no pre-set plumbing, so check resolves the root and the config file
+# itself. Extra VAR=value args are added to the environment. Prints
+# stdout+stderr; the exit code is check's.
+check_in() {
+  local proj="$1"
+  shift
+  (cd "$proj" && env -u _MONOM_USER_CONFIG -u _MONOM_PROJECT_ROOT -u MONOM_CHECK_ROOT_CONTENTS \
+    "$@" "$MONOMD" check 2>&1)
+}
+
+SKIPPED_NOTES="executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*\$); add a shebang, rename it, or declare it in the monom config file"
+
+# ---------------------------------------------------------------------------
+# hook-script projects (unchanged contract)
+# ---------------------------------------------------------------------------
+
+test_check_clean_project_exits_0() {
+  local cfg
+  cfg=$(make_user_config <<'EOF'
+category1/sub1
+category1/sub2
+command1
+EOF
+  )
+  _MONOM_USER_CONFIG="$cfg" "$MONOMD" check >/dev/null 2>&1
+  assertEquals "check must exit 0 for clean project" 0 $?
+  rm -rf "$(dirname "$cfg")"
+}
+
+test_check_path_with_space_exits_nonzero() {
+  local cfg output
+  cfg=$(make_user_config <<'EOF'
+my command/sub
+command1
+EOF
+  )
+  output=$(_MONOM_USER_CONFIG="$cfg" "$MONOMD" check 2>&1)
+  assertNotEquals "check must exit non-zero for path with space" 0 $?
+  assert_output_contains_line "path-spaces is an error" "$output" \
+    'error: [path-spaces] path has space in segment: "my command/sub"'
+  rm -rf "$(dirname "$cfg")"
+}
+
+test_check_without_config_or_root_exits_nonzero() {
+  local tmp
+  tmp=$(mktemp -d)
+  check_in "$tmp" >/dev/null
+  assertNotEquals "check must exit non-zero with no project root" 0 $?
+  rm -rf "$tmp"
+}
+
+# ---------------------------------------------------------------------------
+# zero-config onboarding: warnings only, exit 0
+# ---------------------------------------------------------------------------
+
+test_check_fresh_project_without_monom_file_only_warns_and_exits_0() {
+  local proj output status
+  proj=$(make_zero_config_project)
+  mkdir -p "$proj/.git"  # the git root is the project root: no monom file at all
+  output=$(check_in "$proj")
+  status=$?
+  assertEquals "warnings must not fail check" 0 "$status"
+  assert_output_contains_line "root-contents defaults to a warning" "$output" \
+    "warning: [root-contents] $SKIPPED_NOTES"
+  assert_output_contains_line "summary counts the registered set" "$output" \
+    "✔ 3 commands OK (default discovery), 1 warning(s)"
+  rm -rf "$proj"
+}
+
+test_check_empty_monom_file_only_warns_and_exits_0() {
+  local proj
+  proj=$(make_zero_config_project)
+  touch "$proj/monom"
+  check_in "$proj" >/dev/null
+  assertEquals "empty monom file: warnings only" 0 $?
+  rm -rf "$proj"
+}
+
+test_check_clean_zero_config_project_passes_without_warnings() {
+  local proj output
+  proj=$(make_zero_config_project)
+  rm "$proj/notes.TXT"
+  touch "$proj/monom"
+  output=$(check_in "$proj")
+  assertEquals "clean project exits 0" 0 $?
+  assertEquals "no findings" "✔ 3 commands OK (default discovery)" "$output"
+  rm -rf "$proj"
+}
+
+test_check_validates_registered_set_not_raw_tree() {
+  local proj output
+  proj=$(make_zero_config_project)
+  touch "$proj/monom"
+  # An executable with a space in its path is never registered, so it is a
+  # root-contents warning, not a path-spaces error.
+  make_cmd "$proj/my tool"
+  output=$(check_in "$proj")
+  assertEquals "unregistered executables cannot fail check" 0 $?
+  assertNotContains "no path-spaces error for an unregistered file" "$output" "[path-spaces]"
+  rm -rf "$proj"
+}
+
+test_check_declaring_ungated_executable_registers_it() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+notes.TXT
+EOF
+  output=$(check_in "$proj")
+  assertEquals "declared executable passes" 0 $?
+  assertEquals "declared command is counted, nothing left to warn about" \
+    "✔ 4 commands OK (default discovery)" "$output"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# strict root-contents
+# ---------------------------------------------------------------------------
+
+test_check_project_strict_setting_makes_root_contents_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+check.root-contents = error
+EOF
+  output=$(check_in "$proj")
+  assertNotEquals "strict root-contents fails check" 0 $?
+  assert_output_contains_line "finding is reported as an error" "$output" \
+    "error: [root-contents] $SKIPPED_NOTES"
+  assert_output_contains_line "stderr summarises" "$output" "mnmd check: 1 error(s), 0 warning(s)"
+  rm -rf "$proj"
+}
+
+test_check_user_env_strict_makes_root_contents_an_error() {
+  local proj
+  proj=$(make_zero_config_project)
+  touch "$proj/monom"
+  check_in "$proj" MONOM_CHECK_ROOT_CONTENTS=error >/dev/null
+  assertNotEquals "user-level strict fails check" 0 $?
+  rm -rf "$proj"
+}
+
+test_check_project_setting_overrides_user_env() {
+  local proj
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+check.root-contents = warning
+EOF
+  check_in "$proj" MONOM_CHECK_ROOT_CONTENTS=error >/dev/null
+  assertEquals "project warning wins over user error" 0 $?
+  rm -rf "$proj"
+}
+
+test_check_config_hook_opts_hook_script_project_into_strict() {
+  local proj
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  config) echo "check.root-contents = error" ;;
+esac
+EOF
+  chmod +x "$proj/monom"
+  check_in "$proj" >/dev/null
+  assertNotEquals "config hook setting makes root-contents an error" 0 $?
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# other checks stay errors even when root-contents is a warning
+# ---------------------------------------------------------------------------
+
+test_check_missing_declared_command_is_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+missing/cmd
+EOF
+  output=$(check_in "$proj")
+  assertNotEquals "invalid declaration fails check" 0 $?
+  assert_output_contains_line "declared-commands is an error" "$output" \
+    "error: [declared-commands] declared command missing/cmd: not found"
+  rm -rf "$proj"
+}
+
+test_check_unknown_setting_is_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+check.root-contnets = error
+EOF
+  output=$(check_in "$proj")
+  assertNotEquals "a typo'd key fails check" 0 $?
+  assertContains "config is an error" "$output" 'error: [config]'
+  rm -rf "$proj"
+}
+
+test_check_invalid_user_env_is_an_error() {
+  local proj
+  proj=$(make_zero_config_project)
+  touch "$proj/monom"
+  check_in "$proj" MONOM_CHECK_ROOT_CONTENTS=loud >/dev/null
+  assertNotEquals "invalid user env fails check" 0 $?
+  rm -rf "$proj"
+}
+
+test_check_path_with_space_from_complete_hook_is_always_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) echo "bad path/x" ;;
+esac
+EOF
+  chmod +x "$proj/monom"
+  output=$(check_in "$proj")
+  assertNotEquals "path-spaces is always an error" 0 $?
+  assertContains "path-spaces reported" "$output" 'error: [path-spaces]'
+  rm -rf "$proj"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"
