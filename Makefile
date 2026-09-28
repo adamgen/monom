@@ -1,4 +1,4 @@
-.PHONY: help build test test-e2e lint clean check
+.PHONY: help build test test-e2e lint clean check site-dev site-build
 
 help: ## Show available targets
 	@awk -F'##' '/^[a-zA-Z_-]+[^#]*:.*##/ { split($$1, a, ":"); printf "  %-12s %s\n", a[1], $$2 }' $(MAKEFILE_LIST)
@@ -24,3 +24,9 @@ check: build ## Build, vet, test, run e2e suites, and lint
 	go test ./...
 	@$(MAKE) test-e2e
 	shellcheck tests/mnmd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash
+
+site-dev: ## Run the marketing site locally (needs Node 20+)
+	cd site && npm install && npm run dev
+
+site-build: ## Typecheck and build the marketing site
+	cd site && npm ci && npm run typecheck && npm run build
