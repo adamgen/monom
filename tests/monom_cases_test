@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# Declarative CLI cases: runs every tests/cases/*.cases file through the real
+# shell integration (bash and zsh). See tests/README.md for the case format.
+#
+# Run all:        bash tests/monom_cases_test
+# Run one file:   CASES=tests/cases/run.cases bash tests/monom_cases_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# MONOMD is used by oneTimeSetUp() in helpers to build the binary before tests run.
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+SRC_MONOM="$REPO_ROOT/src/monom"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# ---------------------------------------------------------------------------
+# Parsed cases, one array slot per case.
+# ---------------------------------------------------------------------------
+
+CASE_NAME=()    # case title
+CASE_WHERE=()   # file:line of the case header
+CASE_ROOT=()    # project root, relative to the repo root
+CASE_SHELLS=()  # space-separated shells to run in
+CASE_INPUT=()   # the CLI line typed
+CASE_ACTION=()  # enter | tab
+CASE_EXPECT=()  # expected output (enter) or candidates (tab), newline-separated
+CASE_EXIT=()    # expected exit code (enter only)
+CASE_MATCH=()   # exact | normalized
+CASE_FUNCS=()   # generated shUnit2 test function names
+
+parse_error() {
+  echo "FATAL: $1:$2: $3" >&2
+  exit 1
+}
+
+# slug <text> — lowercase, non-alphanumerics collapsed to "_".
+slug() {
+  local s
+  s=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_')
+  s="${s#_}"
+  printf '%s' "${s%_}"
+}
+
+# unquote <value> — strips one pair of surrounding double quotes, which is the
+# only way to express significant leading or trailing whitespace.
+unquote() {
+  local v="$1"
+  if [ "${#v}" -ge 2 ] && [ "${v:0:1}" = '"' ] && [ "${v: -1}" = '"' ]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "$v"
+}
+
+# trim <value> — strips leading and trailing whitespace.
+trim() {
+  local v="$1"
+  v="${v#"${v%%[![:space:]]*}"}"
+  printf '%s' "${v%"${v##*[![:space:]]}"}"
+}
+
+# finish_case — validates the case being built and registers one test function
+# per shell. Reads the cur_* variables set by parse_file.
+finish_case() {
+  [ -n "$cur_name" ] || return 0
+  local f="$cur_file" l="$cur_line"
+  [ -n "$cur_input_set" ] || parse_error "$f" "$l" "case '$cur_name' has no input:"
+  case "$cur_action" in
+    enter|tab) ;;
+    '') parse_error "$f" "$l" "case '$cur_name' has no action:" ;;
+    *)  parse_error "$f" "$l" "case '$cur_name': action must be 'enter' or 'tab', got '$cur_action'" ;;
+  esac
+  [ -n "$cur_expect_set" ] || parse_error "$f" "$l" "case '$cur_name' has no expect:"
+  if [ "$cur_action" = tab ] && [ -n "$cur_exit" ]; then
+    parse_error "$f" "$l" "case '$cur_name': exit: applies only to action: enter"
+  fi
+  case "$cur_match" in
+    exact|normalized) ;;
+    *) parse_error "$f" "$l" "case '$cur_name': match must be 'exact' or 'normalized', got '$cur_match'" ;;
+  esac
+  [ -d "$REPO_ROOT/$grp_root" ] || parse_error "$f" "$l" "case '$cur_name': root '$grp_root' is not a directory"
+
+  # Drop trailing blank lines from the expect block.
+  local expect="$cur_expect"
+  while [ "${expect%$'\n'}" != "$expect" ]; do expect="${expect%$'\n'}"; done
+
+  local i=${#CASE_NAME[@]}
+  CASE_NAME+=("$cur_name")
+  CASE_WHERE+=("$f:$l")
+  CASE_ROOT+=("$grp_root")
+  CASE_SHELLS+=("$grp_shells")
+  CASE_INPUT+=("$cur_input")
+  CASE_ACTION+=("$cur_action")
+  CASE_EXPECT+=("$expect")
+  CASE_EXIT+=("${cur_exit:-0}")
+  CASE_MATCH+=("$cur_match")
+
+  local sh fn base
+  base="test_$(slug "$(basename "$f" .cases)")__$(slug "$cur_name")"
+  for sh in $grp_shells; do
+    fn="${base}__${sh}"
+    if declare -F "$fn" > /dev/null; then
+      parse_error "$f" "$l" "duplicate case name '$cur_name'"
+    fi
+    eval "$fn() { run_case $i $sh; }"
+    CASE_FUNCS+=("$fn")
+  done
+  cur_name=""
+}
+
+# parse_file <path> — reads one .cases file.
+parse_file() {
+  local file="$1" rel="${1#"$REPO_ROOT"/}" n=0 line key value
+  local suite_root="" suite_shells="bash zsh"
+  grp_root="" grp_shells="bash zsh"
+  cur_name="" cur_file="$rel"
+  local in_expect="" seen_case=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+
+    # Headers end any expect block.
+    case "$line" in
+      '== '*|'-- '*) in_expect="" ;;
+    esac
+    if [ -n "$in_expect" ]; then
+      case "$line" in
+        '#'*) continue ;;             # comments are allowed anywhere
+        \\*) line="${line:1}" ;;     # "\#..." is a literal line starting with "#"
+      esac
+      if [ -n "$cur_expect_started" ]; then
+        cur_expect="$cur_expect"$'\n'"$line"
+      else
+        cur_expect="$line" cur_expect_started=1
+      fi
+      continue
+    fi
+
+    case "$line" in
+      ''|'#'*) continue ;;
+      '== '*)
+        finish_case
+        grp_root="$suite_root" grp_shells="$suite_shells"
+        seen_case=group
+        continue
+        ;;
+      '-- '*)
+        finish_case
+        [ -n "$grp_root" ] || parse_error "$rel" "$n" "no root: set '@root <fixture dir>' at the top of the file or in the group"
+        cur_name=$(trim "${line#-- }") cur_line=$n
+        cur_input="" cur_input_set="" cur_action="" cur_expect="" cur_expect_set=""
+        cur_expect_started="" cur_exit="" cur_match=exact
+        seen_case=case
+        continue
+        ;;
+      '@'*)
+        [ "$seen_case" = case ] && parse_error "$rel" "$n" "@ settings go at the top of the file or right after a '==' group header"
+        key="${line%% *}" value=$(trim "${line#"$key"}")
+        case "$key" in
+          @root)   grp_root="$value" ;;
+          @shells) grp_shells="$value" ;;
+          *) parse_error "$rel" "$n" "unknown setting '$key' (want @root or @shells)" ;;
+        esac
+        if [ -z "$seen_case" ]; then
+          suite_root="$grp_root" suite_shells="$grp_shells"
+        fi
+        continue
+        ;;
+    esac
+
+    [ -n "$cur_name" ] || parse_error "$rel" "$n" "field outside a case (start one with '-- <name>')"
+    key="${line%%:*}" value=$(trim "${line#*:}")
+    case "$key" in
+      input)  cur_input=$(unquote "$value") cur_input_set=1 ;;
+      action) cur_action="$value" ;;
+      exit)   cur_exit="$value" ;;
+      match)  cur_match="$value" ;;
+      expect)
+        cur_expect_set=1
+        if [ -n "$value" ]; then
+          cur_expect=$(unquote "$value")
+        else
+          cur_expect="" cur_expect_started="" in_expect=1
+        fi
+        ;;
+      *) parse_error "$rel" "$n" "unknown field '$key' (want input, action, expect, exit, or match)" ;;
+    esac
+  done < "$file"
+  finish_case
+}
+
+# ---------------------------------------------------------------------------
+# Running a case
+# ---------------------------------------------------------------------------
+
+# Builds the script a case runs inside a fresh shell: cd into the project root,
+# source src/monom exactly as a user's rc file does, then act.
+case_script() {
+  local sh="$1" root="$2" input="$3" action="$4" qinput
+  qinput=$(printf '%q' "$input")
+
+  printf 'cd %q || exit 97\n' "$REPO_ROOT/$root"
+  # zsh: compinit before sourcing, the standard .zshrc order, so compdef
+  # registers the real completion functions in $_comps.
+  [ "$sh" = zsh ] && [ "$action" = tab ] && printf '%s\n' 'autoload -Uz compinit && compinit -D -u'
+  printf 'source %q\n' "$SRC_MONOM"
+
+  if [ "$action" = enter ]; then
+    printf '%s\n' "$input"
+    return
+  fi
+
+  if [ "$sh" = bash ]; then
+    cat <<EOF
+COMP_LINE=$qinput
+read -ra COMP_WORDS <<< "\$COMP_LINE"
+case "\$COMP_LINE" in *' '|'') COMP_WORDS+=("") ;; esac
+COMP_POINT=\${#COMP_LINE}
+COMP_CWORD=\$(( \${#COMP_WORDS[@]} - 1 ))
+_spec=\$(complete -p "\${COMP_WORDS[0]}" 2>/dev/null) || { echo "no bash completion registered for '\${COMP_WORDS[0]}'" >&2; exit 98; }
+_fn=\${_spec##*-F }
+_fn=\${_fn%% *}
+COMPREPLY=()
+"\$_fn" "\${COMP_WORDS[0]}" "\${COMP_WORDS[COMP_CWORD]}" "\${COMP_WORDS[COMP_CWORD-1]}"
+[ \${#COMPREPLY[@]} -eq 0 ] || printf '%s\n' "\${COMPREPLY[@]}"
+EOF
+  else
+    cat <<EOF
+_line=$qinput
+words=(\${(z)_line})
+[[ \$_line == *' ' || -z \$_line ]] && words+=('')
+CURRENT=\${#words}
+PREFIX=\${words[CURRENT]}
+_fn=\${_comps[\${words[1]}]}
+[[ -n \$_fn ]] || { print -u2 "no zsh completion registered for '\${words[1]}'"; exit 98; }
+# Candidates reach zsh through compadd, which offers only those matching the
+# word under the cursor. Print exactly those instead, skipping options.
+compadd() {
+  while (( \$# )) && [[ \$1 == -* ]]; do [[ \$1 == -- ]] && { shift; break; }; shift; done
+  local c
+  for c in "\$@"; do [[ \$c == "\$PREFIX"* ]] && printf '%s\n' "\$c"; done
+  return 0
+}
+"\$_fn"
+EOF
+  fi
+}
+
+# normalize <mode> <action> — reads text on stdin and prints the form that is
+# compared. tab: candidates, sorted. normalized: whitespace runs collapsed,
+# lines trimmed, blank lines dropped.
+normalize() {
+  local mode="$1" action="$2"
+  if [ "$mode" = normalized ]; then
+    sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//' | grep -v '^$'
+  else
+    cat
+  fi | if [ "$action" = tab ]; then LC_ALL=C sort; else cat; fi
+}
+
+run_case() {
+  local i="$1" sh="$2"
+  local root="${CASE_ROOT[$i]}" input="${CASE_INPUT[$i]}" action="${CASE_ACTION[$i]}"
+  local match="${CASE_MATCH[$i]}" want_exit="${CASE_EXIT[$i]}"
+
+  if ! command -v "$sh" > /dev/null 2>&1; then
+    echo "SKIP: $sh not available"
+    return
+  fi
+
+  local script errfile actual status stderr=""
+  script=$(case_script "$sh" "$root" "$input" "$action")
+  errfile=$(mktemp)
+  local -a cmd=(bash --norc --noprofile -c "$script")
+  [ "$sh" = zsh ] && cmd=(zsh --no-rcs -c "$script")
+  local -a clean_env=(env -u _MONOM_PROJECT_ROOT -u _MONOM_USER_CONFIG -u MONOM_DEBUG_LOG -u MONOM_ACTIVE)
+
+  if [ "$action" = enter ]; then
+    # What the user sees: stdout and stderr interleaved.
+    actual=$("${clean_env[@]}" "${cmd[@]}" 2>&1)
+    status=$?
+  else
+    actual=$("${clean_env[@]}" "${cmd[@]}" 2>"$errfile")
+    status=$?
+    stderr=$(cat "$errfile")
+  fi
+  rm -f "$errfile"
+
+  local want got
+  want=$(printf '%s' "${CASE_EXPECT[$i]}" | normalize "$match" "$action")
+  got=$(printf '%s' "$actual" | normalize "$match" "$action")
+
+  local problems=""
+  [ "$want" = "$got" ] || problems="output differs"
+  if [ "$action" = enter ] && [ "$status" != "$want_exit" ]; then
+    problems="${problems:+$problems; }exit code $status, expected $want_exit"
+  fi
+  if [ "$action" = tab ]; then
+    [ "$status" = 0 ] || problems="${problems:+$problems; }completion exited $status"
+    [ -z "$stderr" ] || problems="${problems:+$problems; }completion wrote to stderr"
+  fi
+  [ -z "$problems" ] && return 0
+
+  local report
+  report=$(
+    printf '\n  case:   %s  (%s)\n' "${CASE_NAME[$i]}" "${CASE_WHERE[$i]}"
+    printf '  shell:  %s    root: %s\n' "$sh" "$root"
+    printf '  input:  "%s"\n' "$input"
+    printf '  action: %s    match: %s%s\n' "$action" "$match" "$([ "$action" = tab ] && echo ' (candidates sorted)')"
+    printf '  result: %s\n' "$problems"
+    local show_want="$want" show_got="$got"
+    if [ "$want" != "$got" ] && [ "$(printf '%s' "$want" | normalize normalized "$action")" = "$(printf '%s' "$got" | normalize normalized "$action")" ]; then
+      printf '  note:   differs only in whitespace (shown as · for space, → for tab)\n'
+      show_want=$(printf '%s' "$want" | sed -e 's/ /·/g' -e 's/\t/→/g')
+      show_got=$(printf '%s' "$got" | sed -e 's/ /·/g' -e 's/\t/→/g')
+    fi
+    diff -u --label expected --label actual <(printf '%s\n' "$show_want") <(printf '%s\n' "$show_got") | sed 's/^/    /'
+    [ -z "$stderr" ] || printf '  stderr:\n%s\n' "$(printf '%s\n' "$stderr" | sed 's/^/    /')"
+  )
+  fail "$report"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Suite
+# ---------------------------------------------------------------------------
+
+if [ -n "${CASES:-}" ]; then
+  for f in $CASES; do
+    case "$f" in /*) ;; *) f="$REPO_ROOT/$f" ;; esac
+    parse_file "$f"
+  done
+else
+  for f in "$SCRIPT_DIR"/cases/*.cases; do
+    [ -e "$f" ] || continue
+    parse_file "$f"
+  done
+fi
+
+suite() {
+  local fn
+  for fn in "${CASE_FUNCS[@]}"; do
+    suite_addTest "$fn"
+  done
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

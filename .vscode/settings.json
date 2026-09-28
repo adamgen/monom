@@ -11,6 +11,7 @@
 		"*.ini": "ini",
 		"*.conf": "conf",
 		"*.log": "log",
+		"*.cases": "plaintext",
 		"**/monom_tools": "binary",
 		".shellcheckrc": "ini",
 		"Makefile": "makefile"
