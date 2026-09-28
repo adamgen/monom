@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: make check (Go, shUnit2, YAML cases in bash + zsh, shellcheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tests/harness/go.sum
+
+      - name: Install shellcheck and zsh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck zsh
+          shellcheck --version | head -2
+          zsh --version
+          bash --version | head -1
+
+      - name: Download Go modules
+        run: |
+          go mod download
+          (cd tests/harness && go mod download)
+
+      # fmt-check (gofmt, both modules) + vet (both modules) + go test +
+      # shUnit2 e2e suites + YAML cases (incl. real-keypress PTY cases in bash
+      # and zsh) + shellcheck.
+      - name: make check
+        run: make check
+
+  site:
+    name: Site (typecheck, build, prerender, wrangler dry run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: node scripts/prerender.mjs
+
+      - name: Check the prerendered pages
+        run: |
+          test -s build/client/index.html
+          test -s build/client/docs/index.html
+          test -s build/client/404.html
+          grep -q 'command tree' build/client/index.html
+          grep -q 'Quick start' build/client/docs/index.html
+
+      # Validates wrangler.jsonc and the asset bundle without credentials.
+      # Kept in sync with deploy-site.yml. wrangler is not a devDependency:
+      # @remix-run/dev pins an optional wrangler@3 peer.
+      - name: wrangler deploy --dry-run
+        run: npx --yes wrangler@4.143.0 deploy --dry-run

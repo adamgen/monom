@@ -125,7 +125,7 @@ test_something() { ... }
 ```
 make help     # list all targets
 make build    # compiles bin/mnmd
-make check    # build + go vet + go test + shUnit2 e2e + declarative cases + shellcheck
+make check    # build + gofmt + go vet + go test + shUnit2 e2e + declarative cases + shellcheck
 ```
 
 ### Add a mnmd subcommand
