@@ -74,7 +74,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 ### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- Declarative CLI cases: `tests/cases/<area>.cases`, one file per surface, run by `tests/monom_cases_test` in bash and zsh. Each case is an input line, an action (`enter` or `tab`), and the expected output; the project root comes from `@root` at the suite or group level.
+- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run by `tests/monom_cases_test` in bash and zsh. Each case is an `input` line, an `action` (`enter` or `tab`), and the `expect`ed output; the project root comes from `root:` at the suite or group level. The YAML is parsed and strictly validated by `tools/cases` (`internal/testcases`), test-only Go tooling that `mnmd` does not import.
 - shUnit2 e2e tests: one file per surface under `tests/`, named `mnmd_<subcommand>_test` or `monom_<area>_test`.
 - shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.
@@ -85,7 +85,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 |---|---|
 | Logic edge cases not observable from the binary surface | Go unit test |
 | Pure function correctness (return values, error messages) | Go unit test |
-| What a user sees after typing a `monom`/`mnmd` line and pressing Enter or Tab | Declarative case (`tests/cases/*.cases`) |
+| What a user sees after typing a `monom`/`mnmd` line and pressing Enter or Tab | Declarative case (`tests/cases/*.yaml`) |
 | Full CLI binary surface (stdin, args, stdout, exit codes) | shUnit2 e2e test |
 | Env var integration (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`) | shUnit2 e2e test |
 | Cross-package integration (e.g. `pack` calling `root`) | shUnit2 e2e test |
@@ -99,7 +99,7 @@ Tests are documentation. When a behavior is subtle, the test name is where you s
 
 ### shUnit2 e2e test structure
 
-Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` is a complete, runnable example project; point tests at it rather than building an ad-hoc tree inline. `fixtures/hooks-project/` adds a `run` hook (an alias and a deliberate failure) and an empty command group. Declarative cases select a fixture with `@root`; add a new fixture under `fixtures/` rather than generating one inside a case.
+Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` is a complete, runnable example project; point tests at it rather than building an ad-hoc tree inline. `fixtures/hooks-project/` adds a `run` hook (an alias and a deliberate failure) and an empty command group. Declarative cases select a fixture with `root:`; add a new fixture under `fixtures/` rather than generating one inside a case.
 
 Each test file follows this pattern:
 

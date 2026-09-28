@@ -5,5 +5,6 @@ monom_tools
 .DS_Store
 **/.DS_Store
 bin/mnmd
+bin/monom-cases
 tmp/*
 !tmp/.gitkeep

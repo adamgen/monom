@@ -6,7 +6,7 @@ There are three kinds of tests. Pick by what the test needs:
 
 | The test is… | Write a… | Where |
 | --- | --- | --- |
-| a CLI line a user types, then Enter or Tab, then what they see | **declarative case** | `tests/cases/*.cases` |
+| a CLI line a user types, then Enter or Tab, then what they see | **declarative case** | `tests/cases/*.yaml` |
 | anything else observable from outside: exit codes of `mnmd` subcommands, stdin contracts, files written, env vars, function/registration tables | shUnit2 test | `tests/mnmd_<subcommand>_test`, `tests/monom_<area>_test` |
 | Go logic not observable from the binary | Go unit test | `*_test.go` next to the code |
 
@@ -16,65 +16,81 @@ Prefer a case whenever the scenario fits the input → action → expected shape
 
 ## Declarative cases
 
-`tests/monom_cases_test` reads every `tests/cases/*.cases` file and turns each case into one shUnit2 test per shell. Each test starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**).
+`tests/monom_cases_test` reads every `tests/cases/*.yaml` file and turns each case into one shUnit2 test per shell. Each test starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**).
 
 ```sh
-make test-cases                                             # all case files
-CASES=tests/cases/monom_run.cases bash tests/monom_cases_test  # one file
+make test-cases                                                 # all case files
+CASES=tests/cases/monom_run.yaml bash tests/monom_cases_test    # one file
 ```
 
 ### A case file
 
-```
-# Comments are whole lines starting with "#", allowed anywhere, including
-# inside an expect block. There are no end-of-line comments.
+```yaml
+# Suite config: the project root (relative to the repo root) and the shells
+# to run every case in.
+root: fixtures/demo-project
+shells: [bash, zsh]
 
-# Suite config: the project root, relative to the repo root, and the shells
-# to run in (optional; the default is "bash zsh").
-@root fixtures/demo-project
-@shells bash zsh
+cases:
+  - name: trailing space drills into a group
+    input: "monom infra "
+    action: tab
+    expect: [cloud, local]
 
--- trailing space drills into a group
-input:  "monom infra "
-action: tab
-expect:
-cloud
-local
+  - name: a group lists its children instead of running anything
+    input: monom infra
+    action: enter
+    exit: 1
+    expect: |
+      monom: 'infra' is a command group
+      available: cloud, local
 
--- a group lists its children instead of running anything
-input:  monom infra
-action: enter
-exit:   1
-expect:
-monom: 'infra' is a command group
-available: cloud, local
-
-# A group starts from the suite config and overrides it for its cases.
-== hooks
-@root fixtures/hooks-project
-
--- run hook expands an alias into multiple tokens
-input:  monom dbm
-action: enter
-expect: ran db/migrate
+# Groups start from the suite config and override it for their cases.
+groups:
+  - name: hooks
+    root: fixtures/hooks-project
+    cases:
+      - name: run hook expands an alias into multiple tokens
+        input: monom dbm
+        action: enter
+        expect: ran db/migrate
 ```
 
-**Config.** `@root` and `@shells` lines at the top of the file are the suite config. A `== <name>` line starts a group. `@` lines right after it override the suite config for that group's cases, and each group starts again from the suite config. `@root` must point to a directory; put new projects under `fixtures/`. Commands run inside the fixture, so fixtures must not be written to.
+### Schema
 
-**Cases.** `-- <name>` starts a case. The name becomes the test function name, so it must be unique in the file and should say what the behavior is. Every case has three fields:
+**File (suite) level**
 
-| Field | Meaning |
-| --- | --- |
-| `input:` | The CLI line as typed. Surrounding whitespace is trimmed. Wrap the value in double quotes when whitespace matters: for tab, `"monom infra "` (drill into `infra`) and `monom infra` (complete the word `infra`) are different cases. |
-| `action:` | `enter` runs the line. `tab` presses Tab at the end of the line. |
-| `expect:` | What the user sees. Write it on the same line for one line of output, or on the lines below for several (a quoted value keeps its whitespace). The block ends at the next `--` or `==` line. Trailing blank lines are dropped, and `expect:` with nothing after it means empty output. To expect a line that starts with `#` or `\`, prefix it with `\`. `expect` must be the case's last field. |
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `root` | yes, unless every group sets one | Project root the cases run in, relative to the repo root. Must be a directory. Put new projects under `fixtures/`. Commands run inside the fixture, so fixtures must not be written to. |
+| `shells` | no, default `[bash, zsh]` | Shells to run every case in. Each case becomes one test per shell. |
+| `cases` | `cases` and/or `groups` | List of cases that use the suite config. |
+| `groups` | `cases` and/or `groups` | List of groups. |
 
-Two optional fields go before `expect:`:
+**Group**
 
-| Field | Meaning |
-| --- | --- |
-| `exit:` | enter only. The expected exit status. Defaults to `0`, so a command that fails has to say so. |
-| `match:` | `exact` (the default) or `normalized`. |
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `name` | yes | Shown in validation errors. |
+| `root`, `shells` | no | Override the suite config for this group's cases only. |
+| `cases` | yes | The group's cases. |
+
+**Case**
+
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `name` | yes | What the behavior is. Unique within the file; it becomes the test function name. |
+| `input` | yes | The CLI line as typed. Quote it when whitespace matters: for tab, `"monom infra "` (drill into `infra`) and `monom infra` (complete the word `infra`) are different cases. |
+| `action` | yes | `enter` runs the line. `tab` presses Tab at the end of it. |
+| `expect` | yes | For **enter**, a string with what the user sees. Use a `\|` block scalar for several lines; trailing newlines are dropped, and `""` means no output. For **tab**, a list of candidates, with `[]` for none. Candidates are always read as strings, so `[yes, 10]` means the words `yes` and `10`. |
+| `exit` | no | enter only. The expected exit status, 0–255. Defaults to `0`, so a command that fails has to say so. |
+| `match` | no | `exact` (the default) or `normalized`. |
+
+Validation is strict, and happens before any test runs. Unknown keys, missing required keys, duplicate case names, a bad `action`/`match`/`exit`/shell, a `root` that is not a directory, and an `expect` of the wrong shape each fail the run with `FATAL: <file>:<line>: [group "<g>": ]case "<name>": <problem>`. Every problem in the file is listed, not just the first.
+
+### How it is parsed
+
+The bash runner does not parse YAML itself. It builds `tools/cases` (Go, using `gopkg.in/yaml.v3`, logic in `internal/testcases`), which validates the files and prints one `case_add` line per case, single-quoted for bash. The runner `eval`s that output, then runs each case in real shells. This is test-only tooling: `mnmd` doesn't import it, so building monom needs neither the tool nor the YAML library.
 
 ### What is compared
 
@@ -94,7 +110,7 @@ A failing case prints everything needed to reproduce it, and a unified diff:
 
 ```
 ASSERT:
-  case:   a group lists its children instead of running anything  (tests/cases/monom_run.cases:23)
+  case:   a group lists its children instead of running anything  (tests/cases/monom_run.yaml:24)
   shell:  zsh    root: fixtures/demo-project
   input:  "monom infra"
   action: enter    match: exact
@@ -107,7 +123,7 @@ ASSERT:
     +available: cloud, local
 ```
 
-When the difference is whitespace only, the diff shows spaces as `·` and tabs as `→`. Malformed case files fail the whole run with `FATAL: <file>:<line>: <reason>` before any test runs.
+When the difference is whitespace only, the diff shows spaces as `·` and tabs as `→`.
 
 ---
 

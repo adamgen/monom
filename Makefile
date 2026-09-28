@@ -13,14 +13,14 @@ test: ## Run Go unit tests
 test-e2e: build ## Run shUnit2 e2e test suites
 	@for f in tests/mnmd_*_test tests/monom_*_test; do bash "$$f"; done
 
-test-cases: build ## Run only the declarative CLI cases (tests/cases/*.cases)
+test-cases: build ## Run only the declarative CLI cases (tests/cases/*.yaml)
 	bash tests/monom_cases_test
 
 lint: ## Run shellcheck on all shell files (zsh excluded: SC1071)
 	shellcheck tests/mnmd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash
 
 clean: ## Remove build artifacts
-	rm -f bin/mnmd
+	rm -f bin/mnmd bin/monom-cases
 
 check: build ## Build, vet, test, run e2e suites, and lint
 	go vet ./...
