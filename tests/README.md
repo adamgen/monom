@@ -1,6 +1,6 @@
 # Tests
 
-`make check` runs everything: `go vet`, Go unit tests, every shUnit2 suite under `tests/`, and shellcheck. `make help` lists the narrower targets.
+`make check` runs everything: `go vet`, Go unit tests, every shUnit2 suite under `tests/`, the declarative cases, and shellcheck. `make help` lists the narrower targets.
 
 There are three kinds of tests. Pick by what the test needs:
 
@@ -16,12 +16,18 @@ Prefer a case whenever the scenario fits the input → action → expected shape
 
 ## Declarative cases
 
-`tests/monom_cases_test` reads every `tests/cases/*.yaml` file and turns each case into one shUnit2 test per shell. Each test starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**).
+`TestCases` (`internal/testcases/cases_test.go`) loads every `tests/cases/*.yaml` file and runs each case as a Go subtest per shell, named `TestCases/<file>/<case>/<shell>`. Each subtest starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**).
 
 ```sh
-make test-cases                                                 # all case files
-CASES=tests/cases/monom_run.yaml bash tests/monom_cases_test    # one file
+make test-cases                                          # all case files
+CASES=tests/cases/monom_run.yaml make test-cases         # one file (space-separate several)
+
+# Or use go test directly. -run matches subtest names, with spaces as _:
+go test -tags cases -count=1 ./internal/testcases -run 'TestCases/monom_run/'
+go test -tags cases -count=1 ./internal/testcases -run 'TestCases/monom_run/single-token_command_runs/zsh' -v
 ```
+
+A shell that isn't installed is skipped (`t.Skip`), so the cases still run on a machine without zsh.
 
 ### A case file
 
@@ -86,11 +92,15 @@ groups:
 | `exit` | no | enter only. The expected exit status, 0–255. Defaults to `0`, so a command that fails has to say so. |
 | `match` | no | `exact` (the default) or `normalized`. |
 
-Validation is strict, and happens before any test runs. Unknown keys, missing required keys, duplicate case names, a bad `action`/`match`/`exit`/shell, a `root` that is not a directory, and an `expect` of the wrong shape each fail the run with `FATAL: <file>:<line>: [group "<g>": ]case "<name>": <problem>`. Every problem in the file is listed, not just the first.
+Validation is strict, and happens before any test runs. Unknown keys, missing required keys, duplicate case names, a bad `action`/`match`/`exit`/shell, a `root` that is not a directory, and an `expect` of the wrong shape each fail `TestCases` under `invalid case files:`, one `<file>:<line>: [group "<g>": ]case "<name>": <problem>` line per problem. Every problem in every selected file is listed, not just the first.
 
-### How it is parsed
+### How it runs
 
-The bash runner does not parse YAML itself. It builds `tools/cases` (Go, using `gopkg.in/yaml.v3`, logic in `internal/testcases`), which validates the files and prints one `case_add` line per case, single-quoted for bash. The runner `eval`s that output, then runs each case in real shells. This is test-only tooling: `mnmd` doesn't import it, so building monom needs neither the tool nor the YAML library.
+- `internal/testcases/testcases.go` loads and validates the YAML with `gopkg.in/yaml.v3`. If any selected file is invalid, `TestCases` fails before running a single case.
+- `internal/testcases/cases_test.go` is the runner. It first builds `bin/mnmd`, as the shUnit2 suites do, because `src/monom` calls it. Then it runs each case with `os/exec` in `bash --norc --noprofile -c` or `zsh --no-rcs -c`. It strips `_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG` and `MONOM_ACTIVE` from the environment, and each shell run times out after 30 seconds.
+- The Tab press is performed by two embedded shell snippets: `internal/testcases/testdata/tab.bash`, which shellcheck lints, and `testdata/tab.zsh`. The runner assigns the typed line to `_case_line` before either one runs.
+- The runner file has the `cases` build tag. A plain `go test ./...` only runs the loader's unit tests, so the cases never run twice in `make check`, and a stale cached result can't hide a change to `src/monom`. `make test-cases` passes `-tags cases -count=1`.
+- This is all test-only: `mnmd` doesn't import `internal/testcases`, so building monom doesn't need the YAML library.
 
 ### What is compared
 
@@ -109,18 +119,19 @@ The bash runner does not parse YAML itself. It builds `tools/cases` (Go, using `
 A failing case prints everything needed to reproduce it, and a unified diff:
 
 ```
-ASSERT:
-  case:   a group lists its children instead of running anything  (tests/cases/monom_run.yaml:24)
-  shell:  zsh    root: fixtures/demo-project
-  input:  "monom infra"
-  action: enter    match: exact
-  result: output differs; exit code 1, expected 0
-    --- expected
-    +++ actual
-    @@ -1 +1,2 @@
-    -monom: 'infra' is a group
-    +monom: 'infra' is a command group
-    +available: cloud, local
+--- FAIL: TestCases/monom_run/a_group_lists_its_children_instead_of_running_anything/zsh (0.03s)
+    cases_test.go:172:
+          case:   a group lists its children instead of running anything  (tests/cases/monom_run.yaml:24)
+          shell:  zsh    root: fixtures/demo-project
+          input:  "monom infra"
+          action: enter    match: exact
+          result: output differs; exit code 1, expected 0
+            --- expected
+            +++ actual
+            @@ -1 +1,2 @@
+            -monom: 'infra' is a group
+            +monom: 'infra' is a command group
+            +available: cloud, local
 ```
 
 When the difference is whitespace only, the diff shows spaces as `·` and tabs as `→`.

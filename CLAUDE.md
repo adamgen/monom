@@ -74,7 +74,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 ### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run by `tests/monom_cases_test` in bash and zsh. Each case is an `input` line, an `action` (`enter` or `tab`), and the `expect`ed output; the project root comes from `root:` at the suite or group level. The YAML is parsed and strictly validated by `tools/cases` (`internal/testcases`), test-only Go tooling that `mnmd` does not import.
+- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run in bash and zsh by the Go test `TestCases` (`internal/testcases/cases_test.go`, build tag `cases`, run by `make test-cases`). Each case is an `input` line, an `action` (`enter` or `tab`), and the `expect`ed output; the project root comes from `root:` at the suite or group level. `internal/testcases` validates the YAML strictly; it is test-only and `mnmd` does not import it.
 - shUnit2 e2e tests: one file per surface under `tests/`, named `mnmd_<subcommand>_test` or `monom_<area>_test`.
 - shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.
@@ -124,7 +124,7 @@ test_something() { ... }
 ```
 make help     # list all targets
 make build    # compiles bin/mnmd
-make check    # build + go vet + go test + shUnit2 e2e + shellcheck
+make check    # build + go vet + go test + shUnit2 e2e + declarative cases + shellcheck
 ```
 
 ### Add a mnmd subcommand

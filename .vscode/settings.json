@@ -14,5 +14,8 @@
 		"**/monom_tools": "binary",
 		".shellcheckrc": "ini",
 		"Makefile": "makefile"
+	},
+	"gopls": {
+		"buildFlags": ["-tags=cases"]
 	}
 }

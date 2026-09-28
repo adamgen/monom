@@ -1,5 +1,7 @@
 // Package testcases loads and strictly validates the declarative CLI test
 // cases in tests/cases/*.yaml. It is test tooling: nothing in mnmd imports it.
+// The runner that executes the cases is TestCases in cases_test.go, built only
+// with -tags cases (make test-cases).
 //
 // Schema (see tests/README.md for the full guide):
 //
@@ -81,11 +83,16 @@ type loader struct {
 	names    map[string]int
 }
 
-// Load parses and validates one case file. repoRoot is used to check that
-// every root is a directory. On any problem it returns all of them as Errors,
-// each prefixed with file:line and, where known, the group and case.
+// Load parses and validates one case file. A relative file is resolved
+// against repoRoot but reported as given, and every root must be a directory
+// under repoRoot. On any problem it returns all of them as Errors, each
+// prefixed with file:line and, where known, the group and case.
 func Load(file, repoRoot string) ([]Case, error) {
-	data, err := os.ReadFile(file)
+	path := file
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(repoRoot, path)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
