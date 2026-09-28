@@ -109,7 +109,7 @@ starting local environment...
 ✔ 7 commands OK
 ```
 
-`monom` runs before `mnmd check` on purpose. `check` depends on state that the first `monom` call in a shell sets up. Run on its own in a fresh shell, `check` fails with `_MONOM_USER_CONFIG is not set`, and that doesn't mean the install is broken.
+`mnmd check` finds the project root and config file itself, so it also works on its own in a fresh shell.
 
 ## 6. Hand off to the user
 
@@ -118,7 +118,7 @@ You can't press Tab, so the last check is theirs. Tell them to:
 1. Open a new terminal, or run `source <rc file>` in the one they have open.
 2. Run `cd <MONOM_HOME>/fixtures/demo-project`, then type `monom ` and press Tab. They should see `db  infra  release`.
 
-If they plan to build their own CLI next, point them to `fixtures/demo-project/monom`, a complete minimal monom config file. The interface it implements is described under *The User Config Interface* in `architecture.md`.
+If they plan to build their own CLI next, a project needs no config at all: any git repository, or a directory with an empty `monom` file, works. `fixtures/zero-config-project` shows which executables default discovery registers. When they want to customize discovery or execution, point them to `fixtures/demo-project/monom`, a complete minimal hook script. The interface it implements is described under *The User Config Interface* in `architecture.md`.
 
 ---
 
@@ -131,7 +131,7 @@ If they plan to build their own CLI next, point them to `fixtures/demo-project/m
 | zsh: `monom` runs, but Tab does nothing | The `source` line comes before `compinit` in `~/.zshrc`, so the completion was never registered. | Show the user the order. Offer to move the line below `compinit` (or below the framework line that calls it, e.g. `source $ZSH/oh-my-zsh.sh`). |
 | Linux bash: works with `bash -lic` but not in a new terminal tab | Install wrote to `~/.bash_profile`, which login shells read. Most Linux terminals start non-login shells, which read `~/.bashrc`. | Check whether `~/.bash_profile` sources `~/.bashrc`. If it doesn't, ask the user whether to add the `source` line to `~/.bashrc` too. |
 | Shell startup prints `no such file or directory: .../src/monom` | The checkout was moved or deleted after install, or install ran from a copied binary. | Remove the stale line from the rc file. Re-run step 4 from the real checkout. |
-| `monom: no project root found` | The current directory isn't inside a project (no executable `monom` file here or in any parent). | Not an install problem. `cd` into a project. |
+| `monom: no project root found` | The current directory isn't inside a project: no `monom` file here or in any parent, no git repository, and no alias pinning `_MONOM_PROJECT_ROOT`. | Not an install problem. `cd` into a project, or `touch monom` at the directory that should be the root. |
 | Something else | — | Set `MONOM_DEBUG_LOG=/tmp/monom.log`, reproduce the problem, and read the log. |
 
 ## Updating
