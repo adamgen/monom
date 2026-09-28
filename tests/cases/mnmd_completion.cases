@@ -1,0 +1,25 @@
+# `mnmd <Tab>` completes mnmd's own subcommands, and nothing after them.
+
+@root fixtures/demo-project
+@shells bash zsh
+
+-- empty line offers every subcommand
+input:  "mnmd "
+action: tab
+expect:
+filter
+root
+pack
+check
+install
+completion
+
+-- prefix narrows the subcommands
+input:  mnmd fi
+action: tab
+expect: filter
+
+-- nothing is completed beyond the subcommand slot
+input:  "mnmd filter "
+action: tab
+expect:
