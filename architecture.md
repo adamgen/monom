@@ -445,3 +445,18 @@ user runs: monom <args...>
 `mnmd pack` discovers the project root internally (via the same algorithm as `mnmd root`), so no separate setup step is needed for it on the execution path.
 
 ---
+
+## Marketing Site
+
+`site/` is a Remix app for the project's marketing site and quick start, served at https://monom.dev. It is not part of the monom runtime: nothing in `src/`, `cmd/`, or `internal/` depends on it, and `make check` does not build it (`make site-build` does, and CI runs it on every pull request).
+
+It deploys as static files. `npm run build` produces the Remix build, `scripts/prerender.mjs` renders `/`, `/docs`, and a 404 page into `build/client`, and `wrangler deploy` uploads that directory as a Cloudflare Workers static-assets site (`site/wrangler.jsonc`). `.github/workflows/deploy-site.yml` does this on every push to `main` that touches `site/`.
+
+Two files in it mirror the runtime so the homepage's interactive terminal behaves like the real thing. Change them together with their source:
+
+| Site file | Mirrors |
+| --- | --- |
+| `site/app/lib/filter.ts` | `internal/filter/filter.go` — a port of `mnmd filter`'s matching |
+| `site/app/lib/demo-project.ts` | `fixtures/demo-project/` — its `complete` output and what each script prints |
+
+The site's copy quotes real CLI output (`mnmd discover`, `mnmd check`, command-group messages, `mnmd install`) and the discovery gate's rules. When those change, the site's copy is stale until updated.
