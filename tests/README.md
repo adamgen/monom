@@ -83,6 +83,7 @@ A **keys** case (from `tests/cases/monom_keys.yaml`):
 | --- | --- | --- |
 | `root` | yes, unless every group sets one | Project root the cases run in, relative to the repo root. Must be a directory. Put new projects under `fixtures/`. Commands run inside the fixture, so fixtures must not be written to. |
 | `shells` | no, default `[bash, zsh]` | Shells to run every case in. Each case becomes one test per shell. |
+| `env` | no | Environment variables to set in the case's shell, as `NAME: value`. `{root}` in a value is replaced with the absolute project root. See [Environment](#environment). |
 | `cases` | `cases` and/or `groups` | List of cases that use the suite config. |
 | `groups` | `cases` and/or `groups` | List of groups. |
 
@@ -92,6 +93,7 @@ A **keys** case (from `tests/cases/monom_keys.yaml`):
 | --- | --- | --- |
 | `name` | yes | Shown in validation errors. |
 | `root`, `shells` | no | Override the suite config for this group's cases only. |
+| `env` | no | Merged over the suite's `env`, name by name. |
 | `cases` | yes | The group's cases. |
 
 **Case**
@@ -104,11 +106,40 @@ A **keys** case (from `tests/cases/monom_keys.yaml`):
 | `expect` | enter, tab | For **enter**, a string with what the user sees. Use a `\|` block scalar for several lines; trailing newlines are dropped, and `""` means no output. For **tab**, a list of candidates, with `[]` for none. Candidates are always read as strings, so `[yes, 10]` means the words `yes` and `10`. |
 | `exit` | no | enter only. The expected exit status, 0–255. Defaults to `0`, so a command that fails has to say so. |
 | `match` | no | enter and tab. `exact` (the default) or `normalized`. |
+| `env` | no | Merged over the group's (or suite's) `env`, name by name. |
 | `tabs` | keys | How many times to press Tab after the input: 1–3. |
 | `line` | keys | The line editor's buffer afterwards, compared exactly. Quote it to keep a trailing space. |
 | `candidates` | no | keys only. The completion listing on screen, compared as a set; `[]` means nothing is listed. Omit it to check only `line`. |
 
-Validation is strict, and happens before any test runs. Unknown keys, missing required keys, duplicate case names, a bad `action`/`match`/`exit`/`tabs`/shell, a key that doesn't apply to the action (e.g. `expect` on a keys case), a `root` that is not a directory, and an `expect` of the wrong shape each fail `TestCases` under `invalid case files:`, one `<file>:<line>: [group "<g>": ]case "<name>": <problem>` line per problem. Every problem in every selected file is listed, not just the first.
+Validation is strict, and happens before any test runs. Unknown keys, missing required keys, duplicate case names, a bad `action`/`match`/`exit`/`tabs`/shell, an `env` that isn't a `NAME: string` mapping, a key that doesn't apply to the action (e.g. `expect` on a keys case), a `root` that is not a directory, and an `expect` of the wrong shape each fail `TestCases` under `invalid case files:`, one `<file>:<line>: [group "<g>": ]case "<name>": <problem>` line per problem. Every problem in every selected file is listed, not just the first.
+
+### Environment
+
+Every case starts from your environment with the monom variables removed (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG`, `MONOM_ACTIVE`, `MONOM_CHECK_ROOT_CONTENTS`); keys cases start from an almost empty one. `env:` adds variables on top, at the suite, group or case level:
+
+```yaml
+groups:
+  - name: no monom file
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"   # pin the root, as an alias would
+    cases:
+      - name: a fresh project without a monom file only warns and exits 0
+        input: mnmd check
+        action: enter
+        expect: ...
+      - name: MONOM_CHECK_ROOT_CONTENTS=error makes root-contents an error
+        env:
+          MONOM_CHECK_ROOT_CONTENTS: error
+        ...
+```
+
+Two uses come up:
+
+- **Pinning the root.** Root resolution walks up to the nearest `monom` file and falls back to the git root. A fixture without a `monom` file therefore resolves to *this repository* unless the case pins `_MONOM_PROJECT_ROOT`. Fixtures that have a `monom` file need no pin.
+- **User-level settings**, such as `MONOM_CHECK_ROOT_CONTENTS`.
+
+Values are strings and are set literally; `{root}` is the only substitution.
 
 ### How it runs
 
@@ -130,7 +161,7 @@ A keys case starts a real interactive shell in a 100×24 pseudo-terminal (`githu
 
 The session is set up like a user's shell, with everything that could vary pinned:
 
-- A temporary `HOME` and `TERM=xterm`, `LANG=C.UTF-8`, plus `PATH`; nothing else from your environment.
+- A temporary `HOME` and `TERM=xterm`, `LANG=C.UTF-8`, plus `PATH` and the case's `env`; nothing else from your environment.
 - bash: `bash --noprofile --rcfile <tmp>/.bashrc -i` and a private inputrc: no bracketed paste or bell, `show-all-if-ambiguous off` (so the first Tab completes the common prefix and the second lists), no pager or colours.
 - zsh: `zsh --no-globalrcs -i` with `ZDOTDIR=<tmp>`: `emulate -R zsh`, `auto_menu auto_list list_ambiguous no_menu_complete`, and bracketed paste off. On an ambiguous word the first Tab lists and the second inserts the first candidate. `compinit -C` loads a compdump that is built once per run.
 - The rc then `cd`s into `root` and sources `src/monom`, and the prompt is `PROMPT$ `.

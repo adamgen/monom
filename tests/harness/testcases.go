@@ -8,6 +8,7 @@
 //
 //	root: fixtures/demo-project     # required unless every group sets it
 //	shells: [bash, zsh]             # optional; default [bash, zsh]
+//	env: {NAME: value}              # optional; also on groups and cases, merged
 //	cases:                          # optional
 //	  - name: <unique in the file>  # required
 //	    input: <CLI line>           # required
@@ -18,10 +19,12 @@
 //	    tabs: 1 | 2 | 3             # keys only, required: Tab presses after the input
 //	    line: <string>              # keys only, required: the edit buffer afterwards
 //	    candidates: [list]          # keys only, optional: the listing on screen, as a set
+//	    env: {NAME: value}          # optional, merged over the group's
 //	groups:                         # optional
 //	  - name: <group name>          # required
 //	    root: <dir>                 # optional override
 //	    shells: [bash]              # optional override
+//	    env: {NAME: value}          # optional, merged over the suite's
 //	    cases: [...]                # required
 package harness
 
@@ -29,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,6 +48,9 @@ type Case struct {
 	Group  string // "" for suite-level cases
 	Root   string // relative to the repo root
 	Shells []string
+	// Env is set in the case's shell on top of the scrubbed environment.
+	// "{root}" in a value stands for the absolute path of Root.
+	Env    map[string]string
 	Input  string
 	Action string // ActionEnter or ActionTab
 	Expect string // enter and tab; tab candidates are newline-joined
@@ -67,9 +74,11 @@ const (
 )
 
 var (
-	fileKeys  = []string{"root", "shells", "cases", "groups"}
-	groupKeys = []string{"name", "root", "shells", "cases"}
-	caseKeys  = []string{"name", "input", "action", "exit", "match", "expect", "tabs", "line", "candidates"}
+	fileKeys  = []string{"root", "shells", "env", "cases", "groups"}
+	groupKeys = []string{"name", "root", "shells", "env", "cases"}
+	caseKeys  = []string{"name", "input", "action", "env", "exit", "match", "expect", "tabs", "line", "candidates"}
+
+	envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 )
 
 // Errors collects every validation problem in a file.
@@ -85,6 +94,7 @@ type lineError struct {
 type config struct {
 	root   string
 	shells []string
+	env    map[string]string
 }
 
 type loader struct {
@@ -217,7 +227,38 @@ func (l *loader) config(f map[string]*yaml.Node, ctx string, base config) config
 			}
 		}
 	}
+	if e := f["env"]; e != nil {
+		cfg.env = l.env(e, ctx, base.env)
+	}
 	return cfg
+}
+
+// env returns base with the NAME: value pairs of n laid over it.
+func (l *loader) env(n *yaml.Node, ctx string, base map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range base {
+		out[k] = v
+	}
+	if n.Kind != yaml.MappingNode {
+		l.errorf(n, ctx, "env must be a mapping of NAME: value")
+		return out
+	}
+	seen := map[string]bool{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k, v := n.Content[i], n.Content[i+1]
+		switch {
+		case !envName.MatchString(k.Value):
+			l.errorf(k, ctx, "env name %q is not a valid variable name", k.Value)
+		case seen[k.Value]:
+			l.errorf(k, ctx, "duplicate env name %q", k.Value)
+		case v.Kind != yaml.ScalarNode:
+			l.errorf(v, ctx, "env %s must be a string", k.Value)
+		default:
+			out[k.Value] = v.Value
+		}
+		seen[k.Value] = true
+	}
+	return out
 }
 
 func (l *loader) caseList(n *yaml.Node, group, ctx string, cfg config) {
@@ -236,7 +277,7 @@ func (l *loader) oneCase(n *yaml.Node, group, groupCtx string, cfg config) {
 		ctx = groupCtx + ": " + ctx
 	}
 	f := l.fields(n, ctx, caseKeys)
-	c := Case{File: l.file, Line: n.Line, Group: group, Root: cfg.root, Shells: cfg.shells, Match: MatchExact}
+	c := Case{File: l.file, Line: n.Line, Group: group, Root: cfg.root, Shells: cfg.shells, Env: cfg.env, Match: MatchExact}
 
 	c.Name = l.str(f["name"], ctx, "name", n)
 	if c.Name != "" {
@@ -245,6 +286,9 @@ func (l *loader) oneCase(n *yaml.Node, group, groupCtx string, cfg config) {
 		} else {
 			l.names[c.Name] = n.Line
 		}
+	}
+	if e := f["env"]; e != nil {
+		c.Env = l.env(e, ctx, cfg.env)
 	}
 	c.Input = l.str(f["input"], ctx, "input", n)
 	c.Action = l.str(f["action"], ctx, "action", n)
