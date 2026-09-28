@@ -18,3 +18,8 @@ cases:
     input: "mnmd filter "
     action: tab
     expect: []
+
+  - name: the discover subcommand is completed
+    input: mnmd di
+    action: tab
+    expect: [discover]

@@ -1,0 +1,71 @@
+# `mnmd discover`: zero-config default discovery prints the registered
+# command paths, sorted and slash-delimited.
+#
+# fixtures/zero-config-project has no monom config file, so, like an alias
+# would, every case pins the root with _MONOM_PROJECT_ROOT. (Without a pin the
+# root would resolve to this repository's git root.) It holds one executable
+# per gate outcome:
+#   deploy            shebang                        -> registered
+#   scripts/setup.sh  shebang (any name is fine)     -> registered
+#   build/compile     no shebang, command-like name  -> registered (name pattern)
+#   notes.TXT         no shebang, not a command name -> not registered
+#   _lib/helper, .hidden/tool, node_modules/pkg/cli  -> never scanned (noise)
+#   docs/guide        not executable                 -> never scanned
+# The fixtures/zero-config-variants/* projects each have a monom file, so the
+# root resolves to them without a pin.
+
+shells: [bash, zsh]
+
+groups:
+  - name: no monom file
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: without a monom file exactly the gated set is registered
+        input: mnmd discover
+        action: enter
+        expect: |
+          build/compile
+          deploy
+          scripts/setup.sh
+
+  - name: empty monom file
+    root: fixtures/zero-config-variants/empty-monom
+    cases:
+      - name: an empty monom file is zero-config and is not itself a command
+        # also: `my tool` (a space) and notes.TXT fail the gate, and sub/ has
+        # its own monom file, so its commands belong to that nested project
+        input: mnmd discover
+        action: enter
+        expect: |
+          build/compile
+          deploy
+
+  - name: declarations
+    root: fixtures/zero-config-variants/declared
+    cases:
+      - name: declared executables are registered even when they fail the gate or are private
+        input: mnmd discover
+        action: enter
+        expect: |
+          _lib/helper
+          deploy
+          notes.TXT
+
+  - name: invalid declarations
+    root: fixtures/zero-config-variants/declared-invalid
+    cases:
+      - name: a declaration that is not executable or does not exist is not registered
+        input: mnmd discover
+        action: enter
+        expect: deploy
+
+  - name: hook script
+    root: fixtures/zero-config-variants/hook-config-strict
+    cases:
+      - name: a hook script is never parsed as declarations
+        # its monom file carries a `notes.TXT` line in a heredoc
+        input: mnmd discover
+        action: enter
+        expect: deploy

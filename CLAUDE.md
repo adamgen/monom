@@ -88,7 +88,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 | What a user sees after typing a `monom`/`mnmd` line and pressing Enter or Tab | Declarative case (`tests/cases/*.yaml`) |
 | What the line editor does on Tab (inserted text, listing, zsh menu) | Declarative `keys` case (`tests/cases/monom_keys.yaml`) |
 | Full CLI binary surface (stdin, args, stdout, exit codes) | shUnit2 e2e test |
-| Env var integration (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_CHECK_ROOT_CONTENTS`) | shUnit2 e2e test |
+| Env var integration (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_CHECK_ROOT_CONTENTS`) | Declarative case with `env:` when it fits; otherwise shUnit2 e2e test |
 | Cross-package integration (e.g. `pack` calling `root`) | shUnit2 e2e test |
 | Completion candidates in a real shell environment | Declarative case with `action: tab` |
 | Completion registration and function tables | shUnit2 completion e2e test |
@@ -100,7 +100,7 @@ Tests are documentation. When a behavior is subtle, the test name is where you s
 
 ### shUnit2 e2e test structure
 
-Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` is a complete, runnable example project; point tests at it rather than building an ad-hoc tree inline. `fixtures/hooks-project/` adds a `run` hook (an alias and a deliberate failure) and an empty command group. `fixtures/zero-config-project/` has no monom config file and one executable per discovery-gate outcome; copy it with `make_zero_config_project` and add a `monom` file to the copy when a test needs one. Declarative cases select a fixture with `root:`; add a new fixture under `fixtures/` rather than generating one inside a case.
+Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` is a complete, runnable example project; point tests at it rather than building an ad-hoc tree inline. `fixtures/hooks-project/` adds a `run` hook (an alias and a deliberate failure) and an empty command group. `fixtures/zero-config-project/` has no monom config file and one executable per discovery-gate outcome, and `fixtures/zero-config-variants/*` are small projects that each have a different monom file (empty, declarations, strict severity, hook scripts). Declarative cases select a fixture with `root:`. A fixture without a monom file resolves to this repository's git root unless the case pins it with `env: {_MONOM_PROJECT_ROOT: "{root}"}`. shUnit2 tests that must write a `monom` file copy the fixture with `make_zero_config_project`; add a new fixture under `fixtures/` rather than generating one inside a case.
 
 Each test file follows this pattern:
 

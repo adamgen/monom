@@ -2,13 +2,9 @@
 # shUnit2 e2e tests for: mnmd discover (zero-config default discovery)
 # Run directly: bash tests/mnmd_discover_test
 #
-# fixtures/zero-config-project holds one executable per gate outcome:
-#   deploy            shebang                      -> registered
-#   scripts/setup.sh  shebang (extension is fine)  -> registered
-#   build/compile     no shebang, command-like name -> registered (name pattern)
-#   notes.TXT         no shebang, not a command name -> not registered
-#   _lib/helper, .hidden/tool, node_modules/pkg/cli -> never scanned (noise)
-#   docs/guide        not executable               -> never scanned
+# The discovery gate and the monom file's effect on it are covered by
+# tests/cases/mnmd_discover.yaml. This stays here because it needs a directory
+# outside any project or git repo, which a committed fixture can't be.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -17,141 +13,6 @@ SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/helpers"
-
-discover_in() {
-  _MONOM_PROJECT_ROOT="$1" "$MONOMD" discover
-}
-
-# ---------------------------------------------------------------------------
-# the gate
-# ---------------------------------------------------------------------------
-
-test_discover_without_monom_file_registers_exactly_the_gated_set() {
-  local proj result expected
-  proj=$(make_zero_config_project)
-  result=$(discover_in "$proj")
-  expected=$(cat <<'OUT'
-build/compile
-deploy
-scripts/setup.sh
-OUT
-  )
-  assertEquals "registered set, sorted, slash-delimited" "$expected" "$result"
-  rm -rf "$proj"
-}
-
-test_discover_registers_executable_with_shebang() {
-  local proj result
-  proj=$(make_zero_config_project)
-  result=$(discover_in "$proj")
-  assert_output_contains_line "shebang script is registered" "$result" "deploy"
-  assert_output_contains_line "a shebang admits any name" "$result" "scripts/setup.sh"
-  rm -rf "$proj"
-}
-
-test_discover_registers_shebangless_executable_matching_name_pattern() {
-  local proj result
-  proj=$(make_zero_config_project)
-  result=$(discover_in "$proj")
-  assert_output_contains_line "command-like name is registered" "$result" "build/compile"
-  rm -rf "$proj"
-}
-
-test_discover_excludes_shebangless_executable_not_matching_name_pattern() {
-  local proj result
-  proj=$(make_zero_config_project)
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "ungated executable is not registered" "$result" "notes.TXT"
-  rm -rf "$proj"
-}
-
-test_discover_skips_hidden_private_and_dependency_directories() {
-  local proj result
-  proj=$(make_zero_config_project)
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "underscore dir is private" "$result" "_lib/helper"
-  assert_output_lacks_line "dot dir is hidden"         "$result" ".hidden/tool"
-  assert_output_lacks_line "node_modules is noise"     "$result" "node_modules/pkg/cli"
-  assert_output_lacks_line "non-executable is ignored" "$result" "docs/guide"
-  rm -rf "$proj"
-}
-
-test_discover_excludes_executable_with_space_in_path() {
-  local proj result
-  proj=$(make_zero_config_project)
-  make_cmd "$proj/my tool"
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "a path with a space is never registered" "$result" "my tool"
-  rm -rf "$proj"
-}
-
-# ---------------------------------------------------------------------------
-# the monom config file
-# ---------------------------------------------------------------------------
-
-test_discover_empty_monom_file_is_zero_config() {
-  local proj result expected
-  proj=$(make_zero_config_project)
-  expected=$(discover_in "$proj")
-  touch "$proj/monom"
-  result=$(discover_in "$proj")
-  assertEquals "an empty monom file changes nothing" "$expected" "$result"
-  assert_output_lacks_line "the config file itself is not a command" "$result" "monom"
-  rm -rf "$proj"
-}
-
-test_discover_registers_declared_executable_that_fails_the_gate() {
-  local proj result
-  proj=$(make_zero_config_project)
-  cat > "$proj/monom" <<'CFG'
-# explicit declarations bypass the gate and the noise rules
-notes.TXT
-./_lib/helper
-CFG
-  result=$(discover_in "$proj")
-  assert_output_contains_line "declared ungated executable is registered" "$result" "notes.TXT"
-  assert_output_contains_line "declared private executable is registered" "$result" "_lib/helper"
-  assert_output_contains_line "gated commands are still registered" "$result" "deploy"
-  rm -rf "$proj"
-}
-
-test_discover_ignores_declaration_that_is_not_executable() {
-  local proj result
-  proj=$(make_zero_config_project)
-  cat > "$proj/monom" <<'CFG'
-docs/guide
-missing/cmd
-CFG
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "non-executable declaration is not registered" "$result" "docs/guide"
-  assert_output_lacks_line "missing declaration is not registered" "$result" "missing/cmd"
-  rm -rf "$proj"
-}
-
-test_discover_never_parses_a_hook_script_as_declarations() {
-  local proj result
-  proj=$(make_zero_config_project)
-  cat > "$proj/monom" <<'CFG'
-#!/bin/sh
-# notes.TXT
-case "$1" in complete) ;; esac
-CFG
-  chmod +x "$proj/monom"
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "script lines are not declarations" "$result" "notes.TXT"
-  assert_output_contains_line "gated commands are registered" "$result" "deploy"
-  rm -rf "$proj"
-}
-
-test_discover_skips_nested_monom_project() {
-  local proj result
-  proj=$(make_zero_config_project)
-  make_cmd "$proj/sub/cmd"
-  touch "$proj/sub/monom"
-  result=$(discover_in "$proj")
-  assert_output_lacks_line "a nested project owns its own commands" "$result" "sub/cmd"
-  rm -rf "$proj"
-}
 
 test_discover_exits_nonzero_without_project_root() {
   local tmp

@@ -1,0 +1,170 @@
+# Zero-config projects through the shell surface: with no monom file, an
+# empty one, or a hook script whose `complete` prints nothing, the command
+# tree comes from `mnmd discover`, and Tab, group listings and execution all
+# see the same registered set. Fixtures: see tests/cases/mnmd_discover.yaml.
+
+# fixtures/zero-config-project has no monom file, so its groups pin the root
+# with _MONOM_PROJECT_ROOT, the way an alias would. The variants have a monom
+# file, and their root resolves from it.
+shells: [bash, zsh]
+
+groups:
+  - name: no monom file
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      # tab: the gate decides what is offered
+      - name: tab offers the discovered top level and nothing that fails the gate
+        input: "monom "
+        action: tab
+        expect: [build, deploy, scripts]
+
+      - name: tab drills into a discovered group
+        input: "monom build "
+        action: tab
+        expect: [compile]
+
+      - name: a shebang admits any name
+        input: "monom scripts "
+        action: tab
+        expect: [setup.sh]
+
+      - name: an ungated executable is not offered
+        input: monom notes
+        action: tab
+        expect: []
+
+      - name: private, hidden and dependency directories are not offered
+        input: monom _
+        action: tab
+        expect: []
+
+      - name: dependency directories are not offered
+        input: monom node
+        action: tab
+        expect: []
+
+      # enter
+      - name: a shebang command runs without a monom file
+        input: monom deploy
+        action: enter
+        expect: deploying...
+
+      - name: a shebangless command with a command-like name runs
+        input: monom build compile
+        action: enter
+        expect: compiling...
+
+      - name: no arguments lists the discovered top level
+        input: monom
+        action: enter
+        exit: 1
+        expect: |
+          monom: monom
+          available: build, deploy, scripts
+
+      - name: a discovered group lists its children
+        input: monom build
+        action: enter
+        exit: 1
+        expect: |
+          monom: 'build' is a command group
+          available: compile
+
+      # keys: real Tab presses
+      - name: keys complete a discovered command
+        input: monom de
+        action: keys
+        tabs: 1
+        line: "monom deploy "
+        candidates: []
+
+      - name: keys complete the only child of a discovered group
+        input: "monom build "
+        action: keys
+        tabs: 1
+        line: "monom build compile "
+
+      - name: keys complete nothing for an ungated executable
+        input: monom no
+        action: keys
+        tabs: 2
+        line: monom no
+        candidates: []
+
+  - name: bash listing
+    shells: [bash]
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: bash second tab lists the discovered top level
+        input: "monom "
+        action: keys
+        tabs: 2
+        line: "monom "
+        candidates: [build, deploy, scripts]
+
+  - name: zsh listing and menu
+    shells: [zsh]
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: zsh first tab lists the discovered top level
+        input: "monom "
+        action: keys
+        tabs: 1
+        line: "monom "
+        candidates: [build, deploy, scripts]
+
+      - name: zsh second tab inserts the first discovered command
+        input: "monom "
+        action: keys
+        tabs: 2
+        line: monom build
+        candidates: [build, deploy, scripts]
+
+  - name: empty monom file
+    root: fixtures/zero-config-variants/empty-monom
+    cases:
+      - name: with an empty monom file tab offers discovered commands
+        input: "monom "
+        action: tab
+        expect: [build, deploy]
+
+      - name: with an empty monom file a discovered command runs
+        input: monom deploy
+        action: enter
+        expect: deploying...
+
+  - name: complete hook
+    root: fixtures/zero-config-variants/hook-complete
+    cases:
+      - name: a complete hook that prints paths replaces discovery
+        input: "monom "
+        action: tab
+        expect: [deploy]
+
+  - name: hook without complete
+    root: fixtures/zero-config-variants/hook-config-strict
+    cases:
+      - name: a hook script whose complete prints nothing falls back to discovery
+        input: "monom "
+        action: tab
+        expect: [deploy]
+
+  - name: declarative monom file that is executable
+    root: fixtures/zero-config-variants/declarative-exec
+    cases:
+      - name: an executable monom file without a shebang is never run
+        # its only line is `echo EXECUTED`; running it would print that
+        input: monom deploy
+        action: enter
+        expect: deploying...
+
+      - name: an executable monom file without a shebang is never run for completion
+        input: "monom "
+        action: tab
+        expect: [deploy]

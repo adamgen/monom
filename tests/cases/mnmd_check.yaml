@@ -1,0 +1,137 @@
+# `mnmd check`, the doctor. Every check reports errors except root-contents,
+# which defaults to a warning, so a fresh zero-config project passes (exit 0).
+# `check.root-contents = error` in the project's monom file (or its config
+# hook), or MONOM_CHECK_ROOT_CONTENTS=error for the user, makes it an error
+# (exit 1); a project setting beats the user's.
+# Fixtures: see tests/cases/mnmd_discover.yaml.
+
+shells: [bash, zsh]
+
+groups:
+  - name: no monom file
+    root: fixtures/zero-config-project
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: a fresh project without a monom file only warns and exits 0
+        input: mnmd check
+        action: enter
+        expect: |
+          warning: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          ✔ 3 commands OK (default discovery), 1 warning(s)
+
+  - name: empty monom file
+    root: fixtures/zero-config-variants/empty-monom
+    cases:
+      - name: an empty monom file only warns, and unregistered paths with a space are not path-spaces errors
+        input: mnmd check
+        action: enter
+        expect: |
+          warning: [root-contents] executable not registered: my tool (path contains a space, which cannot be typed as a command token); add a shebang, rename it, or declare it in the monom config file
+          warning: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          ✔ 2 commands OK (default discovery), 2 warning(s)
+
+      - name: MONOM_CHECK_ROOT_CONTENTS=error makes root-contents an error
+        env:
+          MONOM_CHECK_ROOT_CONTENTS: error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [root-contents] executable not registered: my tool (path contains a space, which cannot be typed as a command token); add a shebang, rename it, or declare it in the monom config file
+          error: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          mnmd check: 2 error(s), 0 warning(s)
+
+      - name: an invalid MONOM_CHECK_ROOT_CONTENTS is a config error
+        env:
+          MONOM_CHECK_ROOT_CONTENTS: loud
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [config] MONOM_CHECK_ROOT_CONTENTS="loud": want "warning" or "error"
+          warning: [root-contents] executable not registered: my tool (path contains a space, which cannot be typed as a command token); add a shebang, rename it, or declare it in the monom config file
+          warning: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          mnmd check: 1 error(s), 2 warning(s)
+
+  - name: declared
+    root: fixtures/zero-config-variants/declared
+    cases:
+      - name: declaring an ungated executable registers it and leaves nothing to warn about
+        input: mnmd check
+        action: enter
+        expect: ✔ 3 commands OK (default discovery)
+
+  - name: strict project
+    root: fixtures/zero-config-variants/strict
+    cases:
+      - name: check.root-contents = error in the monom file makes root-contents an error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          mnmd check: 1 error(s), 0 warning(s)
+
+  - name: project warning beats user error
+    root: fixtures/zero-config-variants/project-warning
+    env:
+      MONOM_CHECK_ROOT_CONTENTS: error
+    cases:
+      - name: check.root-contents = warning in the project overrides MONOM_CHECK_ROOT_CONTENTS=error
+        input: mnmd check
+        action: enter
+        expect: |
+          warning: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          ✔ 1 commands OK (default discovery), 1 warning(s)
+
+  - name: config hook
+    root: fixtures/zero-config-variants/hook-config-strict
+    cases:
+      - name: a hook script's config hook opts it into strict root-contents
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          mnmd check: 1 error(s), 0 warning(s)
+
+  # the other checks are errors regardless of root-contents
+  - name: invalid declarations
+    root: fixtures/zero-config-variants/declared-invalid
+    cases:
+      - name: declarations that are not executable or missing are errors
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [declared-commands] declared command docs/guide: not executable
+          error: [declared-commands] declared command missing/cmd: not found
+          mnmd check: 2 error(s), 0 warning(s)
+
+  - name: complete hook
+    root: fixtures/zero-config-variants/hook-complete
+    cases:
+      - name: a hook project validates the complete hook's set, not discovery
+        input: mnmd check
+        action: enter
+        expect: ✔ 1 commands OK
+
+  - name: complete hook with a space
+    root: fixtures/zero-config-variants/hook-bad-path
+    cases:
+      - name: a path with a space from the complete hook is always an error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [path-spaces] path has space in segment: "bad path/x"
+          mnmd check: 1 error(s), 0 warning(s)
+
+  - name: demo project
+    root: fixtures/demo-project
+    cases:
+      - name: a clean hook-script project passes
+        input: mnmd check
+        action: enter
+        expect: ✔ 7 commands OK
