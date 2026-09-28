@@ -96,6 +96,39 @@ groups:
           error: [root-contents] executable not registered: notes.TXT (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
           mnmd check: 1 error(s), 0 warning(s)
 
+  - name: discover.hide
+    root: fixtures/zero-config-variants/discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: hidden executables are not reported as unregistered
+        input: mnmd check
+        action: enter
+        expect: ✔ 4 commands OK (default discovery)
+
+  - name: discover.hide from a config hook
+    root: fixtures/zero-config-variants/hook-discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: hide patterns from a config hook silence root-contents too
+        input: mnmd check
+        action: enter
+        expect: ✔ 1 commands OK (default discovery)
+
+  - name: invalid discover.hide
+    root: fixtures/zero-config-variants/hook-discover-hide-invalid
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: an invalid discover.hide pattern is a config error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [config] config hook output line 1: invalid value "[" for discover.hide: invalid pattern (see path.Match)
+          mnmd check: 1 error(s), 0 warning(s)
+
   # the other checks are errors regardless of root-contents
   - name: invalid declarations
     root: fixtures/zero-config-variants/declared-invalid

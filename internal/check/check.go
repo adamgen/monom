@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/adamgen/monom/internal/config"
@@ -108,7 +107,7 @@ func Check(in Input) (Report, error) {
 		}
 		settings = settings.Merge(cfg.Settings)
 	case config.Script:
-		out, err := runHook(in.UserConfig, "config")
+		out, err := config.RunHook(in.UserConfig, "config")
 		if err != nil {
 			errorf(Config, "config hook failed: %v", err)
 		} else {
@@ -118,7 +117,7 @@ func Check(in Input) (Report, error) {
 			}
 			settings = settings.Merge(hookSettings)
 		}
-		if completeOut, err = runHook(in.UserConfig, "complete"); err != nil {
+		if completeOut, err = config.RunHook(in.UserConfig, "complete"); err != nil {
 			return rep, fmt.Errorf("check: running %s complete: %w", in.UserConfig, err)
 		}
 	case config.InertScript:
@@ -130,7 +129,7 @@ func Check(in Input) (Report, error) {
 		if in.Root == "" {
 			return rep, fmt.Errorf("check: default discovery needs a project root, and none was found")
 		}
-		res := discover.Discover(in.Root, cfg.Declared)
+		res := discover.Discover(in.Root, cfg.Declared, settings.Hide)
 		rep.Commands = res.Paths()
 		rep.Discovered = true
 		for _, msg := range res.Invalid {
@@ -158,21 +157,6 @@ func Check(in Input) (Report, error) {
 		rep.Problems = append(rep.Problems, Problem{RootContents, severity, msg})
 	}
 	return rep, nil
-}
-
-// runHook runs the hook script with one subcommand and returns its stdout.
-func runHook(script, hook string) ([]byte, error) {
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(script, hook)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return nil, fmt.Errorf("%w: %s", err, msg)
-		}
-		return nil, err
-	}
-	return stdout.Bytes(), nil
 }
 
 func nonEmptyLines(b []byte) []string {

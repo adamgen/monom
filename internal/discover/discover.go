@@ -5,13 +5,16 @@
 // Discovery runs in two stages. The scan is broad: every executable regular
 // file under the root, minus noise (see skipDir). The gate is narrow: a
 // scanned executable is registered only if it has a shebang or its name
-// matches NamePattern. Explicitly declared paths (from a declarative monom
-// config file) are registered regardless of the scan and the gate.
+// matches NamePattern. The project's monom config can extend the noise with
+// discover.hide patterns. Explicitly declared paths (from a declarative monom
+// config file) are registered regardless of the scan, the noise rules, and the
+// gate — including hide patterns.
 package discover
 
 import (
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -79,7 +82,9 @@ func (r Result) Paths() []string {
 // Discover scans projectRoot and returns the registered command set, sorted by
 // path. declared are command paths the author registered explicitly; they
 // bypass both the noise rules and the gate, but must name an executable file.
-func Discover(projectRoot string, declared []string) Result {
+// hide are the config's discover.hide patterns (see isHiddenOrPrivate); an
+// invalid pattern matches nothing.
+func Discover(projectRoot string, declared, hide []string) Result {
 	var res Result
 	seen := map[string]bool{}
 
@@ -110,12 +115,12 @@ func Discover(projectRoot string, declared []string) Result {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if skipDir(p, name) {
+			if skipDir(p, rel, name, hide) {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if isHiddenOrPrivate(name) || rel == root.ConfigFileName || seen[rel] {
+		if isHiddenOrPrivate(rel, name, hide) || rel == root.ConfigFileName || seen[rel] {
 			return nil
 		}
 		if !isExecutableFile(p) {
@@ -140,17 +145,35 @@ func Discover(projectRoot string, declared []string) Result {
 }
 
 // skipDir reports whether a directory's contents are excluded from the scan:
-// hidden and underscore-prefixed (private) directories, noise directories, and
-// nested monom projects, which own their own command tree.
-func skipDir(p, name string) bool {
-	return isHiddenOrPrivate(name) || noiseDirs[name] || root.HasConfigFile(p)
+// hidden and underscore-prefixed (private) directories, directories the
+// config hides, noise directories, and nested monom projects, which own their
+// own command tree.
+func skipDir(p, rel, name string, hide []string) bool {
+	return isHiddenOrPrivate(rel, name, hide) || noiseDirs[name] || root.HasConfigFile(p)
 }
 
-// isHiddenOrPrivate matches dot-prefixed names and the underscore prefix monom
+// isHiddenOrPrivate matches dot-prefixed names, the underscore prefix monom
 // uses for internals (e.g. `_monom_cfg`), which authors can use for helper
-// scripts that must not become commands.
-func isHiddenOrPrivate(name string) bool {
-	return strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
+// scripts that must not become commands, and the project's own discover.hide
+// patterns. rel is the entry's slash-delimited path relative to the project
+// root and name its last segment. A pattern without a slash is matched
+// against name, so it hides matching entries at any depth; a pattern with a
+// slash is matched against the whole of rel. Both use path.Match, whose `*`
+// never crosses a slash.
+func isHiddenOrPrivate(rel, name string, hide []string) bool {
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		return true
+	}
+	for _, pattern := range hide {
+		subject := name
+		if strings.ContainsRune(pattern, '/') {
+			subject = rel
+		}
+		if ok, _ := path.Match(pattern, subject); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // isExecutableFile reports whether p (following symlinks) is a regular file

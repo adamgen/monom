@@ -168,3 +168,38 @@ groups:
         input: "monom "
         action: tab
         expect: [deploy]
+
+  - name: discover.hide in the monom file
+    root: fixtures/zero-config-variants/discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: tab does not offer a hidden name or directory
+        input: "monom "
+        action: tab
+        expect: [deploy, other, tools]
+
+      - name: tab offers a declared entry even when a hide pattern matches it
+        input: "monom tools "
+        action: tab
+        expect: [build, wip-keep]
+
+      - name: a directory whose contents are all hidden is not offered
+        input: "monom lib"
+        action: tab
+        expect: []
+
+      - name: a declared entry that matches a hide pattern runs
+        input: monom tools wip-keep
+        action: enter
+        expect: keeping...
+
+  - name: discover.hide from a config hook
+    root: fixtures/zero-config-variants/hook-discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: tab does not offer entries a config hook hides
+        input: "monom "
+        action: tab
+        expect: [deploy]

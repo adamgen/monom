@@ -199,3 +199,29 @@ func TestReportCount(t *testing.T) {
 		t.Errorf("counts wrong: %+v", rep)
 	}
 }
+
+func TestCheck_DiscoverHideSilencesRootContentsFromEitherConfigShape(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "discover.hide = *.TXT\n", 0o644)
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if len(rep.Problems) != 0 || strings.Join(rep.Commands, ",") != "deploy" {
+		t.Errorf("declarative: commands=%v problems=%v, want deploy and no problems", rep.Commands, rep.Problems)
+	}
+
+	root = zeroConfigRoot(t)
+	cfg = hookScript(t, root, "", "discover.hide = *.TXT\\n")
+	rep = mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if len(rep.Problems) != 0 || strings.Join(rep.Commands, ",") != "deploy" {
+		t.Errorf("config hook: commands=%v problems=%v, want deploy and no problems", rep.Commands, rep.Problems)
+	}
+}
+
+func TestCheck_InvalidDiscoverHidePatternIsAConfigError(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "discover.hide = [\n", 0o644)
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	got := only(t, rep, Config)
+	if len(got) != 1 || !strings.Contains(got[0].Message, "discover.hide") {
+		t.Errorf("config = %v, want one discover.hide error", got)
+	}
+}

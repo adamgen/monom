@@ -162,7 +162,11 @@ func runDiscover() error {
 		debuglog.Log("[mnmd discover] config: %v", err)
 		return cli.WrapError(err)
 	}
-	res := discover.Discover(projectRoot, cfg.Declared)
+	// A hook script's settings come from its config hook. The shell only calls
+	// discover when the complete hook printed nothing, so this runs at most
+	// one extra hook per Tab, and only in hook projects without a complete.
+	settings := cfg.ProjectSettings()
+	res := discover.Discover(projectRoot, cfg.Declared, settings.Hide)
 	debuglog.Log("[mnmd discover] root=%s registered=%d skipped=%d", projectRoot, len(res.Commands), len(res.Skipped))
 	for _, p := range res.Paths() {
 		fmt.Println(p)

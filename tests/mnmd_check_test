@@ -44,5 +44,17 @@ CFG
   rm -rf "$proj"
 }
 
+test_check_invalid_discover_hide_pattern_is_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'CFG'
+discover.hide = [
+CFG
+  output=$(check_in "$proj")
+  assertNotEquals "an invalid glob fails check" 0 $?
+  assertContains "config is an error" "$output" "error: [config] $proj/monom: line 1: invalid value \"[\" for discover.hide"
+  rm -rf "$proj"
+}
+
 # shellcheck disable=SC1090
 . "$SHUNIT2"

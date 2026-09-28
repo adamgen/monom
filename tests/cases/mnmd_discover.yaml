@@ -12,7 +12,7 @@
 #   _lib/helper, .hidden/tool, node_modules/pkg/cli  -> never scanned (noise)
 #   docs/guide        not executable                 -> never scanned
 # The fixtures/zero-config-variants/* projects each have a monom file, so the
-# root resolves to them without a pin.
+# root resolves to them without a pin; the discover.hide groups pin it anyway.
 
 shells: [bash, zsh]
 
@@ -66,6 +66,44 @@ groups:
     cases:
       - name: a hook script is never parsed as declarations
         # its monom file carries a `notes.TXT` line in a heredoc
+        input: mnmd discover
+        action: enter
+        expect: deploy
+
+  # discover.hide: the monom config adds entries discovery treats as hidden
+  - name: discover.hide in the monom file
+    root: fixtures/zero-config-variants/discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: discover.hide patterns hide names at any depth and anchored paths, but not declarations
+        # hidden: notes.TXT (*.TXT), scratch/ and lib/scratch/ (scratch),
+        # tools/wip-new (tools/wip-*). other/tools/wip-x is not under the
+        # anchored path, and tools/wip-keep is declared, so declared wins.
+        input: mnmd discover
+        action: enter
+        expect: |
+          deploy
+          other/tools/wip-x
+          tools/build
+          tools/wip-keep
+
+  - name: discover.hide from a config hook
+    root: fixtures/zero-config-variants/hook-discover-hide
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: discover.hide printed by a config hook hides entries too
+        input: mnmd discover
+        action: enter
+        expect: deploy
+
+  - name: invalid discover.hide from a config hook
+    root: fixtures/zero-config-variants/hook-discover-hide-invalid
+    env:
+      _MONOM_PROJECT_ROOT: "{root}"
+    cases:
+      - name: discovery ignores an invalid hide pattern and applies the valid ones
         input: mnmd discover
         action: enter
         expect: deploy

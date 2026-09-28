@@ -38,7 +38,7 @@ monom scans the project for executables and turns them into the command tree. On
 - a file named like a command, `^[a-z0-9][a-z0-9_-]*$` (lowercase, no extension — this admits compiled binaries), or
 - a path declared in the `monom` file.
 
-Hidden and `_`-prefixed files and directories, `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, and nested monom projects are never scanned. `mnmd discover` prints the registered commands.
+Hidden and `_`-prefixed files and directories, `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, and nested monom projects are never scanned. To hide more, add `discover.hide = <pattern>` lines to the `monom` file (or print them from a hook script's `config` hook). A pattern without a `/` matches a name at any depth; one with a `/` matches a path from the root. Both use `path.Match` globs. A declared path is registered even when a pattern hides it. `mnmd discover` prints the registered commands.
 
 **How the root is found**, first match wins: `$_MONOM_PROJECT_ROOT` (what an alias pins), the nearest directory upward containing a file named `monom`, the nearest git root. The current directory alone is never a root.
 
@@ -49,6 +49,9 @@ Hidden and `_`-prefixed files and directories, `node_modules`, `vendor`, `__pyca
 tools/Build.EXE
 # make mnmd check fail on unregistered executables (default: warning)
 check.root-contents = error
+# treat more entries as hidden, like dot-files (one pattern per line)
+discover.hide = *.TXT
+discover.hide = tools/wip-*
 ```
 
 **Checking a project.** `mnmd check` validates the registered commands. Problems in the root's contents — executables that were found but not registered, for example — are **warnings** by default and do not fail the run. Every other problem is an error and exits 1. To make root-contents problems errors, set `check.root-contents = error` in a declarative `monom` file, or print it from a hook script's `config` hook. Set `MONOM_CHECK_ROOT_CONTENTS=error` to make that your default everywhere. A project's own setting wins over it.

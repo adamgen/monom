@@ -45,7 +45,7 @@ func TestLoad_ExecutableShebangFileIsScriptAndNotParsed(t *testing.T) {
 	if f.Kind != Script {
 		t.Errorf("kind = %v, want Script", f.Kind)
 	}
-	if len(f.Declared) != 0 || f.Settings != (Settings{}) {
+	if len(f.Declared) != 0 || !reflect.DeepEqual(f.Settings, Settings{}) {
 		t.Errorf("a script must never be parsed, got %+v", f)
 	}
 }
@@ -150,5 +150,50 @@ func TestHasShebang(t *testing.T) {
 	}
 	if HasShebang(filepath.Join(t.TempDir(), "missing")) {
 		t.Error("missing file must report false")
+	}
+}
+
+func TestParse_DiscoverHideIsRepeatableAndNormalized(t *testing.T) {
+	_, settings, problems := Parse(strings.NewReader("discover.hide = *.TXT\ndiscover.hide = ./tools/wip-*/\n"), true)
+	if len(problems) != 0 {
+		t.Fatalf("problems = %v", problems)
+	}
+	want := []string{"*.TXT", "tools/wip-*"}
+	if strings.Join(settings.Hide, "|") != strings.Join(want, "|") {
+		t.Errorf("hide = %q, want %q", settings.Hide, want)
+	}
+}
+
+func TestParse_InvalidDiscoverHidePatternsAreProblems(t *testing.T) {
+	for _, v := range []string{"[", "", "/abs", "../up", "a/../b", "./"} {
+		_, settings, problems := Parse(strings.NewReader("discover.hide = "+v+"\n"), false)
+		if len(problems) != 1 || !strings.Contains(problems[0], KeyDiscoverHide) || len(settings.Hide) != 0 {
+			t.Errorf("%q: hide=%q problems=%v, want one discover.hide problem", v, settings.Hide, problems)
+		}
+	}
+}
+
+func TestSettingsMerge_HidePatternsAppendWithoutAliasing(t *testing.T) {
+	base := Settings{Hide: make([]string, 1, 4)}
+	base.Hide[0] = "a"
+	x := base.Merge(Settings{Hide: []string{"b"}})
+	y := base.Merge(Settings{Hide: []string{"c"}})
+	if strings.Join(x.Hide, ",") != "a,b" || strings.Join(y.Hide, ",") != "a,c" {
+		t.Errorf("x=%v y=%v", x.Hide, y.Hide)
+	}
+}
+
+func TestProjectSettings_ReadsTheConfigHookLeniently(t *testing.T) {
+	p := writeFile(t, "#!/bin/sh\n[ \"$1\" = config ] && printf 'discover.hide = scratch\\ndiscover.hide = [\\n'\n", 0o755)
+	f, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.ProjectSettings().Hide; strings.Join(got, ",") != "scratch" {
+		t.Errorf("hide = %v, want only the valid pattern", got)
+	}
+	failing := writeFile(t, "#!/bin/sh\nexit 3\n", 0o755)
+	if f, _ = Load(failing); len(f.ProjectSettings().Hide) != 0 {
+		t.Error("a failing config hook must contribute nothing")
 	}
 }

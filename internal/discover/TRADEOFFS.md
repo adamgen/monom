@@ -39,3 +39,27 @@ Scanning broadly anyway (rather than only looking for shebangs) is what lets `mn
 **Why.** Pack cannot know whether the gate applies without running the `complete` hook to learn whether default discovery is even in effect — a subprocess on every execution, which `internal/pack/TRADEOFFS.md` already rejected for the same reason. Custom projects rely on pack running binaries the gate would reject. The gate decides what the CLI *offers*: completion, group listings, and `mnmd check`.
 
 **What it costs.** In a zero-config project, typing the exact path of an unregistered executable (`monom notes.TXT`) still runs it. Nothing advertises it, so it is only reachable deliberately.
+
+---
+
+## Declarations win over `discover.hide`
+
+**Chosen:** a path declared in the monom config is registered even when a `discover.hide` pattern matches it (or a directory above it).
+
+**Rejected:** letting a hide pattern veto a declaration.
+
+**Why.** `discover.hide` extends the scan's noise rules, and declarations already bypass every noise rule: `_lib/helper` and `node_modules/x/cli` can be declared. A hide pattern that also beat declarations would be the only noise rule that did, and it would make `discover.hide = tools/wip-*` plus `tools/wip-keep` a silent contradiction instead of a useful idiom: hide a family, keep one. A declaration names one exact path the author typed on purpose; a glob is broad and approximate, so the specific statement wins.
+
+**What it costs.** Hiding cannot be used to switch off a declaration; the author deletes the declaration line instead.
+
+---
+
+## `mnmd discover` runs the `config` hook
+
+**Chosen:** in a hook-script project, `mnmd discover` runs the `config` hook to read `discover.hide`, ignoring invalid lines and a failing hook.
+
+**Rejected:** honoring `discover.hide` only in declarative files, or adding a separate hook for it.
+
+**Why.** A hook script's settings live in its `config` hook, and `mnmd check` already reads them there. A setting that `check` honored but discovery ignored would make the two disagree about the registered set. The shell calls `mnmd discover` only when the `complete` hook printed nothing, so the extra subprocess is paid only by hook projects that rely on default discovery; declarative and zero-config projects pay nothing. Errors are swallowed because discovery runs on Tab, which must never be noisy; `mnmd check` reports them.
+
+**What it costs.** One more process per Tab in a hook script without a `complete` hook. And a `config` hook must not call `mnmd discover`, or the two would recurse.

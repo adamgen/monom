@@ -193,11 +193,11 @@ monom's **default discovery**: prints the project's registered command paths, sl
 
 Discovery has two stages:
 
-1. **Scan (broad).** Every executable regular file under the root (symlinks to files are followed), except noise: dot-prefixed (hidden) and `_`-prefixed (private) files and directories, the directories `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, any subdirectory containing its own `monom` file (a nested project), and the root's `monom` file itself.
+1. **Scan (broad).** Every executable regular file under the root (symlinks to files are followed), except noise: dot-prefixed (hidden) and `_`-prefixed (private) files and directories, the directories `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, any subdirectory containing its own `monom` file (a nested project), the root's `monom` file itself, and any file or directory matching one of the project's [`discover.hide`](#the-user-config-interface) patterns.
 2. **Gate (narrow).** A scanned executable is **registered** only if one of these holds:
    - it starts with a shebang (`#!`);
    - its file name matches the naming pattern `^[a-z0-9][a-z0-9_-]*$` — an extensionless, lowercase command name, the shape of `release` or `db/migrate`. This admits compiled binaries;
-   - it is declared in a declarative monom config file (see [The User Config Interface](#the-user-config-interface)). Declarations bypass the scan's noise rules and the gate, but must name an executable file.
+   - it is declared in a declarative monom config file (see [The User Config Interface](#the-user-config-interface)). Declarations bypass the scan's noise rules (including `discover.hide`) and the gate, but must name an executable file.
 
    A path containing a space is never registered, whatever else holds: it could not be typed as command tokens.
 
@@ -305,14 +305,18 @@ A shebang file without the execute bit is inert: neither run nor parsed, and `mn
 tools/Build.EXE
 # settings are `key = value`
 check.root-contents = error
+# treat more entries as hidden (repeatable)
+discover.hide = *.TXT
+discover.hide = tools/wip-*
 ```
 
-- A line containing `=` is a setting. Unknown keys and invalid values are `config` errors in `mnmd check`.
+- A line containing `=` is a setting. Unknown keys and invalid values are `config` errors in `mnmd check`. A single-valued setting set twice keeps the last value; a repeatable one collects every line.
 - Any other line declares a command path relative to the root (a leading `./` and trailing `/` are dropped; absolute paths and `..` are invalid).
 
 | Setting | Values | Default | Effect |
 | --- | --- | --- | --- |
 | `check.root-contents` | `warning`, `error` | `warning` (or `$MONOM_CHECK_ROOT_CONTENTS`) | Severity of `mnmd check`'s `root-contents` check. |
+| `discover.hide` | a [`path.Match`](https://pkg.go.dev/path#Match) pattern; repeatable, one per line | none | Default discovery treats matching entries as hidden, like dot-files: a matching file is never registered or reported under `root-contents`, and a matching directory is never scanned. A pattern without a `/` matches an entry's name at any depth (`*.TXT`, `scratch`); one with a `/` matches its path from the root (`tools/wip-*`), and `*` never crosses a `/`. A leading `./` and trailing `/` are dropped; absolute paths, `..`, and malformed patterns are `config` errors. Declarations win over it. |
 
 **Hook scripts** implement any subset of the hooks below; no subcommand is required. monom does not care how a hook script is implemented — shell, Python, Go, anything that prints to stdout.
 
@@ -332,7 +336,7 @@ release
 
 ### Hook: `config` — project settings
 
-Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read only by `mnmd check`, never on the completion or execution path. Absent or empty → defaults.
+Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. It must not call `mnmd discover`. Absent or empty → defaults.
 
 ```
 $ _monom_cfg config

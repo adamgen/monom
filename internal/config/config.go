@@ -15,6 +15,9 @@
 //	# comment
 //	key = value        a setting
 //	tools/build        a declared command path, relative to the project root
+//
+// Most settings take one value, and a later line replaces an earlier one.
+// discover.hide is repeatable: every line adds one pattern.
 package config
 
 import (
@@ -23,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"strings"
@@ -52,9 +56,17 @@ const (
 // project root's contents (see internal/check).
 const KeyRootContents = "check.root-contents"
 
+// KeyDiscoverHide adds a pattern whose matches default discovery treats as
+// hidden, like dot-files: a matching file is never registered and a matching
+// directory is never scanned (see internal/discover). Repeatable. A pattern
+// without a slash matches an entry's name at any depth; one with a slash
+// matches its path relative to the project root. Both use path.Match syntax.
+const KeyDiscoverHide = "discover.hide"
+
 // Settings holds the recognised config keys. A zero value field means unset.
 type Settings struct {
-	RootContents string // SeverityWarning, SeverityError, or "" when unset
+	RootContents string   // SeverityWarning, SeverityError, or "" when unset
+	Hide         []string // discover.hide patterns, normalized, in order
 }
 
 // File is a loaded monom config file.
@@ -134,10 +146,14 @@ func Parse(r io.Reader, allowDeclarations bool) (declared []string, settings Set
 	return declared, settings, problems
 }
 
-// Merge returns s with every field that is set in over replacing its value.
+// Merge returns s with every single-valued field that is set in over
+// replacing its value. Repeatable fields (Hide) are appended.
 func (s Settings) Merge(over Settings) Settings {
 	if over.RootContents != "" {
 		s.RootContents = over.RootContents
+	}
+	if len(over.Hide) > 0 {
+		s.Hide = append(s.Hide[:len(s.Hide):len(s.Hide)], over.Hide...)
 	}
 	return s
 }
@@ -152,6 +168,13 @@ func (s *Settings) set(key, value string) string {
 		}
 		s.RootContents = v
 		return ""
+	case KeyDiscoverHide:
+		p, problem := NormalizeHidePattern(value)
+		if problem != "" {
+			return fmt.Sprintf("invalid value %q for %s: %s", value, key, problem)
+		}
+		s.Hide = append(s.Hide, p)
+		return ""
 	default:
 		return fmt.Sprintf("unknown setting %q", key)
 	}
@@ -164,6 +187,22 @@ func ParseSeverity(v string) (string, bool) {
 		return v, true
 	}
 	return "", false
+}
+
+// NormalizeHidePattern validates a discover.hide pattern and trims a leading
+// "./" and a trailing "/". It returns the pattern, or a problem description.
+func NormalizeHidePattern(v string) (string, string) {
+	p := strings.TrimSuffix(strings.TrimPrefix(v, "./"), "/")
+	switch {
+	case p == "":
+		return "", "want a file name or a path pattern"
+	case strings.HasPrefix(p, "/") || dotSegment.MatchString(p):
+		return "", "must be a name or a path inside the project root"
+	}
+	if _, err := path.Match(p, ""); err != nil {
+		return "", "invalid pattern (see path.Match)"
+	}
+	return p, ""
 }
 
 var dotSegment = regexp.MustCompile(`(^|/)\.\.?(/|$)`)
@@ -189,4 +228,39 @@ func HasShebang(p string) bool {
 	buf := make([]byte, 2)
 	n, _ := io.ReadFull(f, buf)
 	return n == 2 && buf[0] == '#' && buf[1] == '!'
+}
+
+// RunHook runs the hook script with one subcommand and returns its stdout. A
+// non-zero exit is an error that carries the script's stderr, if any.
+func RunHook(script, hook string) ([]byte, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(script, hook)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("%w: %s", err, msg)
+		}
+		return nil, err
+	}
+	return stdout.Bytes(), nil
+}
+
+// ProjectSettings returns the project's own settings: a declarative file's,
+// or what a hook script's `config` hook prints. It is the lenient reader for
+// callers that must never fail, like discovery on Tab: an invalid line, or a
+// config hook that fails, contributes nothing. `mnmd check` reports those.
+func (f *File) ProjectSettings() Settings {
+	switch f.Kind {
+	case Declarative:
+		return f.Settings
+	case Script:
+		out, err := RunHook(f.Path, "config")
+		if err != nil {
+			return Settings{}
+		}
+		_, settings, _ := Parse(bytes.NewReader(out), false)
+		return settings
+	}
+	return Settings{}
 }
