@@ -1,0 +1,10 @@
+#!/bin/sh
+# A hook script with only a config hook: complete prints nothing, so default
+# discovery runs. The heredoc line would be a valid declaration if monom ever
+# parsed a hook script as a declarative file; it must not.
+: <<'NOT_DECLARATIONS'
+notes.TXT
+NOT_DECLARATIONS
+case "$1" in
+  config) echo "check.root-contents = error" ;;
+esac

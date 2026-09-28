@@ -1,0 +1,8 @@
+# discover.hide adds entries default discovery treats as hidden, like
+# dot-files. Repeatable; path.Match globs. A pattern without a slash matches
+# a name at any depth, one with a slash a path from the project root.
+discover.hide = *.TXT
+discover.hide = scratch
+discover.hide = tools/wip-*
+# A declaration wins over a hide pattern.
+tools/wip-keep

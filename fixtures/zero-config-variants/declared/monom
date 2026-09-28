@@ -1,0 +1,3 @@
+# Declarations bypass the discovery gate and the noise rules.
+notes.TXT
+./_lib/helper

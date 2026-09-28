@@ -2,7 +2,7 @@
 
 This document describes the current intended architecture of monom. Unlike the constitution, it is descriptive and will evolve as the project develops. It should stay consistent with the principles in `constitution.md`.
 
-It states **contracts** — what each part promises, and how the parts fit together. It deliberately does not argue for them. Where a decision was contested, the reasoning and the rejected alternatives live in a `TRADEOFFS.md` beside the code that implements it (`internal/filter/`, `internal/pack/`, `internal/cli/`, `internal/install/`, `src/`). Read that file before changing the behavior it describes.
+It states **contracts** — what each part promises, and how the parts fit together. It deliberately does not argue for them. Where a decision was contested, the reasoning and the rejected alternatives live in a `TRADEOFFS.md` beside the code that implements it (`internal/filter/`, `internal/pack/`, `internal/cli/`, `internal/install/`, `internal/root/`, `internal/discover/`, `internal/check/`, `src/`). Read that file before changing the behavior it describes.
 
 ---
 
@@ -12,7 +12,7 @@ monom has exactly three entry points — the complete public surface through whi
 
 1. **`source monom`** — bootstrap. The user sources `src/monom` from their rc file. This is the one-time introduction of monom into a shell session: it resolves `_MONOM_LIB_ROOT`, defines the `mnmd()`, `monom()`, `_setup_monom()`, and `_monom_cfg()` functions, and sources the shell-specific completion binding (`src/monom.bash` or `src/monom.zsh`). After this, the shell knows the `monom` command and how to complete it. No `mnmd` subcommand runs at source time. Sourcing deliberately adds `mnmd` to the user's namespace: `mnmd()` is a user-facing shell function that makes the binary callable by name without requiring `bin/` on `$PATH`.
 
-2. **`monom <Tab>`** — completion. The user presses Tab while typing a `monom` command. The registered completion function runs discovery (`_monom_cfg complete`) and filters it (`mnmd filter`) to populate `COMPREPLY`. See [Completion (Tab press)](#completion-tab-press) for the full flow. This path must be fast and never error mid-typing.
+2. **`monom <Tab>`** — completion. The user presses Tab while typing a `monom` command. The registered completion function runs discovery (`_monom_complete`: the `complete` hook, or `mnmd discover` when the hook prints nothing) and filters it (`mnmd filter`) to populate `COMPREPLY`. See [Completion (Tab press)](#completion-tab-press) for the full flow. This path must be fast and never error mid-typing.
 
 3. **`monom [command...]`** — execution. The user runs a resolved command. The `monom()` function optionally transforms args via the `run` hook, resolves them to an absolute executable path (`mnmd pack`), and `exec`s it. See [Command execution](#command-execution) for the full flow.
 
@@ -33,9 +33,9 @@ Subcommand inputs SHOULD be CLI arguments. Stdin SHOULD only be used when the in
 **The test:** Before designing a subcommand to read stdin, ask — "is this a parameter or a stream?" Parameters are bounded, named, and known at call time; they belong in args. Streams are unbounded, anonymous, and benefit from pipe composition; they belong in stdin.
 
 Examples in this codebase:
-- `mnmd filter` reads commands from stdin — the command list is unbounded and naturally produced by piping `_monom_cfg complete`. Stream.
+- `mnmd filter` reads commands from stdin — the command list is unbounded and naturally produced by piping `_monom_complete` (the `complete` hook or `mnmd discover`). Stream.
 - `mnmd pack` takes args — the user's command tokens are a small, known parameter set produced by the shell at call time, not a stream. Parameters.
-- `mnmd root` and `mnmd check` take no input — neither parameters nor stream.
+- `mnmd root`, `mnmd discover`, and `mnmd check` take no input — neither parameters nor stream.
 
 ---
 
@@ -43,11 +43,7 @@ Examples in this codebase:
 
 There is one compiled Go binary: `mnmd`.
 
-All subcommands read environment variables at startup — see [Environment Variables](#environment-variables) for the full reference. In shell scripts, the `_monom_cfg` function wrapper is used for readability at call sites:
-
-```bash
-_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
-```
+All subcommands read environment variables at startup — see [Environment Variables](#environment-variables) for the full reference. In shell scripts, the `_monom_cfg` function wrapper runs the config's hooks at call sites (`_monom_cfg complete`); it runs the config only when it is a hook script — see [Shell Files](#shell-files).
 
 ---
 
@@ -60,9 +56,10 @@ Reads command paths from stdin (one per line, slash-delimited) and accepts zero 
 Called by the shell completion binding as part of a pipe:
 
 ```bash
-_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
-COMPREPLY=($(  _monom_cfg complete | mnmd filter "${COMP_WORDS[@]:1}"  ))
+COMPREPLY=($(  _monom_complete | mnmd filter "${COMP_WORDS[@]:1}"  ))
 ```
+
+`_monom_complete` prints the `complete` hook's output, or `mnmd discover`'s when the hook prints nothing. The examples below show a hook's output as stdin; default discovery's output has the same format.
 
 The shell passes `${COMP_WORDS[@]:1}` (the raw typed tokens after `monom`) directly — no transformation in shell. Stdin lines containing spaces in any path segment are silently ignored; `mnmd check` surfaces them explicitly.
 
@@ -173,9 +170,15 @@ A command group is never runnable by default. An author who wants `monom infra` 
 
 Returns the active monom project root.
 
-Algorithm: if `$_MONOM_PROJECT_ROOT` is set and points to a directory containing an executable `monom` file, return it. Otherwise, walk up from `$PWD` looking for a directory containing an executable `monom` file. Print the first match to stdout; exit non-zero if none is found.
+Algorithm, first match wins:
 
-This same algorithm is shared internally by all subcommands that need the root (currently `mnmd pack`). Exposed as a standalone subcommand so the shell and CLI authors can query the root explicitly (for sourcing scripts, aliases, debugging).
+1. `$_MONOM_PROJECT_ROOT`, when it names an existing directory — the explicit pin an alias sets. The directory needs no monom config file.
+2. The nearest directory, walking up from `$PWD`, that contains a regular file named `monom` — executable or not, empty or not.
+3. The nearest directory, walking up from `$PWD`, that contains a `.git` entry (directory, or file for worktrees and submodules).
+
+The working directory itself is never a fallback. Print the match to stdout; exit non-zero if there is none. A `monom` file anywhere up the chain beats a nearer git root: the explicit marker wins over the implicit one.
+
+This same algorithm is shared internally by all subcommands that need the root (`mnmd pack`, `mnmd discover`, `mnmd check`). Exposed as a standalone subcommand so the shell and CLI authors can query the root explicitly (for sourcing scripts, aliases, debugging).
 
 ```
 $ mnmd root
@@ -184,13 +187,47 @@ $ mnmd root
 
 ---
 
+### `mnmd discover`
+
+monom's **default discovery**: prints the project's registered command paths, slash-delimited, one per line, sorted — the same format as the `complete` hook. The shell uses it whenever the `complete` hook prints nothing (see [`_monom_complete`](#shell-files)); a hook script may also call it from its own `complete` arm to extend the default.
+
+Discovery has two stages:
+
+1. **Scan (broad).** Every executable regular file under the root (symlinks to files are followed), except noise: dot-prefixed (hidden) and `_`-prefixed (private) files and directories, the directories `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, any subdirectory containing its own `monom` file (a nested project), the root's `monom` file itself, and any file or directory matching one of the project's [`discover.hide`](#the-user-config-interface) patterns.
+2. **Gate (narrow).** A scanned executable is **registered** only if one of these holds:
+   - it starts with a shebang (`#!`);
+   - its file name matches the naming pattern `^[a-z0-9][a-z0-9_-]*$` — an extensionless, lowercase command name, the shape of `release` or `db/migrate`. This admits compiled binaries;
+   - it is declared in a declarative monom config file (see [The User Config Interface](#the-user-config-interface)). Declarations bypass the scan's noise rules (including `discover.hide`) and the gate, but must name an executable file.
+
+   A path containing a space is never registered, whatever else holds: it could not be typed as command tokens.
+
+Executables the scan found but the gate rejected are reported by `mnmd check` under `root-contents`. Exits non-zero only when no project root can be found.
+
+```
+$ mnmd discover
+build/compile
+deploy
+scripts/setup.sh
+```
+
+---
+
 ### `mnmd check`
 
-Validates that the current monom project is healthy. Runs `_monom_cfg complete`, inspects every path in the output, and reports any problems to stdout. Exits non-zero if any problems are found.
+The doctor. Validates that the current monom project is healthy and prints one line per problem to stdout, as `<severity>: [<check>] <message>`. Finds the project root and the config file itself (`$_MONOM_USER_CONFIG` when set, otherwise `<root>/monom`), so it works in a fresh shell and in a project with no monom file.
 
-Currently checks:
+It validates the **registered command set** — the `complete` hook's output, or, when the hook prints nothing, default discovery's set — never the raw file tree.
 
-- Every path is slash-delimited with no spaces in any segment. A path with spaces would be silently skipped by `mnmd filter` during completion, making that command undiscoverable.
+| Check | Severity | Reports |
+| --- | --- | --- |
+| `path-spaces` | always error | A registered path with a space in a segment. `mnmd filter` silently drops it, so the command can never be completed. |
+| `declared-commands` | always error | A declaration that is not an executable file inside the root. |
+| `config` | always error | An invalid line, unknown key, or invalid value in the monom config file or `config` hook output; a failing `config` hook; an invalid `MONOM_CHECK_ROOT_CONTENTS`. |
+| `root-contents` | **warning by default**, configurable | The root's contents that monom cannot use as they are: executables default discovery found but did not register, directories it could not read, a hook script without its execute bit. |
+
+`root-contents` severity resolves as: the project's `check.root-contents` setting, else the user's `MONOM_CHECK_ROOT_CONTENTS`, else `warning`. Values are `warning` or `error`.
+
+**Exit codes.** Warnings are printed but never change the exit code: a run with only warnings prints `✔ N commands OK, M warning(s)` and exits 0, so a fresh zero-config project passes. Any error exits 1, with `mnmd check: N error(s), M warning(s)` on stderr. It also exits 1 when the project cannot be inspected at all (no root, an unreadable config, a failing `complete` hook).
 
 Intended to be run by the CLI author during development and in CI. Not called on the completion or execution path.
 
@@ -227,19 +264,23 @@ Shell files exist only where a technical constraint makes Go impossible — prim
 
 | File             | Purpose                                                                                                      |
 | ---------------- | ------------------------------------------------------------------------------------------------------------ |
-| `src/monom`      | Sourced by user's rc file. Exports `_MONOM_LIB_ROOT` and `MONOM_ACTIVE`, defines `mnmd()`, `monom()`, `_setup_monom()`, `_monom_cfg()`, and `_monom_log()`, then sources the shell-specific binding based on `$ZSH_VERSION` / `$BASH_VERSION`. |
+| `src/monom`      | Sourced by user's rc file. Exports `_MONOM_LIB_ROOT` and `MONOM_ACTIVE`, defines `mnmd()`, `monom()`, `_setup_monom()`, `_monom_cfg()`, `_monom_complete()`, and `_monom_log()`, then sources the shell-specific binding based on `$ZSH_VERSION` / `$BASH_VERSION`. |
 | `src/monom.bash` | Registers bash completion hook (`complete -F _monom_completion monom`).                                      |
 | `src/monom.zsh`  | Registers zsh completion hook (`compdef _monom monom`).                                                      |
 
 
-**Rendering a command group.** `pack`'s exit 3 carries no payload, so `monom()` produces the user-facing message itself. It names the group by the last token the user typed and lists the children by re-running the discovery pipeline — `_monom_cfg complete | mnmd filter <tokens> ""`, where the trailing empty word drills into the level. This is the same pipeline tab completion uses, so the listing always matches `monom <group> <Tab>`. When the pipeline yields nothing, the `available:` line is omitted.
+**Running hooks.** `_monom_cfg` executes the config only when it is a hook script — an executable file whose first line is a shebang. Any other config (absent, empty, declarative, or not executable) has no hooks, so every hook call returns 0 with no output, which is exactly an absent hook.
+
+**Listing commands.** `_monom_complete` is the single source of the command list for completion and listings: it prints the `complete` hook's output, or `mnmd discover`'s when the hook prints nothing.
+
+**Rendering a command group.** `pack`'s exit 3 carries no payload, so `monom()` produces the user-facing message itself. It names the group by the last token the user typed and lists the children by re-running the discovery pipeline — `_monom_complete | mnmd filter <tokens> ""`, where the trailing empty word drills into the level. This is the same pipeline tab completion uses, so the listing always matches `monom <group> <Tab>`. When the pipeline yields nothing, the `available:` line is omitted.
 
 ```
 monom: 'infra' is a command group
 available: cloud, local
 ```
 
-The aliasing feature (`make_monom_alias`) exists to let users bind a named command (e.g. `acme`) to a specific project root. Not yet implemented against `mnmd`; the principle is to push as much as possible into Go.
+The aliasing feature (`make_monom_alias`) exists to let users bind a named command (e.g. `acme`) to a specific project root. Not yet implemented against `mnmd`; the principle is to push as much as possible into Go. Until then an alias pins the root through the public affordance: `alias mon='_MONOM_PROJECT_ROOT=/path/to/project monom'`. The pinned directory needs no monom config file.
 
 No shell file should contain logic beyond what is technically impossible to move to Go.
 
@@ -247,19 +288,60 @@ No shell file should contain logic beyond what is technically impossible to move
 
 ## The User Config Interface
 
-The monom config file (the executable `monom` at the project root) is the seam between monom and the author's project. It exposes one required subcommand and any number of optional hooks (see [Hooks](#hooks) below).
+The monom config file (the file named `monom` at the project root) is the seam between monom and the author's project. It is optional, and takes one of three shapes, decided by its first line and mode:
 
-**Required:**
+| Shape | What it is | monom does |
+| --- | --- | --- |
+| **Absent** | No file. Zero-config. | Default discovery. |
+| **Declarative** | Any file whose first line is not a shebang — including an empty file (`touch monom`). | Parses it; never runs it. Default discovery, plus its declarations. |
+| **Hook script** | An executable file whose first line is a shebang. | Runs it for [hooks](#hooks); never parses it. |
+
+A shebang file without the execute bit is inert: neither run nor parsed, and `mnmd check` reports it under `root-contents`.
+
+**Declarative format** — one entry per line; blank lines and `#` comments are ignored:
 
 ```
-<monom-config-file> complete   # prints all discoverable command paths, slash-delimited, one per line
+# declare an executable the discovery gate would reject
+tools/Build.EXE
+# settings are `key = value`
+check.root-contents = error
+# treat more entries as hidden (repeatable)
+discover.hide = *.TXT
+discover.hide = tools/wip-*
 ```
 
-monom does not care how the user config is implemented — shell functions, Python, Go, whatever, as long as the required subcommand prints to stdout. The required interface is constitution-protected; changes require an amendment.
+- A line containing `=` is a setting. Unknown keys and invalid values are `config` errors in `mnmd check`. A single-valued setting set twice keeps the last value; a repeatable one collects every line.
+- Any other line declares a command path relative to the root (a leading `./` and trailing `/` are dropped; absolute paths and `..` are invalid).
+
+| Setting | Values | Default | Effect |
+| --- | --- | --- | --- |
+| `check.root-contents` | `warning`, `error` | `warning` (or `$MONOM_CHECK_ROOT_CONTENTS`) | Severity of `mnmd check`'s `root-contents` check. |
+| `discover.hide` | a [`path.Match`](https://pkg.go.dev/path#Match) pattern; repeatable, one per line | none | Default discovery treats matching entries as hidden, like dot-files: a matching file is never registered or reported under `root-contents`, and a matching directory is never scanned. A pattern without a `/` matches an entry's name at any depth (`*.TXT`, `scratch`); one with a `/` matches its path from the root (`tools/wip-*`), and `*` never crosses a `/`. A leading `./` and trailing `/` are dropped; absolute paths, `..`, and malformed patterns are `config` errors. Declarations win over it. |
+
+**Hook scripts** implement any subset of the hooks below; no subcommand is required. monom does not care how a hook script is implemented — shell, Python, Go, anything that prints to stdout.
 
 ## Hooks
 
 Hooks are optional subcommands the CLI author MAY expose on the monom config file to customize monom's default behavior. Each hook has a defined input/output contract and a defined fallback (what monom does when the hook is absent). Hooks are discovered by attempt-and-fallback at the call site — there is no separate registration step. The list of available hooks evolves here in `architecture.md` without requiring a constitution amendment.
+
+### Hook: `complete` — list command paths
+
+Takes no input; prints every command path, slash-delimited, one per line. When it prints anything, its output *is* the command tree: default discovery does not run. When it prints nothing — absent, declining, or not a hook script at all — monom falls back to [`mnmd discover`](#mnmd-discover). A hook may call `mnmd discover` itself to extend the default.
+
+```
+$ _monom_cfg complete
+infra/cloud/deploy
+release
+```
+
+### Hook: `config` — project settings
+
+Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. It must not call `mnmd discover`. Absent or empty → defaults.
+
+```
+$ _monom_cfg config
+check.root-contents = error
+```
 
 ### Hook: `run` — transform args before path resolution
 
@@ -317,7 +399,7 @@ Cost: one unconditional subprocess spawn per invocation, plus one writability ch
 
 These variables are internal shell↔Go plumbing. They are set by `src/monom` and read by `mnmd`. CLI authors and CLI users do not need to set or know these variables during normal use. The one public affordance is that a user MAY pre-set `$_MONOM_PROJECT_ROOT` to skip automatic project root discovery (useful when working outside a project tree or in a custom wrapper).
 
-`MONOM_DEBUG_LOG` and `MONOM_ACTIVE` are intentionally unprefixed — they are user-facing, not internal plumbing.
+`MONOM_DEBUG_LOG`, `MONOM_ACTIVE`, and `MONOM_CHECK_ROOT_CONTENTS` are intentionally unprefixed — they are user-facing, not internal plumbing.
 
 
 | Variable                | Set by                                                    | Description                                                                                                                                                                           |
@@ -326,7 +408,8 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 | `MONOM_ACTIVE`          | `src/monom` at source time                                | Set to `1` so subprocesses can detect that the shell integration is live. Its absence is what triggers the [activation nudge](#the-activation-nudge). User-facing: set it to suppress the nudge in scripts. |
 | `mnmd()` (function)     | `src/monom` at source time                                | Shell function wrapper that invokes `bin/mnmd`. User-facing — makes `mnmd` callable by name after sourcing, without adding `bin/` to `$PATH`.                                          |
 | `_MONOM_PROJECT_ROOT`   | `_setup_monom()` via `mnmd root` discovery, or user       | Path to the currently active monom project root. Pre-setting this skips auto-discovery. All call sites read this via the `mnmd root` algorithm.                                       |
-| `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — the `monom` executable at `$_MONOM_PROJECT_ROOT/monom`. Shell scripts invoke it via `_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }` for readability. |
+| `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — `$_MONOM_PROJECT_ROOT/monom`, which may not exist. Shell scripts run its hooks via `_monom_cfg`, which only executes a hook script. |
+| `MONOM_CHECK_ROOT_CONTENTS` | user (optional) | User-level default severity (`warning` or `error`) for `mnmd check`'s `root-contents` check. A project's `check.root-contents` setting overrides it. Intentionally unprefixed: user-facing. |
 | `MONOM_DEBUG_LOG`       | user (optional), or `_setup_monom()` via the `debug` hook | If set to a file path, `mnmd` and shell functions append timestamped debug lines to that file. Intentionally unprefixed: it is a user-facing diagnostic, not internal plumbing. A project may override the global value via the [`debug` hook](#hook-debug--project-local-debug-log-path) when the hook path is valid (single-line) and writable. |
 
 
@@ -339,7 +422,9 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 ```
 user presses Tab
   → _monom_completion() / _monom() [shell — registers COMPREPLY / calls compadd]
-    → _monom_cfg complete                     [user's script — prints all paths, slash-delimited]
+    → _monom_complete                         [shell — command paths, slash-delimited]
+        → _monom_cfg complete                 [user's hook script, if any]
+        → mnmd discover                       [Go — only when the hook printed nothing]
     → mnmd filter $COMP_WORDS                 [Go — always exits 0, prints matches]
     → COMPREPLY=(...) / compadd ...
 ```

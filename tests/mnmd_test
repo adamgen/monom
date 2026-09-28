@@ -61,7 +61,9 @@ make_user_config() {
   paths=$(cat)
   cat > "$script" <<EOF
 #!/bin/sh
-printf '%s\n' "$paths"
+case "\$1" in
+  complete) printf '%s\n' "$paths" ;;
+esac
 EOF
   chmod +x "$script"
   printf '%s' "$script"
@@ -291,9 +293,11 @@ EOF
   rm -rf "$(dirname "$cfg")"
 }
 
-test_check_no_user_config_exits_nonzero() {
-  _MONOM_USER_CONFIG="" "$MONOMD" check 2>/dev/null
-  assertNotEquals "check must exit non-zero when _MONOM_USER_CONFIG unset" 0 $?
+test_check_no_user_config_outside_project_exits_nonzero() {
+  tmp=$(mktemp -d)
+  (cd "$tmp" && _MONOM_USER_CONFIG="" _MONOM_PROJECT_ROOT="" "$MONOMD" check) 2>/dev/null
+  assertNotEquals "check must exit non-zero with no config and no project root" 0 $?
+  rm -rf "$tmp"
 }
 
 # ---------------------------------------------------------------------------

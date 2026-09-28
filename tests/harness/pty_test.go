@@ -115,7 +115,7 @@ type ptySession struct {
 
 // startPTY starts an interactive shell set up like a user's rc: cd into root,
 // source src/monom (zsh: after compinit), and waits for the first prompt.
-func startPTY(t *testing.T, repo, root, sh, compdump string) *ptySession {
+func startPTY(t *testing.T, repo, root, sh, compdump string, extraEnv []string) *ptySession {
 	t.Helper()
 	home := t.TempDir()
 	dir := shQuote(filepath.Join(repo, root))
@@ -124,6 +124,7 @@ func startPTY(t *testing.T, repo, root, sh, compdump string) *ptySession {
 		"HOME=" + home, "PATH=" + os.Getenv("PATH"), "TERM=xterm", "LANG=C.UTF-8",
 		fmt.Sprintf("COLUMNS=%d", ptyCols), fmt.Sprintf("LINES=%d", ptyRows),
 	}
+	env = append(env, extraEnv...)
 	var cmd *exec.Cmd
 	switch sh {
 	case "bash":
@@ -311,7 +312,7 @@ func indent(s, prefix string) string {
 
 // runKeysCase runs one action: keys case.
 func runKeysCase(t *testing.T, repo, compdump string, c Case, sh string) {
-	s := startPTY(t, repo, c.Root, sh, compdump)
+	s := startPTY(t, repo, c.Root, sh, compdump, caseEnv(repo, c))
 	line := s.press(c.Input, c.Tabs)
 	screen := s.screen()
 	got := asSet(listing(screen))
@@ -330,6 +331,7 @@ func runKeysCase(t *testing.T, repo, compdump string, c Case, sh string) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n  case:   %s  (%s:%d)\n", c.Name, c.File, c.Line)
 	fmt.Fprintf(&b, "  shell:  %s    root: %s    terminal: %dx%d\n", sh, c.Root, ptyCols, ptyRows)
+	b.WriteString(envLine(c))
 	fmt.Fprintf(&b, "  input:  %q\n", c.Input)
 	fmt.Fprintf(&b, "  action: keys    tabs: %d\n", c.Tabs)
 	fmt.Fprintf(&b, "  result: %s\n", strings.Join(problems, "; "))

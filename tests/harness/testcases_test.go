@@ -243,3 +243,47 @@ cases:
 		`case "h": input for action: keys must be one line without tabs`,
 	)
 }
+
+func TestLoad_EnvMergesSuiteGroupAndCase(t *testing.T) {
+	cases, err := load(t, `
+root: fixture
+env: {A: suite, B: suite}
+groups:
+  - name: g
+    env: {B: group, C: "{root}"}
+    cases:
+      - name: c
+        input: x
+        action: enter
+        expect: ""
+        env: {C: case, D: "10"}
+      - {name: d, input: x, action: enter, expect: ""}
+`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := map[string]string{"A": "suite", "B": "group", "C": "case", "D": "10"}
+	if !reflect.DeepEqual(cases[0].Env, want) {
+		t.Errorf("case env = %v, want %v", cases[0].Env, want)
+	}
+	if want := (map[string]string{"A": "suite", "B": "group", "C": "{root}"}); !reflect.DeepEqual(cases[1].Env, want) {
+		t.Errorf("group-only env = %v, want %v", cases[1].Env, want)
+	}
+}
+
+func TestLoad_EnvIsValidated(t *testing.T) {
+	wantErrors(t, `
+root: fixture
+env: [A]
+cases:
+  - {name: a, input: x, action: enter, expect: "", env: {1BAD: x, A-B: y}}
+  - {name: b, input: x, action: enter, expect: "", env: {A: [x]}}
+  - {name: c, input: x, action: enter, expect: "", env: {A: x, A: y}}
+`,
+		`cases.yaml:3: env must be a mapping of NAME: value`,
+		`case "a": env name "1BAD" is not a valid variable name`,
+		`case "a": env name "A-B" is not a valid variable name`,
+		`case "b": env A must be a string`,
+		`case "c": duplicate env name "A"`,
+	)
+}

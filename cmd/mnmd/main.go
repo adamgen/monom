@@ -2,16 +2,17 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/adamgen/monom/internal/check"
 	"github.com/adamgen/monom/internal/cli"
+	"github.com/adamgen/monom/internal/config"
 	"github.com/adamgen/monom/internal/debuglog"
+	"github.com/adamgen/monom/internal/discover"
 	"github.com/adamgen/monom/internal/filter"
 	"github.com/adamgen/monom/internal/install"
 	"github.com/adamgen/monom/internal/pack"
@@ -42,6 +43,8 @@ func main() {
 		err = runRoot()
 	case "pack":
 		err = runPack()
+	case "discover":
+		err = runDiscover()
 	case "check":
 		err = runCheck()
 	case "install":
@@ -58,7 +61,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
@@ -146,25 +149,73 @@ func runPack() error {
 	return nil
 }
 
+// runDiscover prints the registered command paths found by default discovery,
+// in the same format as the `complete` hook.
+func runDiscover() error {
+	projectRoot, err := root.FindProjectRoot()
+	if err != nil {
+		debuglog.Log("[mnmd discover] no root: %v", err)
+		return cli.WrapError(err)
+	}
+	cfg, err := config.Load(filepath.Join(projectRoot, root.ConfigFileName))
+	if err != nil {
+		debuglog.Log("[mnmd discover] config: %v", err)
+		return cli.WrapError(err)
+	}
+	// A hook script's settings come from its config hook. The shell only calls
+	// discover when the complete hook printed nothing, so this runs at most
+	// one extra hook per Tab, and only in hook projects without a complete.
+	settings := cfg.ProjectSettings()
+	res := discover.Discover(projectRoot, cfg.Declared, settings.Hide)
+	debuglog.Log("[mnmd discover] root=%s registered=%d skipped=%d", projectRoot, len(res.Commands), len(res.Skipped))
+	for _, p := range res.Paths() {
+		fmt.Println(p)
+	}
+	return nil
+}
+
+// runCheck is the doctor. Warnings are printed but never fail the run; any
+// error-severity problem makes it exit non-zero.
 func runCheck() error {
+	projectRoot, rootErr := root.FindProjectRoot()
 	userConfig := os.Getenv("_MONOM_USER_CONFIG")
-	debuglog.Log("[mnmd check] config=%s", userConfig)
-	problems, err := check.Check(userConfig)
+	if userConfig == "" {
+		if rootErr != nil {
+			debuglog.Log("[mnmd check] no root: %v", rootErr)
+			return cli.WrapError(rootErr)
+		}
+		userConfig = filepath.Join(projectRoot, root.ConfigFileName)
+	}
+	debuglog.Log("[mnmd check] root=%s config=%s", projectRoot, userConfig)
+
+	report, err := check.Check(check.Input{
+		Root:         projectRoot,
+		UserConfig:   userConfig,
+		UserSeverity: os.Getenv(check.UserSeverityEnv),
+	})
 	if err != nil {
 		debuglog.Log("[mnmd check] failed: %v", err)
 		return cli.WrapError(err)
 	}
-	if len(problems) == 0 {
-		n := countLines(userConfig)
-		debuglog.Log("[mnmd check] OK: %d commands", n)
-		fmt.Printf("✔ %d commands OK\n", n)
-		return nil
-	}
-	debuglog.Log("[mnmd check] %d problem(s) found", len(problems))
-	for _, p := range problems {
+
+	for _, p := range report.Problems {
 		fmt.Println(p)
 	}
-	return cli.WrapError(fmt.Errorf("%d problem(s) found", len(problems)))
+	errs := report.Count(config.SeverityError)
+	warns := report.Count(config.SeverityWarning)
+	debuglog.Log("[mnmd check] commands=%d errors=%d warnings=%d", len(report.Commands), errs, warns)
+	if errs > 0 {
+		return cli.WrapError(fmt.Errorf("%d error(s), %d warning(s)", errs, warns))
+	}
+	summary := fmt.Sprintf("✔ %d commands OK", len(report.Commands))
+	if report.Discovered {
+		summary += " (default discovery)"
+	}
+	if warns > 0 {
+		summary += fmt.Sprintf(", %d warning(s)", warns)
+	}
+	fmt.Println(summary)
+	return nil
 }
 
 func runInstall() error {
@@ -176,24 +227,4 @@ func runInstall() error {
 		return cli.WrapError(err)
 	}
 	return nil
-}
-
-// countLines runs userConfig complete and counts non-empty output lines.
-func countLines(userConfig string) int {
-	if userConfig == "" {
-		return 0
-	}
-	var out bytes.Buffer
-	cmd := exec.Command(userConfig, "complete")
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return 0
-	}
-	count := 0
-	for _, line := range strings.Split(out.String(), "\n") {
-		if strings.TrimSpace(line) != "" {
-			count++
-		}
-	}
-	return count
 }

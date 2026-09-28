@@ -41,7 +41,7 @@ const caseTimeout = 30 * time.Second
 
 // scrubbedEnv lists variables a user's session may set that would change
 // monom's behavior; every case runs without them.
-var scrubbedEnv = []string{"_MONOM_PROJECT_ROOT", "_MONOM_USER_CONFIG", "MONOM_DEBUG_LOG", "MONOM_ACTIVE"}
+var scrubbedEnv = []string{"_MONOM_PROJECT_ROOT", "_MONOM_USER_CONFIG", "MONOM_DEBUG_LOG", "MONOM_ACTIVE", "MONOM_CHECK_ROOT_CONTENTS"}
 
 func TestCases(t *testing.T) {
 	repo, err := filepath.Abs("../..")
@@ -155,7 +155,7 @@ func runCase(t *testing.T, repo string, c Case, sh string) {
 		args = []string{"--no-rcs", "-c", caseScript(repo, c, sh)}
 	}
 	cmd := exec.CommandContext(ctx, shellPath, args...)
-	cmd.Env = cleanEnv()
+	cmd.Env = append(cleanEnv(), caseEnv(repo, c)...)
 
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -224,6 +224,31 @@ func caseScript(repo string, c Case, sh string) string {
 	return b.String()
 }
 
+// caseEnv returns the case's env as NAME=value, with "{root}" replaced by
+// the absolute project root, sorted for stable reports.
+func caseEnv(repo string, c Case) []string {
+	abs := filepath.Join(repo, c.Root)
+	var env []string
+	for k, v := range c.Env {
+		env = append(env, k+"="+strings.ReplaceAll(v, "{root}", abs))
+	}
+	sort.Strings(env)
+	return env
+}
+
+// envLine renders the case's env for failure reports, unexpanded.
+func envLine(c Case) string {
+	if len(c.Env) == 0 {
+		return ""
+	}
+	var kv []string
+	for k, v := range c.Env {
+		kv = append(kv, k+"="+v)
+	}
+	sort.Strings(kv)
+	return "  env:    " + strings.Join(kv, " ") + "\n"
+}
+
 func cleanEnv() []string {
 	var env []string
 	for _, kv := range os.Environ() {
@@ -267,6 +292,7 @@ func report(c Case, sh, problems, want, got, stderr string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n  case:   %s  (%s:%d)\n", c.Name, c.File, c.Line)
 	fmt.Fprintf(&b, "  shell:  %s    root: %s\n", sh, c.Root)
+	b.WriteString(envLine(c))
 	fmt.Fprintf(&b, "  input:  %q\n", c.Input)
 	sorted := ""
 	if c.Action == ActionTab {
