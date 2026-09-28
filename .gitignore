@@ -7,3 +7,6 @@ monom_tools
 bin/mnmd
 tmp/*
 !tmp/.gitkeep
+# Local Go workspaces (the Makefile runs with GOWORK=off)
+go.work
+go.work.sum

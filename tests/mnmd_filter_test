@@ -1,5 +1,9 @@
 #!/bin/bash
-# shUnit2 e2e tests for: mnmd filter
+# shUnit2 e2e tests for: mnmd filter's binary contract (stdin, exit code).
+# What filtering offers the user is covered end to end by `monom <Tab>` cases
+# in tests/cases/monom_completion.cases; these tests pin behavior that has no
+# typed-input equivalent: paths the author's hook emits with spaces, and the
+# never-exit-non-zero guarantee.
 # Run directly: bash tests/mnmd_filter_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,72 +17,6 @@ SHUNIT2="$REPO_ROOT/dependencies/shunit2"
 # ---------------------------------------------------------------------------
 # mnmd filter
 # ---------------------------------------------------------------------------
-
-test_filter_no_args_returns_top_level_tokens() {
-  result=$(
-    "$MONOMD" filter <<'EOF'
-category1/sub1
-category1/sub2
-command1
-command2
-EOF
-  )
-  assert_output_contains_line "category1 missing" "$result" "category1"
-  assert_output_contains_line "command1 missing"  "$result" "command1"
-  assert_output_contains_line "command2 missing"  "$result" "command2"
-}
-
-test_filter_partial_word_matches_top_level() {
-  result=$(
-    "$MONOMD" filter com <<'EOF'
-command1
-command2
-category1/sub1
-EOF
-  )
-  assert_output_contains_line "command1 missing"            "$result" "command1"
-  assert_output_contains_line "command2 missing"            "$result" "command2"
-  assert_output_lacks_line    "category1 should not appear" "$result" "category1"
-}
-
-test_filter_complete_word_plus_empty_drills_into_children() {
-  result=$(
-    "$MONOMD" filter category1 "" <<'EOF'
-category1/sub_command1
-category1/sub_command2
-command1
-EOF
-  )
-  assert_output_contains_line "sub_command1 missing"       "$result" "sub_command1"
-  assert_output_contains_line "sub_command2 missing"       "$result" "sub_command2"
-  assert_output_lacks_line    "command1 should not appear" "$result" "command1"
-}
-
-test_filter_complete_word_without_empty_returns_token_not_children() {
-  result=$(
-    "$MONOMD" filter category1 <<'EOF'
-category1/sub_command1
-category1/sub_command2
-command1
-EOF
-  )
-  assert_output_contains_line "category1 missing"              "$result" "category1"
-  assert_output_lacks_line    "sub_command1 should not appear" "$result" "sub_command1"
-  assert_output_lacks_line    "command1 should not appear"     "$result" "command1"
-}
-
-test_filter_nested_drill_down() {
-  result=$(
-    "$MONOMD" filter infra cloud "" <<'EOF'
-infra/cloud/deploy
-infra/cloud/teardown
-infra/local/start
-EOF
-  )
-  assert_output_contains_line "deploy missing"          "$result" "deploy"
-  assert_output_contains_line "teardown missing"        "$result" "teardown"
-  assert_output_lacks_line    "start should not appear" "$result" "start"
-}
 
 test_filter_paths_with_spaces_are_silently_excluded() {
   result=$(

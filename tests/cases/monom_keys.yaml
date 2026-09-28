@@ -1,0 +1,76 @@
+# Real key presses: an interactive bash or zsh in a pseudo-terminal (100x24),
+# set up like a user's rc, types `input`, presses Tab `tabs` times, and the
+# case checks the edit buffer (`line`) and, optionally, the completion
+# listing on screen (`candidates`, compared as a set).
+# The demo project's commands:
+#   db/migrate db/seed infra/cloud/deploy infra/cloud/teardown
+#   infra/local/start infra/local/stop release
+
+root: fixtures/demo-project
+shells: [bash, zsh]
+
+cases:
+  - name: tab completes a unique prefix and adds a space
+    input: monom in
+    action: keys
+    tabs: 1
+    line: "monom infra "
+    candidates: []
+
+  - name: tab completes a unique prefix inside a group
+    input: monom infra cl
+    action: keys
+    tabs: 1
+    line: "monom infra cloud "
+
+  - name: tab completes a leaf command
+    input: monom infra cloud de
+    action: keys
+    tabs: 1
+    line: "monom infra cloud deploy "
+
+  - name: no match leaves the line alone and lists nothing
+    input: monom zz
+    action: keys
+    tabs: 2
+    line: monom zz
+    candidates: []
+
+groups:
+  # bash lists an ambiguous word's candidates on the second Tab and keeps
+  # the line as typed.
+  - name: bash listing
+    shells: [bash]
+    cases:
+      - name: bash second tab lists a group's children
+        input: "monom infra "
+        action: keys
+        tabs: 2
+        line: "monom infra "
+        candidates: [cloud, local]
+
+      - name: bash second tab lists the top level
+        input: "monom "
+        action: keys
+        tabs: 2
+        line: "monom "
+        candidates: [db, infra, release]
+
+  # zsh lists on the first Tab, then menu completion inserts the first
+  # candidate on the second.
+  - name: zsh listing and menu
+    shells: [zsh]
+    cases:
+      - name: zsh first tab lists a group's children
+        input: "monom infra "
+        action: keys
+        tabs: 1
+        line: "monom infra "
+        candidates: [cloud, local]
+
+      - name: zsh second tab inserts the first candidate
+        input: "monom infra "
+        action: keys
+        tabs: 2
+        line: "monom infra cloud"
+        candidates: [cloud, local]

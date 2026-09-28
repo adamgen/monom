@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# monom user config for the hooks-project fixture.
+# `run` aliases `dbm` to `db migrate` and fails on purpose for `explode`;
+# `empty/` is a command group with no commands in it.
+
+case "$1" in
+  complete)
+    printf '%s\n' release db/migrate explode
+    ;;
+  run)
+    shift
+    case "$1" in
+      dbm) echo "db migrate" ;;
+      explode)
+        echo "run hook: boom" >&2
+        exit 3
+        ;;
+    esac
+    ;;
+esac
