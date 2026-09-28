@@ -338,6 +338,51 @@ test_zsh_run_hook_failure_surfaces_error_and_aborts() {
 }
 
 # ---------------------------------------------------------------------------
+# configs that are not hook scripts: every hook behaves as absent
+# ---------------------------------------------------------------------------
+
+test_bash_runs_command_in_project_without_monom_file() {
+  local proj output
+  proj=$(make_run_project)
+  rm "$proj/monom"
+  output=$(run_monom_in bash "$proj" db migrate)
+  assert_output_contains_line "zero-config project runs db/migrate in bash" \
+    "$output" "ran db/migrate"
+  assert_output_lacks_line "a missing config is not a failing run hook" \
+    "$output" "monom: run hook failed (exit 127)"
+  rm -rf "$proj"
+}
+
+test_zsh_runs_command_in_project_without_monom_file() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output
+  proj=$(make_run_project)
+  rm "$proj/monom"
+  output=$(run_monom_in zsh "$proj" db migrate)
+  assert_output_contains_line "zero-config project runs db/migrate in zsh" \
+    "$output" "ran db/migrate"
+  rm -rf "$proj"
+}
+
+test_bash_executable_declarative_monom_file_is_never_executed() {
+  local proj output
+  proj=$(make_run_project)
+  # No shebang: a declaration file. If the shell ran it, the `touch` line would
+  # execute and create the marker file.
+  cat > "$proj/monom" <<EOF
+touch $proj/executed
+EOF
+  chmod +x "$proj/monom"
+  output=$(run_monom_in bash "$proj" release)
+  assert_output_contains_line "release still runs in bash" "$output" "ran release"
+  assertFalse "declarative config must not be executed" "[ -e '$proj/executed' ]"
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
 # command groups: invoking a directory lists children instead of running
 # ---------------------------------------------------------------------------
 # make_run_project provides the group tree, with the children sourced from the

@@ -39,5 +39,35 @@ test_root_not_found_exits_nonzero() {
   rm -rf "$tmp"
 }
 
+test_root_env_var_pins_directory_without_config_file() {
+  local tmp
+  tmp=$(mktemp -d)
+  tmp=$(cd "$tmp" && pwd -P)
+  result=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" root)
+  assertEquals "an alias-pinned root needs no monom file" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_empty_non_executable_monom_file_marks_root() {
+  local tmp
+  tmp=$(mktemp -d)
+  tmp=$(cd "$tmp" && pwd -P)
+  touch "$tmp/monom"
+  mkdir -p "$tmp/sub"
+  result=$(cd "$tmp/sub" && _MONOM_PROJECT_ROOT="" "$MONOMD" root)
+  assertEquals "an empty monom file marks the root" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
+test_root_falls_back_to_git_root_without_config_file() {
+  local tmp
+  tmp=$(mktemp -d)
+  tmp=$(cd "$tmp" && pwd -P)
+  mkdir -p "$tmp/.git" "$tmp/a/b"
+  result=$(cd "$tmp/a/b" && _MONOM_PROJECT_ROOT="" "$MONOMD" root)
+  assertEquals "the git root is the fallback root" "$tmp" "$result"
+  rm -rf "$tmp"
+}
+
 # shellcheck disable=SC1090
 . "$SHUNIT2"

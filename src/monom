@@ -28,7 +28,18 @@ _monom_log() {
 
 # _monom_cfg — thin wrapper so call sites read as `_monom_cfg complete`
 # instead of `"$_MONOM_USER_CONFIG" complete`.
-_monom_cfg() { "$_MONOM_USER_CONFIG" "$@"; }
+# Only an executable file whose first line is a shebang is a hook script. Any
+# other config (absent, empty, declarative, or not executable) has no hooks, so
+# every hook call behaves as an absent hook: exit 0, no output. Running such a
+# file would make the shell execute declaration lines as commands.
+_monom_cfg() {
+  local first_line=""
+  [ -f "$_MONOM_USER_CONFIG" ] && [ -x "$_MONOM_USER_CONFIG" ] || return 0
+  IFS= read -r first_line < "$_MONOM_USER_CONFIG"
+  case "$first_line" in
+    '#!'*) "$_MONOM_USER_CONFIG" "$@" ;;
+  esac
+}
 
 # _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set,
 # then resolves the effective MONOM_DEBUG_LOG via the optional `debug` hook.
