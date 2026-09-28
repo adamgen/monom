@@ -18,8 +18,8 @@ _monom() {
   fi
   _monom_log "[zsh] _setup_monom OK: root=$_MONOM_PROJECT_ROOT"
   local raw_completions
-  raw_completions=$(_monom_cfg complete 2>/dev/null)
-  _monom_log "[zsh] _monom_cfg complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
+  raw_completions=$(_monom_complete)
+  _monom_log "[zsh] _monom_complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
   _monom_log "[zsh] raw_completions first line: $(printf '%s' "$raw_completions" | head -1)"
   local filter_words=("${words[@]:1}")
   _monom_log "[zsh] filter words=(${filter_words[*]})"
@@ -55,7 +55,7 @@ fi
 # Completes the first argument with the list of known mnmd subcommands.
 _mnmd() {
   local -a subcommands
-  subcommands=(filter root pack check install completion)
+  subcommands=(filter root pack discover check install completion)
   # Only complete the first positional argument (subcommand slot).
   # $words is set by zsh's completion system; $words[1] is "mnmd".
   # SC2154: referenced but not assigned — false positive for zsh completion variables.

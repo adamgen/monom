@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # src/monom — sourced from user's rc file (.bashrc or .zshrc).
-# Defines monom(), _setup_monom(), and _monom_cfg(), then sources the
+# Defines monom(), _setup_monom(), _monom_cfg(), and _monom_complete(), then sources the
 # shell-specific completion binding.
 
 export _MONOM_LIB_ROOT
@@ -39,6 +39,20 @@ _monom_cfg() {
   case "$first_line" in
     '#!'*) "$_MONOM_USER_CONFIG" "$@" ;;
   esac
+}
+
+# _monom_complete — prints every command path of the project, slash-delimited,
+# one per line: the `complete` hook's output, or monom's default discovery
+# (`mnmd discover`) when the hook prints nothing — which is also what an absent
+# hook, an absent config, or a declarative config does. Never writes to stderr.
+_monom_complete() {
+  local out
+  out=$(_monom_cfg complete 2>/dev/null)
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+  else
+    mnmd discover 2>/dev/null
+  fi
 }
 
 # _setup_monom — ensures _MONOM_PROJECT_ROOT and _MONOM_USER_CONFIG are set,
@@ -99,9 +113,9 @@ _monom_list_group() {
   shift
   echo "monom: $label" >&2
   local children
-  # A trailing "" tells filter to drill into this level's children. complete
-  # stays the single source of truth so the listing matches <Tab>.
-  children=$(_monom_cfg complete 2>/dev/null | mnmd filter "$@" "" 2>/dev/null)
+  # A trailing "" tells filter to drill into this level's children.
+  # _monom_complete stays the single source of truth so the listing matches <Tab>.
+  children=$(_monom_complete | mnmd filter "$@" "" 2>/dev/null)
   if [ -n "$children" ]; then
     local available
     available=$(printf '%s' "$children" | tr '\n' ' ')

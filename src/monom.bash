@@ -14,8 +14,8 @@ _monom_completion() {
   fi
   _monom_log "[bash] _setup_monom OK: root=$_MONOM_PROJECT_ROOT"
   local raw_completions
-  raw_completions=$(_monom_cfg complete 2>/dev/null)
-  _monom_log "[bash] _monom_cfg complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
+  raw_completions=$(_monom_complete)
+  _monom_log "[bash] _monom_complete: $(printf '%s' "$raw_completions" | wc -l | tr -d ' ') lines"
   # shellcheck disable=SC2207
   COMPREPLY=($(printf '%s' "$raw_completions" | mnmd filter "${COMP_WORDS[@]:1}" 2>/dev/null))
   _monom_log "[bash] COMPREPLY=(${COMPREPLY[*]})"
@@ -28,7 +28,7 @@ complete -F _monom_completion monom
 # Completes the first argument with the list of known mnmd subcommands.
 _mnmd_completion() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local subcommands="filter root pack check install completion"
+  local subcommands="filter root pack discover check install completion"
   # Only complete the first positional argument (subcommand slot).
   if [[ "${COMP_CWORD}" -eq 1 ]]; then
     # shellcheck disable=SC2207

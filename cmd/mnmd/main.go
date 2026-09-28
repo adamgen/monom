@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/adamgen/monom/internal/check"
 	"github.com/adamgen/monom/internal/cli"
+	"github.com/adamgen/monom/internal/config"
 	"github.com/adamgen/monom/internal/debuglog"
+	"github.com/adamgen/monom/internal/discover"
 	"github.com/adamgen/monom/internal/filter"
 	"github.com/adamgen/monom/internal/install"
 	"github.com/adamgen/monom/internal/pack"
@@ -42,6 +45,8 @@ func main() {
 		err = runRoot()
 	case "pack":
 		err = runPack()
+	case "discover":
+		err = runDiscover()
 	case "check":
 		err = runCheck()
 	case "install":
@@ -58,7 +63,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, check, install")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
@@ -143,6 +148,27 @@ func runPack() error {
 	}
 	debuglog.Log("[mnmd pack] resolved: %s", absPath)
 	fmt.Println(absPath)
+	return nil
+}
+
+// runDiscover prints the registered command paths found by default discovery,
+// in the same format as the `complete` hook.
+func runDiscover() error {
+	projectRoot, err := root.FindProjectRoot()
+	if err != nil {
+		debuglog.Log("[mnmd discover] no root: %v", err)
+		return cli.WrapError(err)
+	}
+	cfg, err := config.Load(filepath.Join(projectRoot, root.ConfigFileName))
+	if err != nil {
+		debuglog.Log("[mnmd discover] config: %v", err)
+		return cli.WrapError(err)
+	}
+	res := discover.Discover(projectRoot, cfg.Declared)
+	debuglog.Log("[mnmd discover] root=%s registered=%d skipped=%d", projectRoot, len(res.Commands), len(res.Skipped))
+	for _, p := range res.Paths() {
+		fmt.Println(p)
+	}
 	return nil
 }
 

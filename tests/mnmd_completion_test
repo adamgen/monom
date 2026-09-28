@@ -15,7 +15,7 @@ SRC_MONOM_ZSH="$REPO_ROOT/src/monom.zsh"
 . "$SCRIPT_DIR/helpers"
 
 # The canonical list of mnmd subcommands exposed for completion.
-EXPECTED_SUBCOMMANDS="filter root pack check install completion"
+EXPECTED_SUBCOMMANDS="filter root pack discover check install completion"
 
 # ---------------------------------------------------------------------------
 # bash: _mnmd_completion is defined and registered

@@ -49,6 +49,18 @@ EOF
   printf '%s' "$d"
 }
 
+# make_zero_config_project — copies fixtures/zero-config-project (a tree with
+# no monom config file) into a temp dir and prints the resolved absolute path.
+# Tests that need a monom config file write one into the copy.
+# Usage: proj=$(make_zero_config_project)
+make_zero_config_project() {
+  local d
+  d=$(mktemp -d)
+  d=$(cd "$d" 2>/dev/null && pwd -P)
+  cp -Rp "$REPO_ROOT/fixtures/zero-config-project/." "$d/"
+  printf '%s' "$d"
+}
+
 # make_user_config — creates an executable user-config script whose "complete"
 # subcommand prints the paths given on stdin (one per line). Prints the script path.
 # Usage:
