@@ -1,0 +1,12 @@
+{
+  "$note": "Maps the CLI's command tree onto legacy scripts scattered around the repo. Delete entries as scripts migrate into the tree.",
+  "db": {
+    "migrate": "scripts/legacy/run_migrations.sh",
+    "seed": "scripts/legacy/seed_db.sh"
+  },
+  "deploy": {
+    "$note": "object form: reserves room for future per-command keys",
+    "run": "ops/full_deploy.sh"
+  },
+  "release": "tools/make_release.sh"
+}

@@ -109,7 +109,31 @@ case "$1" in
   complete) printf 'release\ndb/migrate\ninfra/cloud/deploy\n' ;;
   run)
     echo "run hook: boom" >&2
-    exit 3
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$d/monom"
+  printf '%s' "$d"
+}
+
+# make_group_signal_hook_project — a project whose `run` hook exits 3 (the
+# group signal) for the token "virt", the way `mnmd map resolve` answers for a
+# map category. "virt" deliberately has NO directory on disk: pack alone would
+# report "command not found", so these tests isolate the hook-exit-3 →
+# group-listing path, which must behave exactly like pack's exit 3.
+make_group_signal_hook_project() {
+  local d
+  d=$(make_run_project)
+  cat > "$d/monom" <<'EOF'
+#!/bin/sh
+case "$1" in
+  complete) printf 'release\nvirt/one\nvirt/two\n' ;;
+  run)
+    shift
+    if [ "$*" = "virt" ]; then
+      exit 3
+    fi
     ;;
 esac
 EOF
@@ -312,7 +336,7 @@ test_bash_run_hook_failure_surfaces_error_and_aborts() {
   assert_output_lacks_line "monom must not fall back to running release in bash" \
     "$output" "ran release"
   # monom should exit with the hook's exit code.
-  assertEquals "monom should exit with the hook's status in bash" "3" "$status"
+  assertEquals "monom should exit with the hook's status in bash" "1" "$status"
 
   rm -rf "$proj"
 }
@@ -332,7 +356,49 @@ test_zsh_run_hook_failure_surfaces_error_and_aborts() {
     "$output" "run hook: boom"
   assert_output_lacks_line "monom must not fall back to running release in zsh" \
     "$output" "ran release"
-  assertEquals "monom should exit with the hook's status in zsh" "3" "$status"
+  assertEquals "monom should exit with the hook's status in zsh" "1" "$status"
+
+  rm -rf "$proj"
+}
+
+# ---------------------------------------------------------------------------
+# run hook exit 3: the group signal. The hook may answer "these tokens name a
+# category" (e.g. `mnmd map resolve` for a map category with no directory on
+# disk); monom must produce the same listing as pack's exit 3, not an error.
+# ---------------------------------------------------------------------------
+
+test_bash_run_hook_group_signal_lists_children() {
+  local proj output status
+  proj=$(make_group_signal_hook_project)
+
+  output=$(run_monom_in bash "$proj" virt)
+  status=$?
+
+  assert_output_contains_line "hook exit 3 should announce the group in bash" \
+    "$output" "monom: 'virt' is a command group"
+  assert_output_contains_line "children should be sourced from complete|filter in bash" \
+    "$output" "available: one, two"
+  assertEquals "group outcome should exit 1 like pack's, in bash" "1" "$status"
+
+  rm -rf "$proj"
+}
+
+test_zsh_run_hook_group_signal_lists_children() {
+  if ! command -v zsh > /dev/null 2>&1; then
+    echo "SKIP: zsh not available"
+    return
+  fi
+  local proj output status
+  proj=$(make_group_signal_hook_project)
+
+  output=$(run_monom_in zsh "$proj" virt)
+  status=$?
+
+  assert_output_contains_line "hook exit 3 should announce the group in zsh" \
+    "$output" "monom: 'virt' is a command group"
+  assert_output_contains_line "children should be sourced from complete|filter in zsh" \
+    "$output" "available: one, two"
+  assertEquals "group outcome should exit 1 like pack's, in zsh" "1" "$status"
 
   rm -rf "$proj"
 }

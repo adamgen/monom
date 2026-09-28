@@ -34,7 +34,7 @@ Subcommand inputs SHOULD be CLI arguments. Stdin SHOULD only be used when the in
 
 Examples in this codebase:
 - `mnmd filter` reads commands from stdin — the command list is unbounded and naturally produced by piping `_monom_cfg complete`. Stream.
-- `mnmd pack` takes args — the user's command tokens are a small, known parameter set produced by the shell at call time, not a stream. Parameters.
+- `mnmd pack` and `mnmd map resolve` take args — the user's command tokens are a small, known parameter set produced by the shell at call time, not a stream. Parameters.
 - `mnmd root` and `mnmd check` take no input — neither parameters nor stream.
 
 ---
@@ -163,7 +163,7 @@ Pack is the symmetric counterpart of `filter`: both take space-separated tokens 
 
 **Exit codes.** Pack signals its outcome through the exit code so the shell can branch without parsing strings. All exit codes are defined in the central registry at `internal/cli/cli.go` (see constitution: *Errors Carry Their Own Exit Code*).
 
-Exit code `3` is **reserved exclusively** for the command-group outcome — the tokens resolved to a directory rather than an executable. A directory is a noun in monom's noun→verb file tree: not a command, but not a failure either. Exit 3 is a *pure signal* — pack writes nothing to stdout or stderr and does not enumerate the group's children. Rendering the group for the user is the shell layer's job; see [shell files](#shell-files).
+Exit code `3` is **reserved for the group signal** — the tokens name a category, not a command. From pack that means they resolved to a directory rather than an executable; the same signal may come from a `run` hook (via [`mnmd map resolve`](#mnmd-map-complete--mnmd-map-resolve-word)) for a map category that has no directory on disk. A category is a noun in monom's noun→verb command tree: not a command, but not a failure either. Exit 3 is a *pure signal* — the emitter writes nothing to stdout or stderr and does not enumerate the group's children. Rendering the group for the user is the shell layer's job; see [shell files](#shell-files).
 
 A command group is never runnable by default. An author who wants `monom infra` to *do* something expresses that in their own config via the [`run` hook](#hook-run--transform-args-before-path-resolution), e.g. mapping `infra` → `infra cloud deploy`.
 
@@ -192,7 +192,49 @@ Currently checks:
 
 - Every path is slash-delimited with no spaces in any segment. A path with spaces would be silently skipped by `mnmd filter` during completion, making that command undiscoverable.
 
+When a command map (`monom-map.json`) exists at the project root, check also validates it:
+
+- The file parses. Duplicate keys are a hard error — JSON decoders otherwise keep the last occurrence silently, swallowing a command.
+- Every run target exists, is a regular file, is executable, and stays inside the project root.
+- No map entry shadows the file tree. A map command over any existing tree path, or a map category over a tree *file*, makes that tree entry unreachable (the run hook fires before pack). A map category over a tree *directory* merges — unmapped children fall back to pack — and is fine.
+
 Intended to be run by the CLI author during development and in CI. Not called on the completion or execution path.
+
+---
+
+### `mnmd map complete` / `mnmd map resolve <word...>`
+
+The **command map** backend: an implementation of the `complete` and `run` hooks that authors wire into their config file, for brownfield projects whose scripts are scattered outside a clean command tree. `mnmd pack` remains the sole resolver — `map resolve` only rewrites the user's tokens into the tokens pack receives; it never validates or executes targets itself.
+
+Both subcommands read `monom-map.json` at the project root (discovered via the `mnmd root` algorithm). The node model mirrors the file tree: a **string value** is a command whose run target is that root-relative path (shorthand for `{"run": <target>}`); an **object with a `"run"` key** is a command node; any **other object** is a category whose keys are children. `"$note"` is allowed anywhere and ignored — it stands in for the comments JSON lacks. The keys `complete`, `pre-run`, and `post-run` are reserved for future per-command hooks and rejected today, as is a node with both a `"run"` target and children.
+
+```json
+{
+  "db": {
+    "migrate": "scripts/legacy/run_migrations.sh"
+  },
+  "deploy": { "run": "ops/full_deploy.sh" },
+  "release": "tools/make_release.sh"
+}
+```
+
+`map complete` prints the map's command paths, slash-delimited and sorted, one per line — the `complete` hook wire format. `map resolve` takes the user's tokens as CLI args (parameters, like pack) and has three outcomes:
+
+- **Command node matched** — prints the target as space-separated path tokens (`scripts legacy run_migrations.sh`), exit 0. This is the `run` hook output format; pack re-joins the tokens with `/`.
+- **Category node matched** — exit 3, the payload-free [group signal](#mnmd-pack-word), exactly like pack's directory outcome.
+- **No match** (unknown name, or tokens continuing past a command) — prints nothing, exit 0. Empty output triggers the run-hook fallback, so unresolved tokens drop through to `mnmd pack` against the file tree: **the map is an overlay on the tree, not a replacement.** Mapped legacy scripts and native tree commands coexist, and migrating a script into the tree is just deleting its map entry.
+
+The author's config file wiring, in full:
+
+```bash
+#!/usr/bin/env bash
+case "$1" in
+  complete) mnmd map complete ;;   # plus any tree discovery, for hybrid projects
+  run)      shift; mnmd map resolve "$@" ;;
+esac
+```
+
+A missing or unparsable map file is a loud error (exit 1, stderr): a config that delegates to `mnmd map` without a valid map is misconfigured. `mnmd check` reports map problems proactively. See `fixtures/brownfield-project/` for a complete runnable example, and `internal/mapfile/TRADEOFFS.md` for the contested decisions.
 
 ---
 
@@ -232,7 +274,7 @@ Shell files exist only where a technical constraint makes Go impossible — prim
 | `src/monom.zsh`  | Registers zsh completion hook (`compdef _monom monom`).                                                      |
 
 
-**Rendering a command group.** `pack`'s exit 3 carries no payload, so `monom()` produces the user-facing message itself. It names the group by the last token the user typed and lists the children by re-running the discovery pipeline — `_monom_cfg complete | mnmd filter <tokens> ""`, where the trailing empty word drills into the level. This is the same pipeline tab completion uses, so the listing always matches `monom <group> <Tab>`. When the pipeline yields nothing, the `available:` line is omitted.
+**Rendering a command group.** The group signal (exit 3, from `pack` or from a `run` hook) carries no payload, so `monom()` produces the user-facing message itself. It names the group by the last token the user typed and lists the children by re-running the discovery pipeline — `_monom_cfg complete | mnmd filter <tokens> ""`, where the trailing empty word drills into the level. This is the same pipeline tab completion uses, so the listing always matches `monom <group> <Tab>`. When the pipeline yields nothing, the `available:` line is omitted.
 
 ```
 monom: 'infra' is a command group
@@ -276,7 +318,10 @@ The hook's **exit code selects the behavior**:
 | ----------- | -------------- |
 | exit 0, empty stdout | Hook absent, or present and declining. Falls back to the user's original args. These two cases are deliberately indistinguishable. |
 | exit 0, non-empty stdout | Splits the output into words and passes them to `mnmd pack` in place of the original args. |
-| non-zero exit | Hook present and failed. Forwards the hook's stderr to the user, returns the hook's exit code, and does not call `mnmd pack` or exec anything. |
+| exit 3 | The group signal: the typed tokens name a category the hook owns (e.g. a command-map category with no directory on disk). Renders the same command-group listing as pack's exit 3 and returns 1. Any hook output is ignored — the signal is payload-free by contract. |
+| other non-zero exit | Hook present and failed. Forwards the hook's stderr to the user, returns the hook's exit code, and does not call `mnmd pack` or exec anything. |
+
+Exit 3 is therefore not available to run hooks as an ordinary failure code — see `internal/cli/TRADEOFFS.md`.
 
 The hook may change the *number* of args — that is its purpose. Because a hook is a separate process, it receives argv but can only emit a flat stdout stream, so `monom()` re-splits that stream before handing it to `pack`:
 
@@ -350,7 +395,8 @@ user presses Tab
 user runs: monom <args...>
   → monom() [shell]
     → _setup_monom                          [resolves root, config path, effective MONOM_DEBUG_LOG]
-    → (optional) _monom_cfg run <args...>   [user hook — transforms args; falls back when it exits 0 with no output]
+    → (optional) _monom_cfg run <args...>   [user hook — transforms args; falls back when it exits 0 with no output;
+                                             exit 3 → shell renders the command-group listing, returns 1]
     → mnmd pack <args...>                   [Go — discovers root, joins with /, resolves to absolute path]
     → exit 0 → shell exec's the resolved path in a subshell
       exit 3 → shell renders the command-group listing, returns 1

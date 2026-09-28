@@ -96,7 +96,7 @@ Tests are documentation. When a behavior is subtle, the test name is where you s
 
 ### shUnit2 e2e test structure
 
-Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` is a complete, runnable example project; point tests at it rather than building an ad-hoc tree inline.
+Shared fixtures and assertion helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. `fixtures/demo-project/` (file-tree discovery) and `fixtures/brownfield-project/` (command-map discovery) are complete, runnable example projects; point tests at them rather than building an ad-hoc tree inline.
 
 Each test file follows this pattern:
 
@@ -126,7 +126,7 @@ make check    # build + go vet + go test + shUnit2 e2e + shellcheck
 
 ### Add a mnmd subcommand
 
-Current subcommands: `filter`, `root`, `pack`, `check`, `install`.
+Current subcommands: `filter`, `root`, `pack`, `check`, `install`, `map`.
 
 1. Add or update the logic package under `internal/<subcommand>/` with a `*_test.go` covering edge cases not testable from outside the binary
 2. Wire the dispatch in `cmd/mnmd/main.go` and add the subcommand to `usage()`

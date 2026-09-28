@@ -1,0 +1,162 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd map (complete / resolve) and check's map validation
+# Run directly: bash tests/mnmd_map_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+FIXTURE="$REPO_ROOT/fixtures/brownfield-project"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# make_map_project <json> — a temp monom project whose command map is the
+# given JSON. Used for the error cases the fixture deliberately doesn't have.
+make_map_project() {
+  local d
+  d=$(make_tmp_project)
+  printf '%s\n' "$1" > "$d/monom-map.json"
+  printf '%s' "$d"
+}
+
+# ---------------------------------------------------------------------------
+# mnmd map complete
+# ---------------------------------------------------------------------------
+
+test_map_complete_prints_sorted_command_paths() {
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map complete)
+  expected="db/migrate
+db/seed
+deploy
+release"
+  assertEquals "map complete must print sorted slash-delimited command paths" \
+    "$expected" "$result"
+}
+
+test_map_complete_errors_when_map_file_is_missing() {
+  tmp=$(make_tmp_project)
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" map complete 2>&1)
+  assertNotEquals "map complete must exit non-zero without a map file" 0 $?
+  assertContains "error must name the missing file" "$err" "monom-map.json"
+  rm -rf "$tmp"
+}
+
+test_map_complete_errors_on_invalid_json() {
+  tmp=$(make_map_project '{not json')
+  _MONOM_PROJECT_ROOT="$tmp" "$MONOMD" map complete >/dev/null 2>&1
+  assertNotEquals "map complete must exit non-zero on invalid JSON" 0 $?
+  rm -rf "$tmp"
+}
+
+test_map_complete_errors_on_duplicate_keys() {
+  tmp=$(make_map_project '{"db": {"a": "x.sh", "a": "y.sh"}}')
+  err=$(_MONOM_PROJECT_ROOT="$tmp" "$MONOMD" map complete 2>&1)
+  assertNotEquals "map complete must exit non-zero on duplicate keys" 0 $?
+  assertContains "error must mention the duplicate key" "$err" "duplicate key"
+  rm -rf "$tmp"
+}
+
+test_map_complete_errors_when_node_is_both_command_and_category() {
+  tmp=$(make_map_project '{"db": {"run": "x.sh", "seed": "y.sh"}}')
+  _MONOM_PROJECT_ROOT="$tmp" "$MONOMD" map complete >/dev/null 2>&1
+  assertNotEquals "map complete must reject a node with run and children" 0 $?
+  rm -rf "$tmp"
+}
+
+# ---------------------------------------------------------------------------
+# mnmd map resolve
+# ---------------------------------------------------------------------------
+
+test_map_resolve_prints_target_tokens_for_nested_command() {
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve db migrate)
+  assertEquals "resolve must print the target as space-separated tokens" \
+    "scripts legacy run_migrations.sh" "$result"
+}
+
+test_map_resolve_prints_target_tokens_for_object_form_command() {
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve deploy)
+  assertEquals "resolve must handle the object node form" \
+    "ops full_deploy.sh" "$result"
+}
+
+test_map_resolve_prints_target_tokens_for_string_shorthand() {
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve release)
+  assertEquals "resolve must handle the string shorthand form" \
+    "tools make_release.sh" "$result"
+}
+
+test_map_resolve_category_exits_3_with_empty_output() {
+  out=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve db 2>/dev/null)
+  status=$?
+  assertEquals "a category must exit 3 (group signal)" 3 "$status"
+  assertEquals "the group signal is payload-free on stdout" "" "$out"
+  err=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve db 2>&1 1>/dev/null)
+  assertEquals "the group signal is payload-free on stderr" "" "$err"
+}
+
+test_map_resolve_unknown_command_exits_0_with_empty_output() {
+  # Empty output + exit 0 triggers the run-hook fallback: unmapped commands
+  # drop through to the file tree, making the map an overlay.
+  out=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve nope 2>&1)
+  status=$?
+  assertEquals "no match must exit 0 so the shell falls back" 0 "$status"
+  assertEquals "no match must print nothing" "" "$out"
+}
+
+test_map_resolve_words_past_a_command_exit_0_with_empty_output() {
+  out=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve deploy --force 2>&1)
+  status=$?
+  assertEquals "words past a command must exit 0 (fallback)" 0 "$status"
+  assertEquals "words past a command must print nothing" "" "$out"
+}
+
+# ---------------------------------------------------------------------------
+# map output feeds the standard pipeline: filter for completion, pack after
+# the run hook. These pin the cross-subcommand contract end to end.
+# ---------------------------------------------------------------------------
+
+test_map_complete_output_drills_through_filter() {
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map complete | "$MONOMD" filter db "")
+  expected="migrate
+seed"
+  assertEquals "filter must drill into map categories like tree ones" \
+    "$expected" "$result"
+}
+
+test_map_resolve_output_packs_to_the_scattered_file() {
+  # shellcheck disable=SC2046
+  result=$(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" pack $(_MONOM_PROJECT_ROOT="$FIXTURE" "$MONOMD" map resolve db migrate))
+  assertEquals "pack must resolve the map's target tokens to the real file" \
+    "$FIXTURE/scripts/legacy/run_migrations.sh" "$result"
+}
+
+# ---------------------------------------------------------------------------
+# mnmd check validates the map (see internal/check)
+# ---------------------------------------------------------------------------
+
+test_check_reports_missing_map_target() {
+  tmp=$(make_map_project '{"deploy": "ops/gone.sh"}')
+  out=$(_MONOM_USER_CONFIG="$tmp/monom" "$MONOMD" check 2>/dev/null)
+  assertNotEquals "check must exit non-zero for a missing map target" 0 $?
+  assertContains "check must name the missing target" "$out" "does not exist"
+  rm -rf "$tmp"
+}
+
+test_check_reports_map_command_shadowing_tree_path() {
+  tmp=$(make_map_project '{"deploy": "ops/d.sh"}')
+  make_cmd "$tmp/ops/d.sh"
+  make_cmd "$tmp/deploy"
+  out=$(_MONOM_USER_CONFIG="$tmp/monom" "$MONOMD" check 2>/dev/null)
+  assertNotEquals "check must exit non-zero for a shadowing map command" 0 $?
+  assertContains "check must report the shadowed tree path" "$out" "shadows tree path"
+  rm -rf "$tmp"
+}
+
+test_check_passes_on_the_fixture() {
+  out=$(_MONOM_USER_CONFIG="$FIXTURE/monom" PATH="$REPO_ROOT/bin:$PATH" "$MONOMD" check 2>&1)
+  assertEquals "check must pass on the brownfield fixture: $out" 0 $?
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"
