@@ -10,10 +10,13 @@
 //	cases:                          # optional
 //	  - name: <unique in the file>  # required
 //	    input: <CLI line>           # required
-//	    action: enter | tab         # required
+//	    action: enter | tab | keys  # required
 //	    exit: <int>                 # optional, enter only, default 0
-//	    match: exact | normalized   # optional, default exact
-//	    expect: <string> | [list]   # required: a string for enter, a list for tab
+//	    match: exact | normalized   # optional, enter and tab, default exact
+//	    expect: <string> | [list]   # enter and tab: a string for enter, a list for tab
+//	    tabs: 1 | 2 | 3             # keys only, required: Tab presses after the input
+//	    line: <string>              # keys only, required: the edit buffer afterwards
+//	    candidates: [list]          # keys only, optional: the listing on screen, as a set
 //	groups:                         # optional
 //	  - name: <group name>          # required
 //	    root: <dir>                 # optional override
@@ -42,14 +45,22 @@ type Case struct {
 	Shells []string
 	Input  string
 	Action string // ActionEnter or ActionTab
-	Expect string // tab candidates are newline-joined
+	Expect string // enter and tab; tab candidates are newline-joined
 	Exit   int
 	Match  string // MatchExact or MatchNormalized
+
+	// Action keys only: an interactive shell in a pseudo-terminal.
+	Tabs            int      // Tab presses after typing Input
+	WantLine        string   // the line editor's buffer afterwards
+	Candidates      []string // the completion listing on screen, compared as a set
+	CheckCandidates bool     // whether `candidates` was given ([] means no listing)
 }
 
 const (
 	ActionEnter     = "enter"
 	ActionTab       = "tab"
+	ActionKeys      = "keys"
+	maxTabs         = 3
 	MatchExact      = "exact"
 	MatchNormalized = "normalized"
 )
@@ -57,7 +68,7 @@ const (
 var (
 	fileKeys  = []string{"root", "shells", "cases", "groups"}
 	groupKeys = []string{"name", "root", "shells", "cases"}
-	caseKeys  = []string{"name", "input", "action", "exit", "match", "expect"}
+	caseKeys  = []string{"name", "input", "action", "exit", "match", "expect", "tabs", "line", "candidates"}
 )
 
 // Errors collects every validation problem in a file.
@@ -236,13 +247,29 @@ func (l *loader) oneCase(n *yaml.Node, group, groupCtx string, cfg config) {
 	}
 	c.Input = l.str(f["input"], ctx, "input", n)
 	c.Action = l.str(f["action"], ctx, "action", n)
-	if f["action"] != nil && c.Action != ActionEnter && c.Action != ActionTab {
-		l.errorf(f["action"], ctx, "action must be %q or %q, got %q", ActionEnter, ActionTab, c.Action)
+	if f["action"] != nil && c.Action != ActionEnter && c.Action != ActionTab && c.Action != ActionKeys {
+		l.errorf(f["action"], ctx, "action must be %q, %q or %q, got %q", ActionEnter, ActionTab, ActionKeys, c.Action)
 	}
 	if cfg.root == "" {
 		l.errorf(n, ctx, "no root: set `root:` at the top of the file or in the group")
 	}
 
+	if c.Action == ActionKeys {
+		l.keysFields(&c, f, n, ctx)
+	} else if f["action"] != nil {
+		for _, k := range []string{"tabs", "line", "candidates"} {
+			if f[k] != nil {
+				l.errorf(f[k], ctx, "%s applies only to action: keys", k)
+			}
+		}
+		l.expectFields(&c, f, n, ctx)
+	}
+
+	l.cases = append(l.cases, c)
+}
+
+// expectFields validates exit, match and expect for actions enter and tab.
+func (l *loader) expectFields(c *Case, f map[string]*yaml.Node, n *yaml.Node, ctx string) {
 	if m := f["match"]; m != nil {
 		c.Match = l.str(m, ctx, "match", m)
 		if c.Match != MatchExact && c.Match != MatchNormalized {
@@ -265,19 +292,10 @@ func (l *loader) oneCase(n *yaml.Node, group, groupCtx string, cfg config) {
 	case exp == nil:
 		l.errorf(n, ctx, "missing required key \"expect\"")
 	case c.Action == ActionTab:
-		if exp.Kind != yaml.SequenceNode {
-			l.errorf(exp, ctx, "expect for action: tab must be a list of candidates (use [] for none)")
-			break
+		items, ok := l.strList(exp, ctx, "expect for action: tab must be a list of candidates (use [] for none)")
+		if ok {
+			c.Expect = strings.Join(items, "\n")
 		}
-		var items []string
-		for _, it := range exp.Content {
-			if it.Kind != yaml.ScalarNode {
-				l.errorf(it, ctx, "tab candidates must be strings")
-				continue
-			}
-			items = append(items, it.Value)
-		}
-		c.Expect = strings.Join(items, "\n")
 	case c.Action == ActionEnter:
 		if exp.Kind != yaml.ScalarNode {
 			l.errorf(exp, ctx, "expect for action: enter must be a string (use a | block for several lines)")
@@ -285,8 +303,59 @@ func (l *loader) oneCase(n *yaml.Node, group, groupCtx string, cfg config) {
 		}
 		c.Expect = strings.TrimRight(exp.Value, "\n")
 	}
+}
 
-	l.cases = append(l.cases, c)
+// keysFields validates tabs, line and candidates for action keys, which
+// takes no expect, exit or match.
+func (l *loader) keysFields(c *Case, f map[string]*yaml.Node, n *yaml.Node, ctx string) {
+	for _, k := range []string{"expect", "exit", "match"} {
+		if f[k] != nil {
+			l.errorf(f[k], ctx, "%s does not apply to action: keys (use line and candidates)", k)
+		}
+	}
+	if strings.ContainsAny(c.Input, "\t\r\n") {
+		l.errorf(f["input"], ctx, "input for action: keys must be one line without tabs (Tab presses go in tabs)")
+	}
+	if t := f["tabs"]; t == nil {
+		l.errorf(n, ctx, "missing required key \"tabs\"")
+	} else {
+		v, err := strconv.Atoi(t.Value)
+		if t.Kind != yaml.ScalarNode || err != nil || v < 1 || v > maxTabs {
+			l.errorf(t, ctx, "tabs must be an integer from 1 to %d, got %q", maxTabs, t.Value)
+		}
+		c.Tabs = v
+	}
+	if ln := f["line"]; ln == nil {
+		l.errorf(n, ctx, "missing required key \"line\"")
+	} else if ln.Kind != yaml.ScalarNode {
+		l.errorf(ln, ctx, "line must be a string (quote it to keep a trailing space)")
+	} else {
+		c.WantLine = ln.Value
+	}
+	if cd := f["candidates"]; cd != nil {
+		items, ok := l.strList(cd, ctx, "candidates must be a list (use [] for no listing)")
+		c.Candidates, c.CheckCandidates = items, ok
+	}
+}
+
+// strList returns a sequence of scalars as strings, reporting notList when n
+// is not a sequence.
+func (l *loader) strList(n *yaml.Node, ctx, notList string) ([]string, bool) {
+	if n.Kind != yaml.SequenceNode {
+		l.errorf(n, ctx, "%s", notList)
+		return nil, false
+	}
+	items := []string{}
+	ok := true
+	for _, it := range n.Content {
+		if it.Kind != yaml.ScalarNode {
+			l.errorf(it, ctx, "list items must be strings")
+			ok = false
+			continue
+		}
+		items = append(items, it.Value)
+	}
+	return items, ok
 }
 
 // str returns the string value of a required scalar key, reporting a missing

@@ -139,7 +139,6 @@ cases:
 `,
 		`case "bare": missing required key "input"`,
 		`case "bare": missing required key "action"`,
-		`case "bare": missing required key "expect"`,
 		`cases.yaml:5: case: missing required key "name"`,
 	)
 }
@@ -158,7 +157,7 @@ cases:
   - {name: a, input: x, action: enter, expect: ""}
 `,
 		`unknown shell "fish"`,
-		`case "a": action must be "enter" or "tab", got "run"`,
+		`case "a": action must be "enter", "tab" or "keys", got "run"`,
 		`case "b": exit applies only to action: enter`,
 		`case "c": exit must be an integer`,
 		`case "d": match must be "exact" or "normalized"`,
@@ -187,4 +186,60 @@ func TestLoad_InvalidYAMLAndEmptyFiles(t *testing.T) {
 	wantErrors(t, "root: [unclosed\n", "invalid YAML")
 	wantErrors(t, "", "empty file")
 	wantErrors(t, "root: fixture\n", "no cases")
+}
+
+func TestLoad_KeysCase(t *testing.T) {
+	cases, err := load(t, `
+root: fixture
+cases:
+  - name: with listing
+    input: "monom infra "
+    action: keys
+    tabs: 2
+    line: "monom infra "
+    candidates: [local, cloud]
+  - {name: line only, input: monom in, action: keys, tabs: 1, line: "monom infra "}
+  - {name: no listing, input: monom zz, action: keys, tabs: 1, line: monom zz, candidates: []}
+`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	a, b, c := cases[0], cases[1], cases[2]
+	if a.Tabs != 2 || a.WantLine != "monom infra " || !a.CheckCandidates || !reflect.DeepEqual(a.Candidates, []string{"local", "cloud"}) {
+		t.Errorf("with listing = %+v", a)
+	}
+	if b.Tabs != 1 || b.WantLine != "monom infra " || b.CheckCandidates {
+		t.Errorf("line only = %+v", b)
+	}
+	if !c.CheckCandidates || len(c.Candidates) != 0 {
+		t.Errorf("no listing = %+v", c)
+	}
+}
+
+func TestLoad_KeysFieldsAreValidated(t *testing.T) {
+	wantErrors(t, `
+root: fixture
+cases:
+  - {name: a, input: x, action: keys, line: x}
+  - {name: b, input: x, action: keys, tabs: 4, line: x}
+  - {name: c, input: x, action: keys, tabs: 1}
+  - {name: d, input: x, action: keys, tabs: 1, line: [x]}
+  - {name: e, input: x, action: keys, tabs: 1, line: x, candidates: x}
+  - {name: f, input: x, action: keys, tabs: 1, line: x, expect: [], exit: 1, match: exact}
+  - {name: g, input: x, action: tab, expect: [], tabs: 1, line: x, candidates: []}
+  - {name: h, input: "x\ty", action: keys, tabs: 1, line: x}
+`,
+		`case "a": missing required key "tabs"`,
+		`case "b": tabs must be an integer from 1 to 3, got "4"`,
+		`case "c": missing required key "line"`,
+		`case "d": line must be a string`,
+		`case "e": candidates must be a list`,
+		`case "f": expect does not apply to action: keys`,
+		`case "f": exit does not apply to action: keys`,
+		`case "f": match does not apply to action: keys`,
+		`case "g": tabs applies only to action: keys`,
+		`case "g": line applies only to action: keys`,
+		`case "g": candidates applies only to action: keys`,
+		`case "h": input for action: keys must be one line without tabs`,
+	)
 }

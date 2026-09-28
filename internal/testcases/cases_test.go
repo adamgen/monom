@@ -4,7 +4,8 @@
 // real shell integration: one subtest per file/case/shell, each in a fresh
 // bash or zsh that cds into the case root and sources src/monom like a user's
 // rc file does. It is behind the "cases" build tag so a plain `go test ./...`
-// never runs it; use `make test-cases`.
+// never runs it; use `make test-cases`. action: keys cases run in an
+// interactive shell in a pseudo-terminal instead (pty_test.go).
 //
 //	make test-cases                                        # every file
 //	CASES=tests/cases/monom_run.yaml make test-cases       # one file
@@ -74,17 +75,43 @@ func TestCases(t *testing.T) {
 		t.Fatalf("invalid case files:\n  %s", strings.Join(problems, "\n  "))
 	}
 
+	// action: keys cases in zsh share one pre-built compdump.
+	compdump := ""
+	if _, err := exec.LookPath("zsh"); err == nil && needsCompdump(loaded) {
+		compdump = buildCompdump(t, t.TempDir())
+	}
+
 	for i, f := range files {
 		t.Run(strings.TrimSuffix(filepath.Base(f), ".yaml"), func(t *testing.T) {
 			for _, c := range loaded[i] {
 				t.Run(c.Name, func(t *testing.T) {
 					for _, sh := range c.Shells {
-						t.Run(sh, func(t *testing.T) { runCase(t, repo, c, sh) })
+						t.Run(sh, func(t *testing.T) {
+							if c.Action == ActionKeys {
+								if _, err := exec.LookPath(sh); err != nil {
+									t.Skipf("%s not available", sh)
+								}
+								runKeysCase(t, repo, compdump, c, sh)
+								return
+							}
+							runCase(t, repo, c, sh)
+						})
 					}
 				})
 			}
 		})
 	}
+}
+
+func needsCompdump(loaded [][]Case) bool {
+	for _, cases := range loaded {
+		for _, c := range cases {
+			if c.Action == ActionKeys && contains(c.Shells, "zsh") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // caseFiles returns the files to run, relative to repo: $CASES (space

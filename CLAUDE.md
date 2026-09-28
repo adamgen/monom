@@ -74,7 +74,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 ### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run in bash and zsh by the Go test `TestCases` (`internal/testcases/cases_test.go`, build tag `cases`, run by `make test-cases`). Each case is an `input` line, an `action` (`enter` or `tab`), and the `expect`ed output; the project root comes from `root:` at the suite or group level. `internal/testcases` validates the YAML strictly; it is test-only and `mnmd` does not import it.
+- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run in bash and zsh by the Go test `TestCases` (`internal/testcases/cases_test.go`, build tag `cases`, run by `make test-cases`). Each case is an `input` line, an `action` (`enter`, `tab`, or `keys` for real Tab presses in an interactive shell in a pseudo-terminal), and the expected result (`expect`, or `line`/`candidates` for keys); the project root comes from `root:` at the suite or group level. `internal/testcases` validates the YAML strictly; it is test-only and `mnmd` does not import it.
 - shUnit2 e2e tests: one file per surface under `tests/`, named `mnmd_<subcommand>_test` or `monom_<area>_test`.
 - shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.
@@ -86,6 +86,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 | Logic edge cases not observable from the binary surface | Go unit test |
 | Pure function correctness (return values, error messages) | Go unit test |
 | What a user sees after typing a `monom`/`mnmd` line and pressing Enter or Tab | Declarative case (`tests/cases/*.yaml`) |
+| What the line editor does on Tab (inserted text, listing, zsh menu) | Declarative `keys` case (`tests/cases/monom_keys.yaml`) |
 | Full CLI binary surface (stdin, args, stdout, exit codes) | shUnit2 e2e test |
 | Env var integration (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`) | shUnit2 e2e test |
 | Cross-package integration (e.g. `pack` calling `root`) | shUnit2 e2e test |
