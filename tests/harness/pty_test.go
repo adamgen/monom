@@ -88,11 +88,13 @@ source %s
 `
 
 // buildCompdump runs compinit once into dir/.zcompdump, so each zsh session
-// can load it with compinit -C instead of scanning $fpath again.
+// can load it with compinit -C instead of scanning $fpath again. -u skips
+// compaudit's prompt: on CI runners some $fpath directories are group- or
+// world-writable, and compinit aborts ("can't open terminal") instead of asking.
 func buildCompdump(t *testing.T, dir string) string {
 	t.Helper()
 	dump := filepath.Join(dir, ".zcompdump")
-	cmd := exec.Command("zsh", "-fc", "autoload -Uz compinit && compinit -d "+shQuote(dump))
+	cmd := exec.Command("zsh", "-fc", "autoload -Uz compinit && compinit -u -d "+shQuote(dump))
 	cmd.Env = []string{"HOME=" + dir, "PATH=" + os.Getenv("PATH")}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("building zsh compdump: %v\n%s", err, out)
