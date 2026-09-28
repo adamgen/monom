@@ -30,6 +30,7 @@ The governing rule is the constitution's *Documentation Is Load-Bearing or Absen
 | `terminology.md` | Names | What "command packing" means |
 | `<dir>/TRADEOFFS.md` | Contested decisions, next to the code implementing them | Why `filter` never exits non-zero |
 | `BACKLOG.md` | Intended, unstarted work — one entry, no ceremony | `mnmd args` |
+| `INSTALL.md` | The procedure an agent follows to install monom on a user's machine | Verifying the rc line loads in an interactive shell |
 
 ### When to write a `TRADEOFFS.md` entry
 
@@ -168,3 +169,4 @@ Before completing any task:
 - [ ] No prose written that restates what the code says
 - [ ] Any rejected design alternative recorded in the relevant `TRADEOFFS.md`, with its cost
 - [ ] `architecture.md` updated if a contract or interface changed
+- [ ] `INSTALL.md` updated if building, `mnmd install`, the checkout layout, or shell loading changed

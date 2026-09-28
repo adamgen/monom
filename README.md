@@ -14,6 +14,16 @@ monom is built on a few hard principles:
 - **Speed is non-negotiable.** Tab completion must feel instant. monom's own overhead should be imperceptible.
 - **Testability by design.** Go logic is unit-tested in Go. CLI surface behavior is tested end-to-end with shUnit2. The two layers never conflate.
 
+## Install
+
+Requires Go and bash or zsh. Clone the repo somewhere permanent, then:
+
+```sh
+make build && bin/mnmd install
+```
+
+To have a coding agent do it, point it at [`INSTALL.md`](INSTALL.md). It covers checking your shell, verifying the install, and the common pitfalls.
+
 ## Architecture
 
 ```
