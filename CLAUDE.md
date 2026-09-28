@@ -74,7 +74,7 @@ Run everything with `make check`. See `make help` for the full target list. `tes
 ### Conventions
 
 - Go unit tests: `*_test.go`, colocated with the file they test.
-- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run in bash and zsh by the Go test `TestCases` (`internal/testcases/cases_test.go`, build tag `cases`, run by `make test-cases`). Each case is an `input` line, an `action` (`enter`, `tab`, or `keys` for real Tab presses in an interactive shell in a pseudo-terminal), and the expected result (`expect`, or `line`/`candidates` for keys); the project root comes from `root:` at the suite or group level. `internal/testcases` validates the YAML strictly; it is test-only and `mnmd` does not import it.
+- Declarative CLI cases: `tests/cases/<area>.yaml`, one file per surface, run in bash and zsh by the Go test `TestCases` (`tests/harness/cases_test.go`, run by `make test-cases`). `tests/harness` is a separate Go module holding the test-only dependencies (yaml.v3, creack/pty, vt10x); the root `go.mod` stays dependency-free, so never add them there. Each case is an `input` line, an `action` (`enter`, `tab`, or `keys` for real Tab presses in an interactive shell in a pseudo-terminal), and the expected result (`expect`, or `line`/`candidates` for keys); the project root comes from `root:` at the suite or group level. The harness validates the YAML strictly.
 - shUnit2 e2e tests: one file per surface under `tests/`, named `mnmd_<subcommand>_test` or `monom_<area>_test`.
 - shUnit2 shared helpers: `tests/helpers` — sourced by every test file, never executed directly.
 - shUnit2 test functions: `test_descriptive_name()`.

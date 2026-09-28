@@ -1,5 +1,3 @@
-//go:build cases
-
 // Interactive shell sessions for action: keys. A case types its input into a
 // real interactive bash or zsh running in a pseudo-terminal, presses Tab, and
 // reads back the line editor's buffer and the rendered screen.
@@ -13,7 +11,7 @@
 //     by the tty driver)
 //   - CASE-LINE:<buffer>  from a key bound to Ctrl-], which dumps the edit
 //     buffer without changing it
-package testcases
+package harness
 
 import (
 	"bytes"

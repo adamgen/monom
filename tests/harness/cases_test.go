@@ -1,16 +1,16 @@
-//go:build cases
-
 // TestCases runs the declarative CLI cases in tests/cases/*.yaml through the
 // real shell integration: one subtest per file/case/shell, each in a fresh
 // bash or zsh that cds into the case root and sources src/monom like a user's
-// rc file does. It is behind the "cases" build tag so a plain `go test ./...`
-// never runs it; use `make test-cases`. action: keys cases run in an
-// interactive shell in a pseudo-terminal instead (pty_test.go).
+// rc file does. action: keys cases run in an interactive shell in a
+// pseudo-terminal instead (pty_test.go).
+//
+// This is its own Go module, so the root module's `go test ./...` never
+// reaches it. From the repo root:
 //
 //	make test-cases                                        # every file
 //	CASES=tests/cases/monom_run.yaml make test-cases       # one file
-//	go test -tags cases -count=1 ./internal/testcases -run 'TestCases/monom_run/'
-package testcases
+//	cd tests/harness && go test -count=1 -run 'TestCases/monom_run/' .
+package harness
 
 import (
 	"bytes"

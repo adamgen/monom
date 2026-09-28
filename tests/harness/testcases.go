@@ -1,7 +1,8 @@
-// Package testcases loads and strictly validates the declarative CLI test
+// Package harness loads and strictly validates the declarative CLI test
 // cases in tests/cases/*.yaml. It is test tooling: nothing in mnmd imports it.
-// The runner that executes the cases is TestCases in cases_test.go, built only
-// with -tags cases (make test-cases).
+// The runner that executes the cases is TestCases in cases_test.go. This is a
+// separate Go module (tests/harness) so its test-only dependencies stay out
+// of the root go.mod.
 //
 // Schema (see tests/README.md for the full guide):
 //
@@ -22,7 +23,7 @@
 //	    root: <dir>                 # optional override
 //	    shells: [bash]              # optional override
 //	    cases: [...]                # required
-package testcases
+package harness
 
 import (
 	"fmt"

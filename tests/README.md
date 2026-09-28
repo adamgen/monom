@@ -16,15 +16,17 @@ Prefer a case whenever the scenario fits the input → action → expected shape
 
 ## Declarative cases
 
-`TestCases` (`internal/testcases/cases_test.go`) loads every `tests/cases/*.yaml` file and runs each case as a Go subtest per shell, named `TestCases/<file>/<case>/<shell>`. Each subtest starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**). **keys** cases go further: they type into a real interactive shell in a pseudo-terminal and press Tab (see [Real key presses](#real-key-presses-action-keys)).
+`TestCases` (`tests/harness/cases_test.go`) loads every `tests/cases/*.yaml` file and runs each case as a Go subtest per shell, named `TestCases/<file>/<case>/<shell>`. Each subtest starts a fresh `bash --norc --noprofile` or `zsh --no-rcs`, `cd`s into the project root, sources `src/monom` like a user's rc file does, and then either runs the line (**enter**) or triggers the real completion function the bindings registered for its first word (**tab**). **keys** cases go further: they type into a real interactive shell in a pseudo-terminal and press Tab (see [Real key presses](#real-key-presses-action-keys)).
 
 ```sh
 make test-cases                                          # all case files
 CASES=tests/cases/monom_run.yaml make test-cases         # one file (space-separate several)
 
-# Or use go test directly. -run matches subtest names, with spaces as _:
-go test -tags cases -count=1 ./internal/testcases -run 'TestCases/monom_run/'
-go test -tags cases -count=1 ./internal/testcases -run 'TestCases/monom_run/single-token_command_runs/zsh' -v
+# Or use go test inside the harness module. -run matches subtest names, with
+# spaces as _. CASES paths are relative to the repo root.
+cd tests/harness
+go test -count=1 -run 'TestCases/monom_run/' .
+go test -count=1 -run 'TestCases/monom_run/single-token_command_runs/zsh' -v .
 ```
 
 A shell that isn't installed is skipped (`t.Skip`), so the cases still run on a machine without zsh.
@@ -110,12 +112,14 @@ Validation is strict, and happens before any test runs. Unknown keys, missing re
 
 ### How it runs
 
-- `internal/testcases/testcases.go` loads and validates the YAML with `gopkg.in/yaml.v3`. If any selected file is invalid, `TestCases` fails before running a single case.
-- `internal/testcases/cases_test.go` is the runner. It first builds `bin/mnmd`, as the shUnit2 suites do, because `src/monom` calls it. Then it runs each case with `os/exec` in `bash --norc --noprofile -c` or `zsh --no-rcs -c`. It strips `_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG` and `MONOM_ACTIVE` from the environment, and each shell run times out after 30 seconds.
-- The Tab press is performed by two embedded shell snippets: `internal/testcases/testdata/tab.bash`, which shellcheck lints, and `testdata/tab.zsh`. The runner assigns the typed line to `_case_line` before either one runs.
-- `keys` cases use the session helper in `internal/testcases/pty_test.go` (see above).
-- The runner files have the `cases` build tag. A plain `go test ./...` only runs the loader's unit tests, so the cases never run twice in `make check`, and a stale cached result can't hide a change to `src/monom`. `make test-cases` passes `-tags cases -count=1`.
-- This is all test-only: `mnmd` doesn't import `internal/testcases`, so building monom doesn't need the YAML, pty or terminal-emulator libraries (`go list -deps ./cmd/mnmd` lists none of them).
+- The harness is its own Go module, `tests/harness` (`github.com/adamgen/monom/tests/harness`), with its own `go.mod`/`go.sum` for its test-only dependencies: `gopkg.in/yaml.v3`, `github.com/creack/pty` and `github.com/hinshun/vt10x`. The root `go.mod` has no dependencies. It doesn't import the root module either; it only builds and runs `bin/mnmd` and `src/monom`.
+- `tests/harness/testcases.go` loads and validates the YAML with `gopkg.in/yaml.v3`. If any selected file is invalid, `TestCases` fails before running a single case.
+- `tests/harness/cases_test.go` is the runner. It first builds `bin/mnmd`, as the shUnit2 suites do, because `src/monom` calls it. Then it runs each case with `os/exec` in `bash --norc --noprofile -c` or `zsh --no-rcs -c`. It strips `_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG` and `MONOM_ACTIVE` from the environment, and each shell run times out after 30 seconds.
+- The Tab press is performed by two embedded shell snippets: `tests/harness/testdata/tab.bash`, which shellcheck lints, and `testdata/tab.zsh`. The runner assigns the typed line to `_case_line` before either one runs.
+- `keys` cases use the session helper in `tests/harness/pty_test.go` (see above).
+- Go never crosses a module boundary with `./...`, so `go build`, `go vet` and `go test ./...` at the root don't touch the harness. `make test-cases` runs `go test -count=1 ./...` inside `tests/harness`: the loader's unit tests and `TestCases`, once each. `-count=1` matters because the shells, `src/monom` and `bin/mnmd` are invisible to Go's test cache; if you run `go test` in the harness yourself, pass it too.
+- The Makefile exports `GOWORK=off`. No `go.work` is committed: gopls handles a nested module without one, and a workspace would merge the two modules' dependency resolution. `go.work` is gitignored for local use.
+- None of this reaches `mnmd`: building monom needs no module downloads at all.
 
 ### Real key presses (action: keys)
 
