@@ -3,8 +3,9 @@ import { Link } from "@remix-run/react";
 import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
+import { PathMap } from "~/components/PathMap";
 import { TabDemo } from "~/components/TabDemo";
-import { CHECK, DISCOVER, ENTRIES, cmd } from "~/lib/project";
+import { CHECK, ENTRIES, cmd } from "~/lib/project";
 import { GITHUB_URL, INSTALL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
@@ -24,12 +25,6 @@ export const meta: MetaFunction = () => [
 
 // Every tree, command and output below comes from lib/project.ts, which was
 // checked against the real mnmd/monom in bash and zsh.
-const RUN = `$ monom infra cloud <Tab>
-$ monom infra cloud deploy.sh
-deploying to cloud...
-$ monom db migrate.py
-running db migrations...`;
-
 const CHECK_WARN = `${CHECK}
 $ echo $?
 0`;
@@ -107,7 +102,7 @@ export default function Index() {
       <section className="hero">
         <div className="wrap">
           <p className="eyebrow">
-            <span className="pill">early development</span> zero config · bash &amp; zsh · any
+            zero config · bash &amp; zsh · any
             language · Go engine
           </p>
           <h1>
@@ -142,46 +137,66 @@ export default function Index() {
 
       <section className="section" id="adopt">
         <div className="wrap">
-          <SectionHead kicker="adopting monom" title="The boilerplate is a folder of scripts." />
-          <p className="section-lede">
-            Install monom once per machine. After that, a project adopts it by doing nothing: the
-            scripts it already has become commands the moment you <code>cd</code> into it.
-          </p>
-          <ol className="steps">
-            <li className="step">
-              <span className="step-n">01</span>
-              <h3>Drop scripts in folders</h3>
-              <p>
-                Python, Node, bash, Ruby, a compiled Go binary: anything executable, in any folder of
-                a git repo. Folders become command groups; executables become commands.
-              </p>
-              <div className="step-visual tree-card">
-                <FileTree />
+          <div className="stage">
+            <div className="stage-row">
+              <div>
+                <p className="kicker">adopting monom</p>
+                <p className="stage-n">01</p>
+                <h2>The boilerplate is a folder of scripts.</h2>
+                <p className="section-lede">
+                  Install monom once per machine. After that, a project adopts it by doing nothing:
+                  the scripts it already has become commands the moment you <code>cd</code> into it.
+                </p>
               </div>
-            </li>
-            <li className="step">
-              <span className="step-n">02</span>
-              <h3>monom finds them</h3>
-              <p>
-                The nearest git root is the project. Default discovery scans it and registers what
-                passes the gate. <code>mnmd discover</code> shows the result.
-              </p>
-              <div className="step-visual">
-                <Code output>{DISCOVER}</Code>
+              <div className="tree-card">
+                <FileTree variant="plain" />
               </div>
-            </li>
-            <li className="step">
-              <span className="step-n">03</span>
-              <h3>Press Tab, run it</h3>
-              <p>
-                Spaces become slashes. <code>monom infra cloud deploy.sh</code> runs{" "}
-                <code>infra/cloud/deploy.sh</code>, from any folder inside the project.
-              </p>
-              <div className="step-visual">
-                <Code output>{RUN}</Code>
+            </div>
+          </div>
+
+          <div className="stage" id="discovery">
+            <div className="stage-row">
+              <div>
+                <p className="stage-n">02</p>
+                <h2>monom finds every executable file.</h2>
+                <p className="section-lede">
+                  It looks at the executable files in your project and registers each one with a
+                  shebang or a command-style name, or that you declared. Then it maps the file tree
+                  to a ready-to-use CLI, with Tab completion in bash and zsh.
+                </p>
+                <p>
+                  Any language works: Python, Node, bash, Ruby, a compiled Go binary. The path is the
+                  command, extension included, so <code>db/migrate.py</code> is{" "}
+                  <code>{cmd("db/migrate.py")}</code>. A command-style name matches{" "}
+                  <code>^[a-z0-9][a-z0-9_-]*$</code> (lowercase, no dots), so a file with an
+                  extension needs a shebang, and a compiled binary like <code>tools/lint</code>{" "}
+                  gets in by name.
+                </p>
+                <p className="muted">
+                  Hidden and <code>_</code>-prefixed entries, <code>node_modules</code>,{" "}
+                  <code>vendor</code>, <code>venv</code>, <code>target</code>, <code>dist</code>,{" "}
+                  <code>__pycache__</code> and nested monom projects are never scanned. Add{" "}
+                  <code>discover.hide</code> patterns to skip more.
+                </p>
               </div>
-            </li>
-          </ol>
+              <div className="tree-card">
+                <FileTree annotate />
+              </div>
+            </div>
+          </div>
+
+          <div className="stage" id="paths">
+            <p className="stage-n">03</p>
+            <h2>Your paths are your commands.</h2>
+            <p className="section-lede">
+              Each folder is a word, and the file is the last one. The spaces you type are the
+              slashes in the path, so <code>{cmd("infra/cloud/deploy.sh")}</code> runs{" "}
+              <code>infra/cloud/deploy.sh</code>, from any folder inside the project.
+            </p>
+            <PathMap />
+          </div>
+
+          <div className="stage">
           <div className="config-row">
             <div>
               <h3 className="small-head">Then keep it honest in CI</h3>
@@ -200,37 +215,6 @@ export default function Index() {
               <Code output>{CHECK_ERROR}</Code>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="section" id="discovery">
-        <div className="wrap">
-          <SectionHead kicker="zero-config discovery" title="What becomes a command, and what doesn't." />
-          <div className="config-row gate-row">
-            <div>
-              <p>
-                Discovery scans broadly, then a gate decides. An executable is registered if it
-                starts with a shebang, if its name looks like a command (
-                <code>^[a-z0-9][a-z0-9_-]*$</code>: lowercase, no dots), or if the{" "}
-                <code>monom</code> file declares it.
-              </p>
-              <p>
-                The path is the command, extension included: <code>db/migrate.py</code> is{" "}
-                <code>{cmd("db/migrate.py")}</code>, and Tab completes it. Because the name rule
-                has no dots, a file with an extension needs a shebang. Leave the extension off (
-                <code>infra/local/start</code>) for a shorter command. Compiled binaries like{" "}
-                <code>tools/lint</code> get in by name.
-              </p>
-              <p className="muted">
-                Hidden and <code>_</code>-prefixed entries, <code>node_modules</code>,{" "}
-                <code>vendor</code>, <code>venv</code>, <code>target</code>, <code>dist</code>,{" "}
-                <code>__pycache__</code> and nested monom projects are never scanned. Add{" "}
-                <code>discover.hide</code> patterns to skip more.
-              </p>
-            </div>
-            <div className="tree-card">
-              <FileTree annotate="gate" />
-            </div>
           </div>
         </div>
       </section>
@@ -497,8 +481,8 @@ export _MONOM_PROJECT_ROOT="$HOME/scripts"`}</Code>
             </a>
           </div>
           <p className="status-note">
-            monom is in early development. Zero-config discovery, <code>mnmd check</code> and
-            bash/zsh completion work today. Commands don't take arguments yet; flag parsing and
+            Zero-config discovery, <code>mnmd check</code> and bash/zsh completion work today.
+            Commands don't take arguments yet; flag parsing and
             scaffolding (<code>mnmd init</code>, <code>mnmd new command</code>) are on the{" "}
             <a href={`${GITHUB_URL}/blob/main/BACKLOG.md`}>backlog</a>.
           </p>

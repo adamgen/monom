@@ -41,27 +41,41 @@ const NOTE: Record<Outcome, string> = {
   hidden: "never scanned",
 };
 
+/** Which part of a mapped command a tree node is: a folder at some depth, or the file. */
+export const segClass = (i: number, last: boolean) => (last ? "seg-file" : `seg-${Math.min(i, 2)}`);
+
 type Props = {
   /**
-   * What to annotate beside each file:
-   * - "none": names and language badges only
-   * - "gate": the discovery gate's decision and its reason
+   * How the same tree is drawn:
+   * - "plain": monochrome names only (no badges, colors or annotations)
+   * - "colored": groups, commands and skipped entries colored, with language badges
+   * - "linked": colored, and the path of `mapped` lit segment by segment in the
+   *   colors the command line uses; command files report hover/tap via `onPick`
    */
-  annotate?: "none" | "gate";
+  variant?: "plain" | "colored" | "linked";
+  /** Colored only: the discovery gate's decision and reason beside each file. */
+  annotate?: boolean;
   /** Completed tokens the user has typed — highlights the branch (the Tab demo). */
   active?: string[];
   /** The token being typed — highlights matching siblings. */
   partial?: string;
+  /** Linked only: the command path being shown, and how many of its segments are lit. */
+  mapped?: { path: string; lit: number };
+  /** Linked only: a command file was hovered, focused or tapped. */
+  onPick?: (path: string) => void;
 };
 
-export function FileTree({ annotate = "none", active, partial = "" }: Props) {
+type Ctx = Required<Pick<Props, "variant" | "annotate" | "partial">> & Omit<Props, "variant" | "annotate" | "partial">;
+
+export function FileTree({ variant = "colored", annotate = false, active, partial = "", mapped, onPick }: Props) {
+  const ctx: Ctx = { variant, annotate: annotate && variant !== "plain", active, partial, mapped, onPick };
   return (
-    <ul className={`tree ${annotate === "gate" ? "is-annotated" : ""}`}>
+    <ul className={`tree is-${variant} ${ctx.annotate ? "is-annotated" : ""}`}>
       <li>
         <span className="tree-row is-root">{PROJECT}/</span>
         <ul>
           {NODES.map((n) => (
-            <TreeNode key={n.name} node={n} annotate={annotate} active={active} partial={partial} />
+            <TreeNode key={n.name} node={n} ctx={ctx} />
           ))}
         </ul>
       </li>
@@ -69,17 +83,9 @@ export function FileTree({ annotate = "none", active, partial = "" }: Props) {
   );
 }
 
-function TreeNode({
-  node,
-  annotate,
-  active,
-  partial,
-}: {
-  node: Node;
-  annotate: "none" | "gate";
-  active?: string[];
-  partial: string;
-}) {
+function TreeNode({ node, ctx }: { node: Node; ctx: Ctx }) {
+  const { variant, annotate, active, partial, mapped, onPick } = ctx;
+  const plain = variant === "plain";
   const outcome = outcomeOf(node);
   const usable = outcome === "command";
   const depth = node.path.length - 1;
@@ -90,19 +96,38 @@ function TreeNode({
     depth === active.length &&
     node.path.slice(0, -1).every((seg, i) => active[i] === seg) &&
     node.name.startsWith(partial);
+  const segs = mapped?.path.split("/") ?? [];
+  const lit =
+    variant === "linked" && !!mapped && depth < mapped.lit && node.path.every((seg, i) => segs[i] === seg);
+  const pickable = variant === "linked" && !!onPick && !node.dir && usable && !!node.entry;
   const cls = [
     "tree-row",
-    !usable ? `is-${outcome}` : node.dir ? "is-group" : "is-command",
+    plain ? "" : !usable ? `is-${outcome}` : node.dir ? "is-group" : "is-command",
     onBranch && depth < active!.length ? "is-active" : "",
     isCandidate ? "is-candidate" : "",
+    lit ? `is-lit ${segClass(depth, depth === segs.length - 1)}` : "",
+    pickable ? "is-pickable" : "",
   ].join(" ");
-  const lang = node.entry?.lang;
-  const showNote = annotate === "gate" && !!node.entry;
+  const lang = plain ? undefined : node.entry?.lang;
+  const showNote = annotate && !!node.entry;
+  const pick = pickable ? () => onPick!(node.entry!.path) : undefined;
 
   return (
     <li>
       <span className="tree-line">
-        <span className={cls}>
+        <span
+          className={cls}
+          {...(pickable
+            ? {
+                role: "button",
+                tabIndex: 0,
+                "aria-label": `Show ${cmd(node.entry!.path)}`,
+                onMouseEnter: pick,
+                onFocus: pick,
+                onClick: pick,
+              }
+            : {})}
+        >
           {node.name}
           {node.dir ? "/" : ""}
         </span>
@@ -121,7 +146,7 @@ function TreeNode({
       {node.dir && node.children.length > 0 && (
         <ul>
           {node.children.map((c) => (
-            <TreeNode key={c.name} node={c} annotate={annotate} active={active} partial={partial} />
+            <TreeNode key={c.name} node={c} ctx={ctx} />
           ))}
         </ul>
       )}

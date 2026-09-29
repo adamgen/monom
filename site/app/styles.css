@@ -657,6 +657,36 @@ p {
   color: var(--muted);
 }
 
+/* plain: the same tree as bare text */
+.tree.is-plain .tree-row {
+  color: var(--text-2);
+}
+.tree.is-plain .tree-row.is-root {
+  color: var(--text);
+}
+
+/* segment colors shared by the linked tree and the command line */
+.seg-0 { --seg: var(--group); }
+.seg-1 { --seg: var(--var); }
+.seg-2 { --seg: var(--kw); }
+.seg-file { --seg: var(--accent); }
+.is-lit {
+  color: var(--seg);
+}
+.tree-row.is-lit {
+  background: color-mix(in srgb, var(--seg) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--seg) 45%, transparent);
+}
+.tree-row.is-pickable {
+  cursor: pointer;
+}
+.tree-row.is-pickable:hover,
+.tree-row.is-pickable:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ---------- code ---------- */
 
 .code {
@@ -1183,6 +1213,95 @@ table {
   color: var(--err);
 }
 
+/* ---------- stages ---------- */
+
+.stage + .stage {
+  margin-top: 96px;
+}
+.stage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 40px;
+  align-items: start;
+}
+.stage-row .section-lede {
+  margin-top: 0;
+}
+.stage-row p {
+  color: var(--text-2);
+}
+.stage-row p.muted {
+  color: var(--muted);
+  font-size: 14.5px;
+}
+.stage-n {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.stage h2 {
+  margin-bottom: 20px;
+}
+
+.pathmap {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.pathmap-tree {
+  border-right: 1px solid var(--line);
+  padding: 16px 18px 18px;
+  background: var(--bg);
+}
+.pathmap-hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pathmap-term {
+  cursor: default;
+}
+.pathmap-term .terminal-body {
+  height: auto;
+  min-height: 150px;
+  flex: 1;
+}
+.pathmap.is-still .pathmap-term .terminal-body {
+  display: grid;
+  gap: 10px;
+}
+.pathmap-past {
+  opacity: 0.4;
+}
+.pathmap-cmd + .pathmap-cmd,
+.pathmap-past + .pathmap-cmd,
+.pathmap-past + .pathmap-past {
+  margin-top: 10px;
+}
+.pathmap-cmd .line:first-child {
+  font-size: 15px;
+}
+.pathmap-foot {
+  justify-content: flex-start;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.pathmap-foot-label {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pathmap-foot .is-dim {
+  color: var(--muted);
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 960px) {
@@ -1197,7 +1316,8 @@ table {
     grid-template-columns: 1fr 1fr;
   }
   .config-row,
-  .split-inner {
+  .split-inner,
+  .stage-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
   }
@@ -1222,6 +1342,13 @@ table {
   }
   .demo-tree {
     display: none;
+  }
+  .pathmap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pathmap-tree {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
   }
   .terminal-body {
     height: 300px;
