@@ -1,0 +1,134 @@
+name: Preview site
+
+# Uploads the PR's site as a Cloudflare Workers version with an aliased
+# Version URL (pr-<number>-monom-site.<subdomain>.workers.dev). Uploading a
+# version never changes what monom.dev serves: production only moves on
+# `wrangler deploy` / `wrangler versions deploy` (deploy-site.yml, on main).
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-site-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Upload preview version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      # Fork PRs (and Dependabot) get no repository secrets, so there is
+      # nothing to upload with. Skip, don't fail.
+      - name: Check for Cloudflare credentials
+        id: gate
+        working-directory: .
+        env:
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ] || [ "$HAS_TOKEN" != "true" ]; then
+            echo "::notice title=Site preview skipped::No Cloudflare secrets for this PR (head repo: $HEAD_REPO). Fork PRs don't get repository secrets, so no preview is uploaded."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Build and prerender
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          npm ci
+          npm run build
+          node scripts/prerender.mjs
+
+      - name: wrangler versions upload
+        id: upload
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          npx --yes wrangler@4.143.0 versions upload \
+            --preview-alias "pr-$PR_NUMBER" \
+            --tag "pr-$PR_NUMBER-${HEAD_SHA:0:7}" \
+            --message "PR #$PR_NUMBER @ ${HEAD_SHA:0:7}"
+          out=$(jq -c 'select(.type == "version-upload")' "$WRANGLER_OUTPUT_FILE_PATH" | tail -n 1)
+          alias_url=$(jq -r '.preview_alias_url // empty' <<<"$out")
+          version_url=$(jq -r '.preview_url // empty' <<<"$out")
+          version_id=$(jq -r '.version_id // empty' <<<"$out")
+          if [ -z "$alias_url" ]; then
+            echo "::error::wrangler returned no preview URL. Are Version URLs (preview_urls) enabled for the monom-site Worker?"
+            exit 1
+          fi
+          {
+            echo "alias_url=$alias_url"
+            echo "version_url=$version_url"
+            echo "version_id=$version_id"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Site preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "$alias_url (version $version_url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post or update the preview comment
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        env:
+          ALIAS_URL: ${{ steps.upload.outputs.alias_url }}
+          VERSION_URL: ${{ steps.upload.outputs.version_url }}
+          VERSION_ID: ${{ steps.upload.outputs.version_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- monom-site-preview -->';
+            const { ALIAS_URL, VERSION_URL, VERSION_ID, HEAD_SHA } = process.env;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const commitUrl = `${context.payload.repository.html_url}/commit/${HEAD_SHA}`;
+            const lines = [
+              marker,
+              '### Site preview',
+              '',
+              `**Preview:** ${ALIAS_URL}`,
+            ];
+            if (VERSION_URL) lines.push(`**This version:** ${VERSION_URL}`);
+            lines.push(
+              '',
+              `Built from [\`${HEAD_SHA.slice(0, 7)}\`](${commitUrl})` +
+                (VERSION_ID ? `, Worker version \`${VERSION_ID}\`` : '') + '.',
+              'The preview URL always points at the latest push; monom.dev is unchanged until merge.',
+            );
+            const body = lines.join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(
+              (c) => c.user?.type === 'Bot' && c.body?.includes(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              core.info(`Updated ${existing.html_url}`);
+            } else {
+              const { data } = await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              core.info(`Created ${data.html_url}`);
+            }
