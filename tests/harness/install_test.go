@@ -297,14 +297,26 @@ func (e *installEnv) testReleaseInstall(t *testing.T, sh string) {
 	check := "cd proj && monom tools deploy && mnmd version"
 	switch sh {
 	case "bash":
-		got := e.interactive(t, home, "bash", "type -t monom mnmd; complete -p monom; "+check)
-		mustContain(t, "bash -ic", got, "function\nfunction\n", "complete -F _monom_completion monom", "deployed", installTestVersion)
+		// The registered function called the way readline calls it on Tab,
+		// in the same bash the installer ran in (/bin/bash: 3.2 on macOS).
+		tab := `COMP_WORDS=(monom tools dep); COMP_CWORD=2; COMP_LINE="monom tools dep"; COMP_POINT=${#COMP_LINE}; ` +
+			`_monom_completion monom dep tools; echo "tab: ${COMPREPLY[*]}"; `
+		got := e.interactive(t, home, "bash", "type -t monom mnmd; complete -p monom; cd proj && "+tab+"cd ~ && "+check)
+		mustContain(t, "bash -ic", got, "function\nfunction\n", "complete -F _monom_completion monom", "tab: deploy\n", "deployed", installTestVersion)
 	case "zsh":
 		got := e.interactive(t, home, "zsh", `whence -w monom mnmd; print -r -- "completion: ${_comps[monom]}"; `+check)
 		mustContain(t, "zsh -ic", got, "monom: function", "mnmd: function", "completion: _monom", "deployed", installTestVersion)
 	}
 
-	// A real Tab press in a pseudo-terminal, against the installed tree.
+	// A real Tab press in a pseudo-terminal, against the installed tree. The
+	// pty driver reads the edit buffer through bind -x and READLINE_LINE,
+	// which bash only has from 4.0 (macOS /bin/bash is 3.2).
+	if sh == "bash" {
+		if out, err := exec.Command("bash", "-c", "echo ${BASH_VERSINFO[0]}").Output(); err != nil || strings.TrimSpace(string(out)) < "4" {
+			t.Logf("bash %s: skipping the pty Tab press (the call above covered the completion)", strings.TrimSpace(string(out)))
+			return
+		}
+	}
 	rel, err := filepath.Rel(dir, project)
 	if err != nil {
 		t.Fatal(err)
