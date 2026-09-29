@@ -470,7 +470,7 @@ export _MONOM_PROJECT_ROOT="$HOME/scripts"`}</Code>
       <section className="section cta">
         <div className="wrap cta-inner">
           <h2>Give your scripts a front door.</h2>
-          <p className="lede">Clone, build, one rc line. Then open any repo and press Tab.</p>
+          <p className="lede">One command, one rc line. Then open any repo and press Tab.</p>
           <CopyCommand command={INSTALL} />
           <div className="hero-actions">
             <Link to="/docs" className="button is-primary">

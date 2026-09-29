@@ -124,13 +124,14 @@ test_something() { ... }
 
 ```
 make help     # list all targets
-make build    # compiles bin/mnmd
+make build    # compiles bin/mnmd via ./build.sh (version-stamped; build.sh needs only Go)
+make dist     # ./build.sh dist: the release tarballs + checksums.txt in dist/
 make check    # build + gofmt + go vet + go test + shUnit2 e2e + declarative cases + shellcheck
 ```
 
 ### Add a mnmd subcommand
 
-Current subcommands: `filter`, `root`, `pack`, `discover`, `check`, `install`.
+Current subcommands: `filter`, `root`, `pack`, `discover`, `check`, `install`, `version`.
 
 1. Add or update the logic package under `internal/<subcommand>/` with a `*_test.go` covering edge cases not testable from outside the binary
 2. Wire the dispatch in `cmd/mnmd/main.go` and add the subcommand to `usage()`
@@ -173,4 +174,4 @@ Before completing any task:
 - [ ] No prose written that restates what the code says
 - [ ] Any rejected design alternative recorded in the relevant `TRADEOFFS.md`, with its cost
 - [ ] `architecture.md` updated if a contract or interface changed
-- [ ] `INSTALL.md` updated if building, `mnmd install`, the checkout layout, or shell loading changed
+- [ ] `INSTALL.md` updated if building, `install.sh`, `mnmd install`, the install layout, or shell loading changed

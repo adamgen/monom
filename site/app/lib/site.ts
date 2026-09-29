@@ -1,2 +1,3 @@
 export const GITHUB_URL = "https://github.com/adamgen/monom";
-export const INSTALL = "git clone https://github.com/adamgen/monom ~/.monom && make -C ~/.monom build && ~/.monom/bin/mnmd install";
+export const INSTALL_SCRIPT_URL = "https://raw.githubusercontent.com/adamgen/monom/main/install.sh";
+export const INSTALL = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;

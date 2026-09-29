@@ -19,6 +19,10 @@ import (
 	"github.com/adamgen/monom/internal/root"
 )
 
+// version is stamped at build time by build.sh (-ldflags "-X main.version=...").
+// A plain `go build` leaves it at "dev".
+var version = "dev"
+
 func main() {
 	subcommand := ""
 	if len(os.Args) >= 2 {
@@ -49,6 +53,9 @@ func main() {
 		err = runCheck()
 	case "install":
 		err = runInstall()
+	case "version", "--version":
+		fmt.Println(version)
+		return
 	default:
 		debuglog.Log("[mnmd] unknown subcommand: %q", os.Args[1])
 		fmt.Fprintf(os.Stderr, "mnmd: unknown subcommand %q\n", os.Args[1])
@@ -61,13 +68,15 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install, version")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active
-// (MONOM_ACTIVE unset), except when the user is already running `mnmd install`.
+// (MONOM_ACTIVE unset), except for `mnmd install` (the user is already acting on
+// it) and `mnmd version` (installers and scripts read its stdout and stderr).
 func checkNudge(subcommand string) {
-	if subcommand == "install" {
+	switch subcommand {
+	case "install", "version", "--version":
 		return
 	}
 	if os.Getenv("MONOM_ACTIVE") == "" {

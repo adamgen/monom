@@ -133,6 +133,35 @@ test_install_stderr_clean_stdout_has_info() {
 }
 
 # ---------------------------------------------------------------------------
+# version (installers read it)
+# ---------------------------------------------------------------------------
+
+# build.sh stamps the version; `mnmd version` prints only that on stdout, and
+# no install hint on stderr.
+test_version_prints_the_build_sh_stamp_and_no_hint() {
+  local tmp out err
+  tmp=$(mktemp -d)
+  VERSION=v9.8.7-test OUT="$tmp/mnmd" bash "$REPO_ROOT/build.sh" || fail "build.sh failed"
+  out=$(MONOM_ACTIVE="" "$tmp/mnmd" version 2>"$tmp/err")
+  assertEquals "version stdout" "v9.8.7-test" "$out"
+  err=$(cat "$tmp/err")
+  assertEquals "version stderr" "" "$err"
+  out=$(MONOM_ACTIVE="" "$tmp/mnmd" --version 2>/dev/null)
+  assertEquals "--version stdout" "v9.8.7-test" "$out"
+  rm -rf "$tmp"
+}
+
+# A plain `go build` (no stamp) reports "dev".
+test_version_defaults_to_dev() {
+  local tmp out
+  tmp=$(mktemp -d)
+  (cd "$REPO_ROOT" && go build -o "$tmp/mnmd" ./cmd/mnmd) || fail "go build failed"
+  out=$("$tmp/mnmd" version 2>/dev/null)
+  assertEquals "unstamped version" "dev" "$out"
+  rm -rf "$tmp"
+}
+
+# ---------------------------------------------------------------------------
 
 # shellcheck disable=SC1090
 . "$SHUNIT2"

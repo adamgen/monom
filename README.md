@@ -16,11 +16,17 @@ monom is built on a few hard principles:
 
 ## Install
 
-Requires Go and bash or zsh. Clone the repo somewhere permanent, then:
+Linux or macOS, bash or zsh:
 
 ```sh
-make build && bin/mnmd install
+curl -fsSL https://raw.githubusercontent.com/adamgen/monom/main/install.sh | bash
 ```
+
+[`install.sh`](install.sh) is short; read it first if you like. It downloads the prebuilt `mnmd` for your OS and architecture (linux/darwin, amd64/arm64) from the latest [GitHub release](https://github.com/adamgen/monom/releases), verifies its SHA-256 against the release's `checksums.txt`, installs it with the shell integration into `~/.local/share/monom` (linking `~/.local/bin/mnmd`), and runs `mnmd install` to add one `source` line to your rc file. No sudo, no make. Re-running it upgrades in place and never adds the line twice.
+
+If there's no prebuilt binary for your machine, it builds `mnmd` from source instead, which needs Go 1.24+; without Go it stops with instructions. Environment variables override the defaults: `MONOM_VERSION` (a release tag), `MONOM_INSTALL_DIR`, `MONOM_BIN_DIR`, `MONOM_NO_MODIFY_RC=1`, `MONOM_FROM_SOURCE=1`. The full list is at the top of the script.
+
+**From a checkout** (to work on monom): `./build.sh && bin/mnmd install`. `build.sh` needs only Go; `make build` calls it. Releases are cut by pushing a `v*` tag, which runs [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 To have a coding agent do it, point it at [`INSTALL.md`](INSTALL.md). It covers checking your shell, verifying the install, and the common pitfalls.
 

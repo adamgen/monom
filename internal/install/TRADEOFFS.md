@@ -32,6 +32,30 @@ A build-time constant would be more robust still, but it requires the build to k
 
 ---
 
+## install.sh downloads a release tarball; it doesn't clone and build
+
+**Chosen:** `install.sh` fetches a prebuilt `monom-<os>-<arch>.tar.gz` from the GitHub release, verifies its SHA-256, and unpacks the `bin/` + `src/` tree into `~/.local/share/monom`. It builds from source (with `build.sh`, never make) only when the release has no tarball for the platform and Go is present.
+
+**Rejected:** cloning the repo and running `make build`, which was the documented install before.
+
+**Why.** A clone-and-build install requires git, make and a Go toolchain on every machine that wants tab completion, and it failed halfway for anyone without Go: the clone was left behind, no binary, no rc line. The release tarball needs only curl (or wget) and tar, and the checksum makes a truncated or tampered download fail loudly instead of installing. Asset names carry no version, so `releases/latest/download/<name>` works without an API call or `jq`.
+
+**What it costs.** The one-liner only installs a prebuilt binary once a release exists, so releases now have to be cut (push a `v*` tag). An install tree is not a checkout: it has no fixtures or tests, and updating means re-running the installer rather than `git pull`.
+
+---
+
+## install.sh delegates the rc line to `mnmd install`
+
+**Chosen:** after placing the tree, `install.sh` runs `<dir>/bin/mnmd install`. It adds one check of its own: an rc line that already sources the same directory under another spelling (`~`, `$HOME`, a symlinked path) counts as installed, because `mnmd install` only recognises the exact path it writes.
+
+**Rejected:** reimplementing shell detection and rc editing in the shell script.
+
+**Why.** Two implementations of "which rc file, and is the line there" would drift. The Go one is unit-tested and is what users of a checkout run anyway.
+
+**What it costs.** The installer depends on the binary it just downloaded running on the machine, which it checks first (`mnmd version`).
+
+---
+
 ## Idempotency is a substring match, not a marker comment
 
 **Chosen:** `alreadyInstalled` scans the rc file for any non-comment line containing the resolved `src/monom` path.
