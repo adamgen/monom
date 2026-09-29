@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { commonPrefix, filter } from "~/lib/filter";
-import { commands, paths } from "~/lib/demo-project";
+import { CHECK, commands, paths } from "~/lib/project";
 import { FileTree } from "./FileTree";
 
 type Line =
@@ -32,7 +32,9 @@ function groupMessage(label: string, tokens: string[]): Line[] {
 function run(input: string): Line[] {
   const trimmed = input.trim();
   if (trimmed === "") return [];
-  if (trimmed === "mnmd check") return [{ kind: "out", text: `✔ ${paths.length} commands OK` }];
+  if (trimmed === "mnmd check") {
+    return CHECK.split("\n").slice(1).map((text) => ({ kind: text.startsWith("warning") ? ("err" as const) : ("out" as const), text }));
+  }
   if (trimmed === "mnmd root") return [{ kind: "out", text: "/home/you/acme" }];
   const tokens = trimmed.split(/\s+/);
   if (tokens[0] !== "monom") {
@@ -75,6 +77,8 @@ function complete(input: string): TabResult {
 
 type Step = { type: string } | { tab: true } | { enter: true } | { pause: number };
 
+// Real bash behaviour on lib/project.ts: an ambiguous word lists on Tab, a
+// unique one completes and adds a space.
 const SCRIPT: Step[] = [
   { type: "monom " },
   { tab: true },
@@ -88,8 +92,15 @@ const SCRIPT: Step[] = [
   { tab: true },
   { pause: 350 },
   { tab: true },
+  { pause: 600 },
+  { enter: true },
+  { pause: 900 },
+  { type: "monom d" },
+  { tab: true },
+  { pause: 350 },
+  { tab: true },
   { pause: 700 },
-  { type: "d" },
+  { type: "m" },
   { tab: true },
   { pause: 500 },
   { enter: true },
@@ -217,7 +228,7 @@ export function TabDemo() {
     <div className="demo">
       <div className="demo-tree" aria-hidden="true">
         <div className="panel-label">file tree</div>
-        <FileTree paths={paths} config="hook script" active={highlighting ? activePath : undefined} partial={partial} />
+        <FileTree active={highlighting ? activePath : undefined} partial={partial} />
       </div>
       <div
         className={`terminal ${flash === "bell" ? "is-bell" : ""}`}

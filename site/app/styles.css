@@ -576,14 +576,16 @@ p {
   color: var(--text);
   font-weight: 600;
 }
-.tree-row.is-config {
-  color: var(--text-2);
+.tree-row.is-warn {
+  color: var(--err);
 }
-.tree-row.is-config em {
-  font-style: normal;
+.tree-row.is-ignored,
+.tree-row.is-hidden {
   color: var(--muted);
-  font-size: 11px;
-  margin-left: 6px;
+}
+.tree-row.is-hidden {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 .tree-row.is-group {
   color: var(--group);
@@ -601,6 +603,58 @@ p {
 .tree-row.is-candidate.is-command {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: none;
+}
+
+.tree-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.tree.is-annotated .tree-line {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+}
+.lang {
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 3px 5px 2px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--lang) 45%, transparent);
+  background: color-mix(in srgb, var(--lang) 14%, transparent);
+  color: var(--lang);
+  letter-spacing: 0.02em;
+}
+.lang-python { --lang: #7fb2f0; }
+.lang-node { --lang: #f0db4f; }
+.lang-bash { --lang: #9fe3a4; }
+.lang-sh { --lang: #9fe3a4; }
+.lang-ruby { --lang: #ff7b72; }
+.lang-go { --lang: #7fd3ff; }
+.lang-text { --lang: #7f877d; }
+.tree-note {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: right;
+}
+.tree-note.is-command {
+  color: var(--accent);
+}
+.tree-note.is-warn {
+  color: var(--err);
+}
+.tree-note.is-ignored,
+.tree-note.is-hidden {
+  color: var(--muted);
+}
+.tree-why {
+  display: block;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+  color: var(--muted);
 }
 
 /* ---------- code ---------- */

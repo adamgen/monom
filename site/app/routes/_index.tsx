@@ -4,6 +4,7 @@ import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
 import { TabDemo } from "~/components/TabDemo";
+import { CHECK, DISCOVER, ENTRIES, cmd } from "~/lib/project";
 import { GITHUB_URL, INSTALL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
@@ -17,29 +18,19 @@ export const meta: MetaFunction = () => [
   {
     property: "og:description",
     content:
-      "Drop scripts into folders and they're commands: monom db migrate, with Tab completion. No config file, no registration, nothing generated.",
+      "Drop scripts into folders and they're commands: monom db migrate.py, with Tab completion. Any language, no config file, no registration, nothing generated.",
   },
 ];
 
-// Every snippet below was run against the real mnmd/monom (bash and zsh) in a
-// project laid out like ACME_PATHS, plus tools/Format.sh without a shebang.
-const ACME_PATHS = ["db/migrate", "db/seed", "infra/cloud/deploy", "release"];
-
-const DISCOVER = `$ mnmd discover
-db/migrate
-db/seed
-infra/cloud/deploy
-release`;
-
+// Every tree, command and output below comes from lib/project.ts, which was
+// checked against the real mnmd/monom in bash and zsh.
 const RUN = `$ monom infra cloud <Tab>
-$ monom infra cloud deploy
+$ monom infra cloud deploy.sh
 deploying to cloud...
-$ monom db migrate
+$ monom db migrate.py
 running db migrations...`;
 
-const CHECK_WARN = `$ mnmd check
-warning: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
-✔ 4 commands OK (default discovery), 1 warning(s)
+const CHECK_WARN = `${CHECK}
 $ echo $?
 0`;
 
@@ -54,9 +45,8 @@ const DECLARATIVE = `# register an executable the gate would skip
 tools/Format.sh
 # make mnmd check fail on unregistered executables
 check.root-contents = error
-# treat more entries as hidden (repeatable)
-discover.hide = *.TXT
-discover.hide = tools/wip-*`;
+# hide more entries, like dot-files (repeatable)
+discover.hide = infra/local`;
 
 const HOOK_SCRIPT = `#!/usr/bin/env bash
 # every hook is optional: without complete,
@@ -64,8 +54,8 @@ const HOOK_SCRIPT = `#!/usr/bin/env bash
 case "$1" in
   run)
     shift
-    # monom ship → infra cloud deploy
-    if [ "$1" = ship ]; then echo infra cloud deploy; fi
+    # monom ship → infra cloud deploy.sh
+    if [ "$1" = ship ]; then echo infra cloud deploy.sh; fi
     ;;
   config)
     echo "discover.hide = tools"
@@ -76,23 +66,7 @@ const GROUP = `$ monom infra
 monom: 'infra' is a command group
 available: cloud, local`;
 
-// Outcomes of the discovery gate for fixtures/zero-config-project in the repo.
-const GATE: { path: string; why: string; outcome: "yes" | "warn" | "skip"; label: string }[] = [
-  { path: "deploy", why: "starts with #!/bin/sh", outcome: "yes", label: "monom deploy" },
-  { path: "scripts/setup.sh", why: "starts with #!/bin/sh", outcome: "yes", label: "monom scripts setup.sh" },
-  { path: "build/compile", why: "no shebang, but a command-shaped name (compiled binaries pass this way)", outcome: "yes", label: "monom build compile" },
-  { path: "notes.TXT", why: "executable, no shebang, not a command-shaped name", outcome: "warn", label: "mnmd check warns" },
-  { path: "docs/guide", why: "not executable", outcome: "skip", label: "ignored" },
-  { path: "_lib/helper, .hidden/tool", why: "_-prefixed and hidden entries are private", outcome: "skip", label: "never scanned" },
-  { path: "node_modules/pkg/cli", why: "node_modules, vendor, venv, target, dist, __pycache__", outcome: "skip", label: "never scanned" },
-];
-
-const LANGS: [string, string][] = [
-  ["db migrate", "python3"],
-  ["db seed", "node"],
-  ["infra cloud deploy", "bash"],
-  ["release", "bash"],
-];
+const LANGS = ENTRIES.filter((e) => e.outcome === "command");
 
 type Mark = "yes" | "no" | "part";
 const COMPARE: { row: string; cells: [Mark, string?][] }[] = [
@@ -142,9 +116,9 @@ export default function Index() {
             is your <span className="mono is-command-text">command tree</span>.
           </h1>
           <p className="lede">
-            Drop executable scripts into your repo's folders and they're already a CLI:{" "}
-            <code>monom db migrate</code>, with Tab completion in bash and zsh. No config file, no
-            registration, nothing generated.
+            Drop executables into your repo's folders, in any language, and they're already a CLI:{" "}
+            <code>monom db migrate.py</code>, with Tab completion in bash and zsh. No config file,
+            no registration, nothing generated.
           </p>
           <div className="hero-actions">
             <Link to="/docs" className="button is-primary">
@@ -159,7 +133,7 @@ export default function Index() {
         <div className="wrap wide">
           <TabDemo />
           <p className="demo-caption">
-            A live port of <code>mnmd filter</code> running against the repo's demo project. Folders
+            A live port of <code>mnmd filter</code> running against the example project used across this site. Folders
             complete as <span className="is-group-text">groups</span>, scripts as{" "}
             <span className="is-command-text">commands</span>.
           </p>
@@ -178,11 +152,11 @@ export default function Index() {
               <span className="step-n">01</span>
               <h3>Drop scripts in folders</h3>
               <p>
-                Any executable with a shebang, in any folder of a git repo. Folders become command
-                groups; scripts become commands. No file to create first.
+                Python, Node, bash, Ruby, a compiled Go binary: anything executable, in any folder of
+                a git repo. Folders become command groups; executables become commands.
               </p>
               <div className="step-visual tree-card">
-                <FileTree paths={ACME_PATHS} config={null} />
+                <FileTree />
               </div>
             </li>
             <li className="step">
@@ -200,8 +174,8 @@ export default function Index() {
               <span className="step-n">03</span>
               <h3>Press Tab, run it</h3>
               <p>
-                Spaces become slashes. <code>monom infra cloud deploy</code> runs{" "}
-                <code>infra/cloud/deploy</code>, from any folder inside the project.
+                Spaces become slashes. <code>monom infra cloud deploy.sh</code> runs{" "}
+                <code>infra/cloud/deploy.sh</code>, from any folder inside the project.
               </p>
               <div className="step-visual">
                 <Code output>{RUN}</Code>
@@ -232,39 +206,32 @@ export default function Index() {
       <section className="section" id="discovery">
         <div className="wrap">
           <SectionHead kicker="zero-config discovery" title="What becomes a command, and what doesn't." />
-          <p className="section-lede">
-            Discovery scans broadly, then a gate decides. An executable is registered if it starts
-            with a shebang, if its name looks like a command (<code>^[a-z0-9][a-z0-9_-]*$</code>:
-            lowercase, no extension), or if the <code>monom</code> file declares it. This is the
-            repo's <code>fixtures/zero-config-project</code>:
-          </p>
-          <div className="table-scroll">
-            <table className="ref gate">
-              <thead>
-                <tr>
-                  <th>File</th>
-                  <th>Why</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {GATE.map((g) => (
-                  <tr key={g.path}>
-                    <td>{g.path}</td>
-                    <td>{g.why}</td>
-                    <td>
-                      <span className={`outcome is-${g.outcome}`}>{g.label}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="config-row gate-row">
+            <div>
+              <p>
+                Discovery scans broadly, then a gate decides. An executable is registered if it
+                starts with a shebang, if its name looks like a command (
+                <code>^[a-z0-9][a-z0-9_-]*$</code>: lowercase, no dots), or if the{" "}
+                <code>monom</code> file declares it.
+              </p>
+              <p>
+                The path is the command, extension included: <code>db/migrate.py</code> is{" "}
+                <code>{cmd("db/migrate.py")}</code>, and Tab completes it. Because the name rule
+                has no dots, a file with an extension needs a shebang. Leave the extension off (
+                <code>infra/local/start</code>) for a shorter command. Compiled binaries like{" "}
+                <code>tools/lint</code> get in by name.
+              </p>
+              <p className="muted">
+                Hidden and <code>_</code>-prefixed entries, <code>node_modules</code>,{" "}
+                <code>vendor</code>, <code>venv</code>, <code>target</code>, <code>dist</code>,{" "}
+                <code>__pycache__</code> and nested monom projects are never scanned. Add{" "}
+                <code>discover.hide</code> patterns to skip more.
+              </p>
+            </div>
+            <div className="tree-card">
+              <FileTree annotate="gate" />
+            </div>
           </div>
-          <p className="footnote">
-            Nested monom projects (a subfolder with its own <code>monom</code> file) and paths with
-            spaces are never registered either. To hide more, add <code>discover.hide</code>{" "}
-            patterns.
-          </p>
         </div>
       </section>
 
@@ -326,16 +293,16 @@ $ mnmd root
           <SectionHead kicker="why monom" title="A CLI framework that stays out of your scripts." />
           <div className="features">
             <article className="feature">
-              <h3>Any language with a shebang</h3>
+              <h3>Any language, even compiled</h3>
               <p>
                 monom resolves a path and <code>exec</code>s it. Your script never imports, sources,
-                or links anything.
+                or links anything; a shebang or a binary is all it needs.
               </p>
               <ul className="lang-list">
-                {LANGS.map(([cmd, lang]) => (
-                  <li key={cmd}>
-                    <span className="is-command-text">{cmd}</span>
-                    <span className="shebang">#!/usr/bin/env {lang}</span>
+                {LANGS.map((e) => (
+                  <li key={e.path}>
+                    <span className="is-command-text">{cmd(e.path).replace(/^monom /, "")}</span>
+                    <span className="shebang">{e.why.replace(/,.*$/, "").replace(/:.*$/, "")}</span>
                   </li>
                 ))}
               </ul>
@@ -389,9 +356,9 @@ $ echo $?
               <h3>No lock-in</h3>
               <p>
                 Your commands are plain executables in plain folders. Delete monom tomorrow and{" "}
-                <code>./infra/cloud/deploy</code> still runs.
+                <code>./infra/cloud/deploy.sh</code> still runs.
               </p>
-              <Code output>{`$ ./infra/cloud/deploy
+              <Code output>{`$ ./infra/cloud/deploy.sh
 deploying to cloud...`}</Code>
             </article>
           </div>
@@ -427,9 +394,9 @@ deploying to cloud...`}</Code>
                 the team has, with nothing committed for monom's sake.
               </p>
               <Code output>{`$ monom <Tab>
-db       infra    release
+db          infra       release.rb  tools
 $ monom db <Tab>
-migrate  seed`}</Code>
+migrate.py  seed.js`}</Code>
             </article>
             <article className="audience">
               <h3>Your own toolbox</h3>

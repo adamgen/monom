@@ -1,6 +1,8 @@
 import type { MetaFunction } from "@remix-run/node";
 import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
+import { FileTree } from "~/components/FileTree";
+import { CHECK } from "~/lib/project";
 import { GITHUB_URL, INSTALL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
@@ -42,7 +44,7 @@ export default function Docs() {
       <article className="prose">
         <h1>Quick start</h1>
         <p className="lede">
-          From nothing to a tab-completing <code>monom infra cloud deploy</code>, with no config
+          From nothing to a tab-completing <code>monom infra cloud deploy.sh</code>, with no config
           file. You'll need <code>git</code>, <code>make</code>, Go 1.24+, and bash or zsh.
         </p>
 
@@ -96,15 +98,20 @@ $ touch monom          # or: git init`}</Code>
         <h2 id="commands">3. Add commands</h2>
         <p>
           Each command is an executable file; each subfolder is a command group. Use any language:
-          the shebang decides.
+          the shebang decides, and compiled binaries work too. The examples on this site all use
+          this project:
         </p>
+        <div className="tree-card">
+          <FileTree />
+        </div>
+        <p>Start with two of its commands:</p>
         <Code>{`$ mkdir -p infra/cloud db
-$ printf '#!/usr/bin/env bash\\necho "deploying to cloud..."\\n' > infra/cloud/deploy
-$ printf '#!/usr/bin/env python3\\nprint("running db migrations...")\\n' > db/migrate
-$ chmod +x infra/cloud/deploy db/migrate`}</Code>
+$ printf '#!/usr/bin/env bash\\necho "deploying to cloud..."\\n' > infra/cloud/deploy.sh
+$ printf '#!/usr/bin/env python3\\nprint("running db migrations...")\\n' > db/migrate.py
+$ chmod +x infra/cloud/deploy.sh db/migrate.py`}</Code>
         <Code output>{`$ mnmd discover
-db/migrate
-infra/cloud/deploy`}</Code>
+db/migrate.py
+infra/cloud/deploy.sh`}</Code>
         <p>
           That's it: there is no registration step. Default discovery registers an executable when
           it passes the <strong>gate</strong>:
@@ -114,8 +121,8 @@ infra/cloud/deploy`}</Code>
             it starts with a shebang (<code>#!</code>), or
           </li>
           <li>
-            its name looks like a command, <code>^[a-z0-9][a-z0-9_-]*$</code>: lowercase with no
-            extension. This is how compiled binaries get in; or
+            its name looks like a command, <code>^[a-z0-9][a-z0-9_-]*$</code>: lowercase, no
+            dots. This is how compiled binaries like <code>tools/lint</code> get in; or
           </li>
           <li>
             the <a href="#config">monom file</a> declares it.
@@ -128,15 +135,19 @@ infra/cloud/deploy`}</Code>
           never registered, because they couldn't be typed as words.
         </p>
         <p>
-          Prefer names without extensions: the file's path <em>is</em> the command, so{" "}
-          <code>scripts/setup.sh</code> is typed as <code>monom scripts setup.sh</code>.
+          The file's path <em>is</em> the command, extension included:{" "}
+          <code>db/migrate.py</code> is <code>monom db migrate.py</code>, and Tab completes the
+          whole name. Since the name rule has no dots, a file with an extension needs a shebang;
+          without one (<code>tools/Format.sh</code>) it isn't registered, and{" "}
+          <code>mnmd check</code> says why. Drop the extension, as in{" "}
+          <code>infra/local/start</code>, if you want a shorter command.
         </p>
 
         <h2 id="try">4. Press Tab</h2>
         <Code output>{`$ monom <Tab>
 db     infra
 $ monom in<Tab>         # completes to: monom infra
-$ monom infra cloud deploy
+$ monom infra cloud deploy.sh
 deploying to cloud...
 $ monom infra
 monom: 'infra' is a command group
@@ -147,7 +158,7 @@ available: cloud`}</Code>
         </p>
         <p className="callout">
           Every word you type is part of the command path, so commands don't take arguments yet:{" "}
-          <code>monom release v1.2</code> looks for <code>release/v1.2</code>. Flag parsing (
+          <code>monom release.rb v1.2</code> looks for <code>release.rb/v1.2</code>. Flag parsing (
           <code>mnmd args</code>) is on the <a href={`${GITHUB_URL}/blob/main/BACKLOG.md`}>backlog</a>.
         </p>
 
@@ -203,11 +214,9 @@ available: cloud`}</Code>
         </div>
         <p>
           Warnings never change the exit code, so a fresh zero-config project passes. Any error
-          exits 1.
+          exits 1. In the full example project:
         </p>
-        <Code output>{`$ mnmd check
-warning: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
-✔ 4 commands OK (default discovery), 1 warning(s)`}</Code>
+        <Code output>{CHECK}</Code>
         <p>
           To make <code>root-contents</code> an error, set <code>check.root-contents = error</code>{" "}
           in a declarative monom file (or print it from a hook script's <code>config</code> hook).
@@ -267,9 +276,8 @@ MONOM_ACTIVE=1 "$RUNNER_TEMP/monom/bin/mnmd" check`}</Code>
 tools/Format.sh
 # make mnmd check fail on unregistered executables (default: warning)
 check.root-contents = error
-# treat more entries as hidden, like dot-files (one pattern per line)
-discover.hide = *.TXT
-discover.hide = tools/wip-*`}</Code>
+# hide more entries, like dot-files (one pattern per line)
+discover.hide = infra/local`}</Code>
         <p>
           <code>discover.hide</code> patterns are{" "}
           <a href="https://pkg.go.dev/path#Match">path.Match</a> globs. One without a{" "}
@@ -330,8 +338,8 @@ discover.hide = tools/wip-*`}</Code>
 case "$1" in
   run)
     shift
-    # \`monom ship\` runs \`monom infra cloud deploy\`
-    if [ "$1" = "ship" ]; then echo "infra cloud deploy"; fi
+    # \`monom ship\` runs \`monom infra cloud deploy.sh\`
+    if [ "$1" = "ship" ]; then echo "infra cloud deploy.sh"; fi
     ;;
   config)
     echo "discover.hide = tools"

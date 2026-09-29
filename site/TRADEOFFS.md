@@ -14,7 +14,7 @@
 
 ## The homepage demo ports `mnmd filter` to TypeScript instead of running the real binary
 
-**Chosen:** `app/lib/filter.ts` reimplements `internal/filter` in about 30 lines, and the demo runs it in the browser against a hard-coded copy of the demo project.
+**Chosen:** `app/lib/filter.ts` reimplements `internal/filter` in about 30 lines, and the demo runs it in the browser against the site's example project (`app/lib/project.ts`).
 
 **Rejected:** compiling `internal/filter` to WebAssembly (`GOOS=js GOARCH=wasm`, or TinyGo) and calling the real code.
 

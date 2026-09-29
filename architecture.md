@@ -452,11 +452,11 @@ user runs: monom <args...>
 
 It deploys as static files. `npm run build` produces the Remix build, `scripts/prerender.mjs` renders `/`, `/docs`, and a 404 page into `build/client`, and `wrangler deploy` uploads that directory as a Cloudflare Workers static-assets site (`site/wrangler.jsonc`). `.github/workflows/deploy-site.yml` does this on every push to `main` that touches `site/`. On pull requests, `.github/workflows/preview-site.yml` uploads the same build with `wrangler versions upload --preview-alias pr-<number>` instead, which creates a Version URL (`pr-<number>-monom-site.<subdomain>.workers.dev`) without changing production, and keeps one comment on the PR pointing at it. That is why `wrangler.jsonc` sets `preview_urls: true` while `workers_dev` stays `false`.
 
-Two files in it mirror the runtime so the homepage's interactive terminal behaves like the real thing. Change them together with their source:
+Two files in it mirror the runtime so the site's trees and interactive terminal behave like the real thing. Change them together with their source:
 
 | Site file | Mirrors |
 | --- | --- |
 | `site/app/lib/filter.ts` | `internal/filter/filter.go` — a port of `mnmd filter`'s matching |
-| `site/app/lib/demo-project.ts` | `fixtures/demo-project/` — its `complete` output and what each script prints |
+| `site/app/lib/project.ts` | Not a repo fixture: the example project every tree, command and output on the site uses. Each entry's discovery outcome, the `mnmd discover`/`mnmd check` output and what each command prints were checked against the real binaries in a project built from it. Re-check when discovery, the gate, or check messages change. |
 
 The site's copy quotes real CLI output (`mnmd discover`, `mnmd check`, command-group messages, `mnmd install`) and the discovery gate's rules. When those change, the site's copy is stale until updated.
