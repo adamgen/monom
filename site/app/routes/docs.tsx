@@ -3,7 +3,7 @@ import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
 import { CHECK } from "~/lib/project";
-import { GITHUB_URL, INSTALL } from "~/lib/site";
+import { GITHUB_URL, INSTALL, INSTALL_SCRIPT_MIRROR_URL, INSTALL_SCRIPT_URL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
   { title: "Quick start — monom" },
@@ -45,29 +45,42 @@ export default function Docs() {
         <h1>Quick start</h1>
         <p className="lede">
           From nothing to a tab-completing <code>monom infra cloud deploy.sh</code>, with no config
-          file. You'll need <code>git</code>, <code>make</code>, Go 1.24+, and bash or zsh.
+          file. You'll need Linux or macOS, bash or zsh, and <code>curl</code>.
         </p>
 
         <h2 id="install">1. Install</h2>
-        <p>
-          Clone the repo somewhere permanent, build the <code>mnmd</code> engine, and let it add
-          one <code>source</code> line to your shell's rc file.
-        </p>
         <CopyCommand command={INSTALL} />
         <p>
-          <code>mnmd install</code> picks <code>~/.zshrc</code> for zsh, or{" "}
-          <code>~/.bash_profile</code> (falling back to <code>~/.bashrc</code>) for bash. It's
-          idempotent: a second run prints <code>already installed</code>. Open a new shell, or
-          source the file it names:
+          The script is about 50 lines, so <a href={INSTALL_SCRIPT_URL}>read it</a> first. It
+          downloads the <code>mnmd</code> release tarball for your machine (Linux or macOS, amd64 or
+          arm64) from <a href={`${GITHUB_URL}/releases`}>GitHub releases</a>, checks its SHA-256
+          against the release's <code>checksums.txt</code>, unpacks it into{" "}
+          <code>~/.local/share/monom</code> and links <code>~/.local/bin/mnmd</code>. No sudo, no
+          make. monom.dev serves the repo's{" "}
+          <a href={`${GITHUB_URL}/blob/main/install.sh`}>install.sh</a> as is, and{" "}
+          <a href={INSTALL_SCRIPT_MIRROR_URL}>GitHub serves the same file</a> if monom.dev is
+          unreachable.
         </p>
-        <Code output>{`$ ~/.monom/bin/mnmd install
+        <p>
+          Last, it runs <code>mnmd install</code>, which adds one <code>source</code> line to{" "}
+          <code>~/.zshrc</code> for zsh, or to <code>~/.bash_profile</code> (falling back to{" "}
+          <code>~/.bashrc</code>) for bash. Open a new shell, or source the file it names:
+        </p>
+        <Code output>{`monom: installed mnmd v1.2.3 in /Users/you/.local/share/monom
 added to /Users/you/.zshrc
 restart your shell or run: source /Users/you/.zshrc`}</Code>
         <p>
-          The rc line points into the checkout, so don't move it or copy the binary out of it. In
-          zsh, the line has to come after <code>compinit</code> (or after the framework line that
-          calls it, like <code>source $ZSH/oh-my-zsh.sh</code>). Updating later is{" "}
-          <code>git -C ~/.monom pull &amp;&amp; make -C ~/.monom build</code>.
+          Re-running the one-liner upgrades and never adds the line twice;{" "}
+          <code>MONOM_VERSION=v1.2.3</code> pins a release. In zsh, the line has to come after{" "}
+          <code>compinit</code> (or after the framework line that calls it, like{" "}
+          <code>source $ZSH/oh-my-zsh.sh</code>).
+        </p>
+        <p>
+          No release for your platform, or working on monom itself? Build from a checkout with Go
+          1.24+ (no make): <code>git clone {GITHUB_URL} &amp;&amp; cd monom &amp;&amp; ./build.sh
+          &amp;&amp; bin/mnmd install</code>. The rc line points into the checkout, so clone it
+          somewhere permanent and don't move it; update with{" "}
+          <code>git pull &amp;&amp; ./build.sh</code>.
         </p>
         <p className="callout">
           Setting this up with a coding agent? Point it at{" "}
@@ -225,12 +238,11 @@ available: cloud`}</Code>
         </p>
         <p>
           <code>mnmd check</code> finds the root itself and needs no shell integration, so a CI job
-          can build monom and run it from the project's checkout. <code>MONOM_ACTIVE=1</code>{" "}
+          can install monom and run it from the project's checkout. <code>MONOM_ACTIVE=1</code>{" "}
           silences the install hint:
         </p>
-        <Code>{`git clone --depth 1 https://github.com/adamgen/monom "$RUNNER_TEMP/monom"
-make -C "$RUNNER_TEMP/monom" build
-MONOM_ACTIVE=1 "$RUNNER_TEMP/monom/bin/mnmd" check`}</Code>
+        <Code>{`curl -fsSL ${INSTALL_SCRIPT_URL} | bash
+MONOM_ACTIVE=1 ~/.local/bin/mnmd check`}</Code>
 
         <h2 id="config">6. The monom file</h2>
         <p>
@@ -415,6 +427,12 @@ esac`}</Code>
                   <code>mnmd install</code>
                 </td>
                 <td>Adds the shell integration to your rc file. Idempotent.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>mnmd version</code>
+                </td>
+                <td>Prints the installed version (the release tag, or what the build was stamped with).</td>
               </tr>
               <tr>
                 <td>

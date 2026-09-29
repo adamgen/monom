@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      # monom.dev/install.sh is copied from here at build time.
+      - "install.sh"
       - ".github/workflows/deploy-site.yml"
   workflow_dispatch:
 

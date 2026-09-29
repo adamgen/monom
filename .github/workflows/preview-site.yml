@@ -8,6 +8,8 @@ on:
   pull_request:
     paths:
       - "site/**"
+      # Served as /install.sh by the site (copied at build time).
+      - "install.sh"
       - ".github/workflows/**"
 
 permissions:

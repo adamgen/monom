@@ -47,6 +47,25 @@ jobs:
       - name: make check
         run: make check
 
+  # install.sh on macOS: the darwin tarball, the system bash 3.2 that
+  # `curl ... | bash` runs there, BSD tools, zsh as the default shell. On Linux
+  # the same test (tests/harness/install_test.go) runs inside make check.
+  install-macos:
+    name: install.sh on macOS (release tarball, no Go on PATH, bash 3.2 + zsh)
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: tests/harness/go.sum
+
+      - name: go test -run TestInstallScript
+        working-directory: tests/harness
+        run: go test -count=1 -run TestInstallScript -v ./...
+
   site:
     name: Site (typecheck, build, prerender, wrangler dry run)
     runs-on: ubuntu-latest
@@ -75,6 +94,14 @@ jobs:
           test -s build/client/404.html
           grep -q 'command tree' build/client/index.html
           grep -q 'Quick start' build/client/docs/index.html
+
+      # monom.dev/install.sh must be the repo-root install.sh, byte for byte
+      # (prerender.mjs copies it), served as text by public/_headers.
+      - name: Check the served install.sh
+        run: |
+          cmp build/client/install.sh ../install.sh
+          grep -A1 -x '/install.sh' build/client/_headers | grep -qx '  Content-Type: text/plain; charset=utf-8'
+          head -1 build/client/install.sh | grep -qx '#!/usr/bin/env bash'
 
       # Validates wrangler.jsonc and the asset bundle without credentials.
       # Kept in sync with deploy-site.yml. wrangler is not a devDependency:
