@@ -1,15 +1,11 @@
 // install.sh, run the way a user runs it: piped into bash, in an empty HOME,
 // against release tarballs that build.sh produced and a local HTTP server
-// serves (MONOM_DOWNLOAD_BASE). Most scenarios run with no Go on PATH: PATH
-// is a directory of symlinks to the handful of tools the installer and the
-// shell integration use.
+// serves (MONOM_DOWNLOAD_BASE). PATH is a directory of symlinks to the handful
+// of tools the installer and the shell integration use, and no Go.
 package harness
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,10 +22,10 @@ const installTestVersion = "v0.0.0-installtest"
 // installTools is everything install.sh, src/monom and the checks below call.
 // go is deliberately absent.
 var installTools = []string{
-	"bash", "zsh", "sh", "curl", "wget", "tar", "gzip", "mkdir", "mktemp", "rm", "mv",
+	"bash", "zsh", "sh", "curl", "tar", "gzip", "mkdir", "mktemp", "rm", "mv",
 	"cp", "ln", "chmod", "cat", "sed", "awk", "grep", "uname", "tr", "cut", "find",
 	"head", "tail", "dirname", "basename", "sha256sum", "shasum", "date", "wc",
-	"sort", "env", "ls", "touch", "sysctl",
+	"sort", "env", "ls", "touch",
 }
 
 type installEnv struct {
@@ -39,7 +35,6 @@ type installEnv struct {
 	tools    string // PATH without go
 	release  string // URL serving the release assets
 	empty    string // URL with no assets (a repo with no release)
-	source   string // URL of a source tarball of this tree
 	compdump string
 }
 
@@ -55,14 +50,10 @@ func TestInstallScript(t *testing.T) {
 	e := newInstallEnv(t)
 
 	for _, sh := range []string{"bash", "zsh"} {
-		t.Run("release/no-go/"+sh, func(t *testing.T) { e.testReleaseInstall(t, sh) })
+		t.Run("release/"+sh, func(t *testing.T) { e.testReleaseInstall(t, sh) })
 	}
-	t.Run("release/wget-only", e.testWgetOnly)
-	t.Run("release/upgrades-earlier-install-in-place", e.testUpgradeInPlace)
-	t.Run("release/stops-for-a-wired-git-checkout", e.testGitCheckoutStops)
 	t.Run("release/checksum-mismatch-aborts", e.testChecksumMismatch)
-	t.Run("no-release/no-go-fails-clearly", e.testNoReleaseNoGo)
-	t.Run("no-release/go-builds-from-source", e.testSourceFallback)
+	t.Run("no-release/fails-clearly", e.testNoRelease)
 }
 
 func newInstallEnv(t *testing.T) *installEnv {
@@ -83,22 +74,16 @@ func newInstallEnv(t *testing.T) *installEnv {
 		t.Fatalf("build.sh dist: %v\n%s", err, out)
 	}
 
-	srcDir := t.TempDir()
-	writeSourceTarball(t, repo, filepath.Join(srcDir, "main.tar.gz"))
-
 	release := httptest.NewServer(http.FileServer(http.Dir(dist)))
 	empty := httptest.NewServer(http.NotFoundHandler())
-	source := httptest.NewServer(http.FileServer(http.Dir(srcDir)))
 	t.Cleanup(release.Close)
 	t.Cleanup(empty.Close)
-	t.Cleanup(source.Close)
 
 	return &installEnv{
 		t: t, repo: repo, script: script,
 		tools:    toolDir(t, installTools),
 		release:  release.URL,
 		empty:    empty.URL,
-		source:   source.URL + "/main.tar.gz",
 		compdump: buildCompdump(t, t.TempDir()),
 	}
 }
@@ -123,54 +108,6 @@ func toolDir(t *testing.T, tools []string) string {
 		}
 	}
 	return dir
-}
-
-// writeSourceTarball packs the files a source build needs the way GitHub's
-// archive endpoint does: everything under one top-level directory.
-func writeSourceTarball(t *testing.T, repo, dest string) {
-	f, err := os.Create(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	gz := gzip.NewWriter(f)
-	tw := tar.NewWriter(gz)
-	for _, top := range []string{"go.mod", "build.sh", "README.md", "cmd", "internal", "src"} {
-		err := filepath.WalkDir(filepath.Join(repo, top), func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return err
-			}
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-			rel, _ := filepath.Rel(repo, path)
-			hdr, err := tar.FileInfoHeader(info, "")
-			if err != nil {
-				return err
-			}
-			hdr.Name = "monom-main/" + filepath.ToSlash(rel)
-			if err := tw.WriteHeader(hdr); err != nil {
-				return err
-			}
-			src, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer src.Close()
-			_, err = io.Copy(tw, src)
-			return err
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
 }
 
 type installRun struct {
@@ -264,10 +201,7 @@ func (e *installEnv) testReleaseInstall(t *testing.T, sh string) {
 	dir := filepath.Join(home, ".local", "share", "monom")
 
 	first := e.mustInstall(t, home, e.tools, env...)
-	mustContain(t, "first run", first.out, "verified sha256", "installed mnmd "+installTestVersion+" to "+dir, "added to "+rc)
-	if strings.Contains(first.out, "compinit") {
-		t.Errorf("no compinit note expected when the zshrc runs compinit:\n%s", first.out)
-	}
+	mustContain(t, "first run", first.out, "installed mnmd "+installTestVersion+" in "+dir, "added to "+rc)
 
 	second := e.mustInstall(t, home, e.tools, env...)
 	mustContain(t, "second run", second.out, "installed mnmd "+installTestVersion, "already installed")
@@ -327,69 +261,6 @@ func (e *installEnv) testReleaseInstall(t *testing.T, sh string) {
 	}
 }
 
-func (e *installEnv) testWgetOnly(t *testing.T) {
-	if _, err := exec.LookPath("wget"); err != nil {
-		t.Skip("wget not available")
-	}
-	var tools []string
-	for _, tool := range installTools {
-		if tool != "curl" {
-			tools = append(tools, tool)
-		}
-	}
-	home := realTempDir(t)
-	r := e.mustInstall(t, home, toolDir(t, tools), "SHELL=/bin/bash", "MONOM_DOWNLOAD_BASE="+e.release)
-	mustContain(t, "wget run", r.out, "verified sha256", "installed mnmd "+installTestVersion)
-}
-
-func (e *installEnv) testUpgradeInPlace(t *testing.T) {
-	home := realTempDir(t)
-	old := filepath.Join(home, ".monom")
-	for _, d := range []string{"bin", "src"} {
-		if err := os.MkdirAll(filepath.Join(old, d), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	rc := filepath.Join(home, ".bashrc")
-	writeFile(t, rc, "# mine\nsource \"$HOME/.monom/src/monom\"\n")
-
-	r := e.mustInstall(t, home, e.tools, "SHELL=/bin/bash", "MONOM_DOWNLOAD_BASE="+e.release, "MONOM_BIN_DIR=")
-	mustContain(t, "upgrade run", r.out, "found an earlier install at "+old, "installed mnmd "+installTestVersion+" to "+old)
-	if _, err := os.Stat(filepath.Join(home, ".local", "share", "monom")); err == nil {
-		t.Error("a second install was created in ~/.local/share/monom")
-	}
-	if _, err := os.Lstat(filepath.Join(home, ".local", "bin", "mnmd")); err == nil {
-		t.Error("MONOM_BIN_DIR= should skip the symlink")
-	}
-	mustContain(t, "upgrade run", r.out, "already installed (your shell sources "+old+"/src/monom)")
-	if got := sourceLines(t, rc); len(got) != 1 {
-		t.Errorf("the $HOME/.monom line already sources this install; want it alone, got %q", got)
-	}
-}
-
-func (e *installEnv) testGitCheckoutStops(t *testing.T) {
-	home := realTempDir(t)
-	checkout := filepath.Join(home, ".monom")
-	if err := os.MkdirAll(filepath.Join(checkout, ".git"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	rc := filepath.Join(home, ".bashrc")
-	line := "source \"" + checkout + "/src/monom\"\n"
-	writeFile(t, rc, line)
-
-	r := e.install(t, home, e.tools, "SHELL=/bin/bash", "MONOM_DOWNLOAD_BASE="+e.release)
-	if r.code == 0 {
-		t.Fatal("install.sh installed a second copy next to a wired git checkout")
-	}
-	mustContain(t, "stderr", r.errOut, "already sources a monom git checkout at "+checkout, "git pull && ./build.sh", "MONOM_INSTALL_DIR")
-	if data, _ := os.ReadFile(rc); string(data) != line {
-		t.Errorf("rc file changed:\n%s", data)
-	}
-	if _, err := os.Stat(filepath.Join(home, ".local")); err == nil {
-		t.Error("~/.local was created")
-	}
-}
-
 func (e *installEnv) testChecksumMismatch(t *testing.T) {
 	dist := t.TempDir()
 	asset := "monom-" + runtime.GOOS + "-" + runtime.GOARCH + ".tar.gz"
@@ -409,39 +280,19 @@ func (e *installEnv) testChecksumMismatch(t *testing.T) {
 	if r.code == 0 {
 		t.Fatal("install.sh succeeded with a corrupt tarball")
 	}
-	mustContain(t, "stderr", r.errOut, "checksum mismatch for "+asset)
+	mustContain(t, "stderr", r.errOut, "sha256 mismatch for "+asset)
 	e.assertNothingInstalled(t, home)
 }
 
-func (e *installEnv) testNoReleaseNoGo(t *testing.T) {
+func (e *installEnv) testNoRelease(t *testing.T) {
 	home := realTempDir(t)
 	r := e.install(t, home, e.tools, "SHELL=/bin/bash", "MONOM_DOWNLOAD_BASE="+e.empty)
 	if r.code == 0 {
-		t.Fatal("install.sh succeeded with no release and no Go")
+		t.Fatal("install.sh succeeded with no release")
 	}
 	mustContain(t, "stderr", r.errOut,
-		"no monom-"+runtime.GOOS+"-"+runtime.GOARCH+".tar.gz at "+e.empty,
-		"Go is not installed", "https://go.dev/dl/", "MONOM_VERSION=")
+		"no monom release for "+runtime.GOOS+"/"+runtime.GOARCH, "Build it from source", "https://github.com/adamgen/monom#install")
 	e.assertNothingInstalled(t, home)
-}
-
-func (e *installEnv) testSourceFallback(t *testing.T) {
-	goBin, err := exec.LookPath("go")
-	if err != nil {
-		t.Skip("go not available")
-	}
-	home := realTempDir(t)
-	path := e.tools + string(os.PathListSeparator) + filepath.Dir(goBin)
-	env := []string{"SHELL=/bin/bash", "MONOM_DOWNLOAD_BASE=" + e.empty, "MONOM_SOURCE_URL=" + e.source}
-	// Reuse the build cache so the test doesn't compile the standard library.
-	if cache, err := exec.Command("go", "env", "GOCACHE").Output(); err == nil {
-		env = append(env, "GOCACHE="+strings.TrimSpace(string(cache)))
-	}
-	r := e.mustInstall(t, home, path, env...)
-	dir := filepath.Join(home, ".local", "share", "monom")
-	mustContain(t, "source run", r.out, "falling back to a source build", "installed mnmd source to "+dir, "added to ")
-	got := e.interactive(t, home, "bash", "type -t monom; complete -p monom")
-	mustContain(t, "bash -ic", got, "function", "complete -F _monom_completion monom")
 }
 
 func (e *installEnv) assertNothingInstalled(t *testing.T, home string) {

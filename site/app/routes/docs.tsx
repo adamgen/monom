@@ -3,7 +3,7 @@ import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
 import { CHECK } from "~/lib/project";
-import { GITHUB_URL, INSTALL, INSTALL_SCRIPT_URL } from "~/lib/site";
+import { GITHUB_URL, INSTALL, INSTALL_SCRIPT_MIRROR_URL, INSTALL_SCRIPT_URL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
   { title: "Quick start — monom" },
@@ -45,40 +45,42 @@ export default function Docs() {
         <h1>Quick start</h1>
         <p className="lede">
           From nothing to a tab-completing <code>monom infra cloud deploy.sh</code>, with no config
-          file. You'll need Linux or macOS, bash or zsh, and <code>curl</code> (or <code>wget</code>).
+          file. You'll need Linux or macOS, bash or zsh, and <code>curl</code>.
         </p>
 
         <h2 id="install">1. Install</h2>
         <CopyCommand command={INSTALL} />
         <p>
-          The script downloads the prebuilt <code>mnmd</code> engine for your machine (Linux or
-          macOS, amd64 or arm64) from the latest{" "}
-          <a href={`${GITHUB_URL}/releases`}>GitHub release</a>, checks its SHA-256 against the
-          release's <code>checksums.txt</code>, and installs it with the shell integration into{" "}
-          <code>~/.local/share/monom</code>, linking <code>~/.local/bin/mnmd</code>. No sudo, no
-          make. When there's no prebuilt binary for your machine, it builds one from source
-          instead, which needs Go 1.24+; without Go it stops and says so.{" "}
-          <a href={`${GITHUB_URL}/blob/main/install.sh`}>Read the script</a> before you pipe it anywhere.
+          The script is about 50 lines, so <a href={INSTALL_SCRIPT_URL}>read it</a> first. It
+          downloads the <code>mnmd</code> release tarball for your machine (Linux or macOS, amd64 or
+          arm64) from <a href={`${GITHUB_URL}/releases`}>GitHub releases</a>, checks its SHA-256
+          against the release's <code>checksums.txt</code>, unpacks it into{" "}
+          <code>~/.local/share/monom</code> and links <code>~/.local/bin/mnmd</code>. No sudo, no
+          make. monom.dev serves the repo's{" "}
+          <a href={`${GITHUB_URL}/blob/main/install.sh`}>install.sh</a> as is, and{" "}
+          <a href={INSTALL_SCRIPT_MIRROR_URL}>GitHub serves the same file</a> if monom.dev is
+          unreachable.
         </p>
         <p>
           Last, it runs <code>mnmd install</code>, which adds one <code>source</code> line to{" "}
           <code>~/.zshrc</code> for zsh, or to <code>~/.bash_profile</code> (falling back to{" "}
           <code>~/.bashrc</code>) for bash. Open a new shell, or source the file it names:
         </p>
-        <Code output>{`monom: added to /Users/you/.zshrc
-monom: restart your shell or run: source /Users/you/.zshrc`}</Code>
+        <Code output>{`monom: installed mnmd v1.2.3 in /Users/you/.local/share/monom
+added to /Users/you/.zshrc
+restart your shell or run: source /Users/you/.zshrc`}</Code>
         <p>
-          Re-running the one-liner upgrades in place and never adds the line twice. In zsh, the line
-          has to come after <code>compinit</code> (or after the framework line that calls it, like{" "}
-          <code>source $ZSH/oh-my-zsh.sh</code>); the installer warns when your{" "}
-          <code>~/.zshrc</code> doesn't run it. Environment variables change the defaults:{" "}
-          <code>MONOM_VERSION=&lt;tag&gt;</code> pins a release, <code>MONOM_INSTALL_DIR</code> and{" "}
-          <code>MONOM_BIN_DIR</code> move the files, and <code>MONOM_NO_MODIFY_RC=1</code> leaves
-          your rc files alone. The full list is at the top of the script.
+          Re-running the one-liner upgrades and never adds the line twice;{" "}
+          <code>MONOM_VERSION=v1.2.3</code> pins a release. In zsh, the line has to come after{" "}
+          <code>compinit</code> (or after the framework line that calls it, like{" "}
+          <code>source $ZSH/oh-my-zsh.sh</code>).
         </p>
         <p>
-          Working on monom itself? Clone the repo and run <code>./build.sh</code> (Go 1.24+), then{" "}
-          <code>bin/mnmd install</code>. The rc line points into the checkout, so don't move it.
+          No release for your platform, or working on monom itself? Build from a checkout with Go
+          1.24+ (no make): <code>git clone {GITHUB_URL} &amp;&amp; cd monom &amp;&amp; ./build.sh
+          &amp;&amp; bin/mnmd install</code>. The rc line points into the checkout, so clone it
+          somewhere permanent and don't move it; update with{" "}
+          <code>git pull &amp;&amp; ./build.sh</code>.
         </p>
         <p className="callout">
           Setting this up with a coding agent? Point it at{" "}
@@ -236,10 +238,10 @@ available: cloud`}</Code>
         </p>
         <p>
           <code>mnmd check</code> finds the root itself and needs no shell integration, so a CI job
-          can install monom and run it from the project's checkout. <code>MONOM_NO_MODIFY_RC=1</code>{" "}
-          skips the rc file, and <code>MONOM_ACTIVE=1</code> silences the install hint:
+          can install monom and run it from the project's checkout. <code>MONOM_ACTIVE=1</code>{" "}
+          silences the install hint:
         </p>
-        <Code>{`curl -fsSL ${INSTALL_SCRIPT_URL} | MONOM_NO_MODIFY_RC=1 bash
+        <Code>{`curl -fsSL ${INSTALL_SCRIPT_URL} | bash
 MONOM_ACTIVE=1 ~/.local/bin/mnmd check`}</Code>
 
         <h2 id="config">6. The monom file</h2>

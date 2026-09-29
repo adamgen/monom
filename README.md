@@ -16,17 +16,22 @@ monom is built on a few hard principles:
 
 ## Install
 
-Linux or macOS, bash or zsh:
+Linux or macOS (amd64 or arm64), bash or zsh:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/adamgen/monom/main/install.sh | bash
+curl -fsSL https://monom.dev/install.sh | bash
 ```
 
-[`install.sh`](install.sh) is short; read it first if you like. It downloads the prebuilt `mnmd` for your OS and architecture (linux/darwin, amd64/arm64) from the latest [GitHub release](https://github.com/adamgen/monom/releases), verifies its SHA-256 against the release's `checksums.txt`, installs it with the shell integration into `~/.local/share/monom` (linking `~/.local/bin/mnmd`), and runs `mnmd install` to add one `source` line to your rc file. No sudo, no make. Re-running it upgrades in place and never adds the line twice.
+[`install.sh`](install.sh) is about 50 lines; read it first. It downloads the `mnmd` release tarball for your OS and CPU from [GitHub releases](https://github.com/adamgen/monom/releases), checks its sha256 against the release's `checksums.txt`, unpacks it into `~/.local/share/monom`, links `~/.local/bin/mnmd`, and runs `mnmd install` to add one `source` line to your rc file (never twice). No sudo. Re-running it upgrades; `MONOM_VERSION=v1.2.3` pins a release. monom.dev serves the repo's file as is; `https://raw.githubusercontent.com/adamgen/monom/main/install.sh` is the same script if monom.dev is unreachable.
 
-If there's no prebuilt binary for your machine, it builds `mnmd` from source instead, which needs Go 1.24+; without Go it stops with instructions. Environment variables override the defaults: `MONOM_VERSION` (a release tag), `MONOM_INSTALL_DIR`, `MONOM_BIN_DIR`, `MONOM_NO_MODIFY_RC=1`, `MONOM_FROM_SOURCE=1`. The full list is at the top of the script.
+**No release for your platform, or working on monom?** Build from a checkout (needs Go 1.24+, no make):
 
-**From a checkout** (to work on monom): `./build.sh && bin/mnmd install`. `build.sh` needs only Go; `make build` calls it. Releases are cut by pushing a `v*` tag, which runs [`.github/workflows/release.yml`](.github/workflows/release.yml).
+```sh
+git clone https://github.com/adamgen/monom ~/.local/share/monom-src && cd ~/.local/share/monom-src
+./build.sh && bin/mnmd install
+```
+
+The rc line points into the checkout, so keep it where it is; update with `git pull && ./build.sh`. `make build` calls `build.sh`. Releases are cut by pushing a `v*` tag, which runs [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 To have a coding agent do it, point it at [`INSTALL.md`](INSTALL.md). It covers checking your shell, verifying the install, and the common pitfalls.
 

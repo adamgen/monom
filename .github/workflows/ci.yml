@@ -95,6 +95,14 @@ jobs:
           grep -q 'command tree' build/client/index.html
           grep -q 'Quick start' build/client/docs/index.html
 
+      # monom.dev/install.sh must be the repo-root install.sh, byte for byte
+      # (prerender.mjs copies it), served as text by public/_headers.
+      - name: Check the served install.sh
+        run: |
+          cmp build/client/install.sh ../install.sh
+          grep -A1 -x '/install.sh' build/client/_headers | grep -qx '  Content-Type: text/plain; charset=utf-8'
+          head -1 build/client/install.sh | grep -qx '#!/usr/bin/env bash'
+
       # Validates wrangler.jsonc and the asset bundle without credentials.
       # Kept in sync with deploy-site.yml. wrangler is not a devDependency:
       # @remix-run/dev pins an optional wrangler@3 peer.

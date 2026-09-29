@@ -174,4 +174,4 @@ Before completing any task:
 - [ ] No prose written that restates what the code says
 - [ ] Any rejected design alternative recorded in the relevant `TRADEOFFS.md`, with its cost
 - [ ] `architecture.md` updated if a contract or interface changed
-- [ ] `INSTALL.md` updated if building, `install.sh`, `mnmd install`, the install layout, or shell loading changed
+- [ ] `INSTALL.md` updated if building, `install.sh`, `mnmd install`, the install layout, or shell loading changed (`install.sh` is served at https://monom.dev/install.sh; the site build copies the repo-root file, so edit only that one)

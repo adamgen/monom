@@ -1,6 +1,6 @@
 // Prerender the Remix SSR build into static HTML so build/client can be served as pure static assets.
 import { createRequestHandler } from "@remix-run/node";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 const build = await import(new URL("../build/server/index.js", import.meta.url));
@@ -17,3 +17,10 @@ for (const [path, file] of Object.entries(pages)) {
   await writeFile(dest, html);
   console.log(`${path} -> ${file} (${res.status}, ${html.length} bytes)`);
 }
+
+// monom.dev/install.sh is the repo-root install.sh, copied here so there is one
+// source of truth (never commit a copy under site/). public/_headers serves it
+// as text/plain; CI checks the built file is byte-identical to the original.
+const installScript = new URL("../../install.sh", import.meta.url).pathname;
+await copyFile(installScript, join(out, "install.sh"));
+console.log(`../install.sh -> install.sh`);
