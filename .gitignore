@@ -10,3 +10,4 @@ tmp/*
 # Local Go workspaces (the Makefile runs with GOWORK=off)
 go.work
 go.work.sum
+dist/

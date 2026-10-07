@@ -1,0 +1,7 @@
+# Workers static assets header rules (https://developers.cloudflare.com/workers/static-assets/headers/).
+# /install.sh is the repo-root install.sh, copied in by scripts/prerender.mjs.
+# Wrangler would label .sh as application/x-sh; serve it as text so browsers
+# show it (people read it before piping it to bash) and curl gets it verbatim.
+/install.sh
+  Content-Type: text/plain; charset=utf-8
+  X-Content-Type-Options: nosniff

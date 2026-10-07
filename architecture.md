@@ -243,15 +243,31 @@ added to /Users/me/.zshrc
 restart your shell or run: source /Users/me/.zshrc
 ```
 
+### `mnmd version`
+
+Prints the version stamped at build time (`build.sh` passes `-ldflags -X main.version=...`: the release tag, or `git describe` in a checkout) on stdout, and nothing else. A plain `go build` prints `dev`. `--version` is an alias. Exits 0.
+
 ### The activation nudge
 
-When `mnmd` runs with `$MONOM_ACTIVE` unset — meaning no shell has sourced `src/monom` — every subcommand except `install` prints a one-line hint to **stderr** before doing its work:
+When `mnmd` runs with `$MONOM_ACTIVE` unset — meaning no shell has sourced `src/monom` — every subcommand except `install` and `version` prints a one-line hint to **stderr** before doing its work:
 
 ```
 hint: run 'mnmd install' to activate shell integration
 ```
 
 Stdout is unaffected, so `$(mnmd pack ...)` and the completion pipe are not polluted. The subcommand's own exit code is unchanged.
+
+---
+
+## Distribution
+
+Three files at the repo root turn the source into an installed monom. None of them is runtime: they run before `mnmd` exists.
+
+- **`build.sh`** is the only place that compiles `mnmd`: `./build.sh` builds `bin/mnmd` for the host, `./build.sh dist <dir>` cross-compiles linux and darwin × amd64 and arm64 (`CGO_ENABLED=0`) into `monom-<os>-<arch>.tar.gz` plus `checksums.txt`. Each tarball holds `monom-<os>-<arch>/{bin/mnmd,src/monom,src/monom.bash,src/monom.zsh,README.md}`, the `<root>/bin` + `<root>/src` layout `mnmd install` resolves against. It builds only `./cmd/mnmd` from the dependency-free root module. `make build` calls it.
+- **`.github/workflows/release.yml`** runs on a `v*` tag: the full CI (`ci.yml` via `workflow_call`), then `build.sh dist`, then a GitHub Release with those files.
+- **`install.sh`** is what `curl -fsSL https://monom.dev/install.sh | bash` runs. The site doesn't keep a copy: `site/scripts/prerender.mjs` copies the repo-root file into the build output, `site/public/_headers` serves it as `text/plain`, and CI checks the built file is byte-identical. The GitHub raw URL of the same file is the fallback. It downloads `monom-<os>-<arch>.tar.gz` from `releases/latest/download/` (or `releases/download/$MONOM_VERSION/`), verifies it against `checksums.txt`, installs the tree into `~/.local/share/monom`, links `~/.local/bin/mnmd`, and runs `mnmd install`. It stays about 50 lines on purpose, so it can be read before it's piped to bash: no source build, no wget, no env overrides beyond `MONOM_VERSION` and the test-only `MONOM_DOWNLOAD_BASE`. Without a tarball for the platform it fails and points at the README, which explains building from a checkout with `./build.sh`.
+
+The asset names are the contract between the release workflow and `install.sh`: they carry no version, so `releases/latest/download/<name>` resolves without the GitHub API. `tests/harness/install_test.go` runs `install.sh` against `build.sh dist` output served over HTTP, with no Go on PATH, and checks the checksum-mismatch and no-release failures.
 
 ---
 

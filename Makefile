@@ -1,4 +1,4 @@
-.PHONY: help build test test-e2e test-cases fmt-check vet lint clean check site-build site-dev
+.PHONY: help build dist test test-e2e test-cases fmt-check vet lint clean check site-build site-dev
 
 # The case runner is a separate Go module (tests/harness). Workspaces are off
 # so a local go.work can't change how either module resolves dependencies.
@@ -8,9 +8,13 @@ HARNESS := tests/harness
 help: ## Show available targets
 	@awk -F'##' '/^[a-zA-Z_-]+[^#]*:.*##/ { split($$1, a, ":"); printf "  %-12s %s\n", a[1], $$2 }' $(MAKEFILE_LIST)
 
-build: ## Compile bin/mnmd
-	@mkdir -p bin
-	go build -o bin/mnmd ./cmd/mnmd
+# build.sh owns the flags and version stamping; install.sh uses it too, so a
+# source install never needs make.
+build: ## Compile bin/mnmd (via build.sh)
+	./build.sh
+
+dist: ## Cross-compile the release tarballs and checksums.txt into dist/ (via build.sh)
+	./build.sh dist dist
 
 test: ## Run Go unit tests (root module; the tests/harness module is separate)
 	go test ./...
@@ -34,13 +38,13 @@ vet: ## Run go vet on both modules
 	go vet ./...
 	cd $(HARNESS) && go vet ./...
 
-SHELL_FILES = tests/mnmd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash $(HARNESS)/testdata/tab.bash
+SHELL_FILES = build.sh install.sh tests/mnmd_*_test tests/monom_*_test tests/helpers src/monom src/monom.bash $(HARNESS)/testdata/tab.bash
 
 lint: ## Run shellcheck on all shell files (zsh excluded: SC1071)
 	shellcheck $(SHELL_FILES)
 
 clean: ## Remove build artifacts
-	rm -f bin/mnmd
+	rm -rf bin/mnmd dist
 
 check: build fmt-check vet ## Build, gofmt, vet, test, run e2e suites and cases, and lint
 	go test ./...
