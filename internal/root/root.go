@@ -1,3 +1,4 @@
+// Package root determines the active monom project root.
 package root
 
 import (
@@ -6,21 +7,32 @@ import (
 	"path/filepath"
 )
 
-// FindProjectRoot returns the absolute path of the nearest monom project root.
+// ConfigFileName is the name of the monom config file that marks a project
+// root. The file may be empty, declarative, or an executable hook script; its
+// mere presence is what makes a directory a root.
+const ConfigFileName = "monom"
+
+// FindProjectRoot returns the absolute path of the active monom project root.
 //
-// It first checks $_MONOM_PROJECT_ROOT: if set and the directory contains an
-// executable file named "monom", that directory is returned without walking.
-// Otherwise it walks upward from $PWD until it finds such a directory or
-// reaches the filesystem root, in which case it returns an error.
+// Resolution order, first match wins:
+//
+//  1. $_MONOM_PROJECT_ROOT, when it names an existing directory. This is the
+//     explicit pin an alias sets; the directory needs no monom config file.
+//  2. The nearest directory, walking upward from $PWD, that contains a regular
+//     file named "monom" — executable or not, empty or not.
+//  3. The nearest directory, walking upward from $PWD, that contains a ".git"
+//     entry (a directory, or a file for worktrees and submodules).
+//
+// The working directory itself is never a fallback: a root must be pinned,
+// marked, or version-controlled, so running monom outside any project cannot
+// turn an arbitrary directory (such as $HOME) into a command tree.
 func FindProjectRoot() (string, error) {
-	if envRoot := os.Getenv("_MONOM_PROJECT_ROOT"); envRoot != "" {
-		if isValidProjectRoot(envRoot) {
-			resolved, err := filepath.EvalSymlinks(envRoot)
-			if err != nil {
-				return "", err
-			}
-			return resolved, nil
+	if envRoot := os.Getenv("_MONOM_PROJECT_ROOT"); envRoot != "" && isDir(envRoot) {
+		resolved, err := filepath.EvalSymlinks(envRoot)
+		if err != nil {
+			return "", err
 		}
+		return resolved, nil
 	}
 
 	pwd, err := os.Getwd()
@@ -34,10 +46,14 @@ func FindProjectRoot() (string, error) {
 		return "", fmt.Errorf("cannot resolve working directory: %w", err)
 	}
 
+	gitRoot := ""
 	dir := pwd
 	for {
-		if isValidProjectRoot(dir) {
+		if HasConfigFile(dir) {
 			return dir, nil
+		}
+		if gitRoot == "" && exists(filepath.Join(dir, ".git")) {
+			gitRoot = dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -46,19 +62,25 @@ func FindProjectRoot() (string, error) {
 		dir = parent
 	}
 
-	return "", fmt.Errorf("no monom project root found (no executable 'monom' file in %s or any parent)", pwd)
+	if gitRoot != "" {
+		return gitRoot, nil
+	}
+
+	return "", fmt.Errorf("no monom project root found (no 'monom' file or git repository in %s or any parent, and $_MONOM_PROJECT_ROOT is unset)", pwd)
 }
 
-// isValidProjectRoot reports whether dir contains an executable file named "monom".
-func isValidProjectRoot(dir string) bool {
-	info, err := os.Stat(dir)
-	if err != nil || !info.IsDir() {
-		return false
-	}
-	monomPath := filepath.Join(dir, "monom")
-	fi, err := os.Stat(monomPath)
-	if err != nil || fi.IsDir() {
-		return false
-	}
-	return fi.Mode()&0o111 != 0
+// HasConfigFile reports whether dir contains a regular file named "monom".
+func HasConfigFile(dir string) bool {
+	fi, err := os.Stat(filepath.Join(dir, ConfigFileName))
+	return err == nil && fi.Mode().IsRegular()
+}
+
+func isDir(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
+func exists(p string) bool {
+	_, err := os.Lstat(p)
+	return err == nil
 }

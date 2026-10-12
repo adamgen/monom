@@ -37,15 +37,11 @@ Costs: a new Go dependency, a hard requirement on `bash` being present, and — 
 
 ---
 
-## Managed projects and scaffolding
+## Scaffolding
 
-The largest open item, and the only one that would amend the constitution.
+Zero-config discovery removed the first cold-start hurdle: a project needs no config file, and a declarative `monom` file can declare commands and settings without writing any code. What is left is creating things.
 
-The cold-start problem: a new user must understand the `complete`/`run` interface, write discovery logic, and lay out a directory tree before anything works. That friction contradicts "no boilerplate, no registration."
-
-Sketch: introduce **managed projects** (a declarative `monom.yaml`, with `mnmd` handling discovery and resolution internally — fewer subprocess roundtrips) alongside today's **custom projects** (an executable `monom` implementing the hook interface). Add `mnmd init` and `mnmd new command`, generating scripts in bash, python, or node. `monom.yaml` could optionally delegate specific operations to an executable, giving a hybrid.
-
-Touches nearly everything: new terminology, a new constitutional principle, `mnmd root` learning a second project marker, and shell bindings that branch on managed vs. custom. Open question: whether the config should expose anything beyond `complete`/`run` to make scaffolding aware of project structure.
+Sketch: `mnmd init` (write an empty or commented declarative `monom` file) and `mnmd new command <path>` (generate a script with a shebang in bash, python, or node, so it passes the discovery gate). Open question: whether scaffolding should also offer a hook-script template for authors who outgrow declarations.
 
 ---
 

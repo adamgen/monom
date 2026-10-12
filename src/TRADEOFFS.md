@@ -43,9 +43,9 @@ The re-split is necessary at all because of an asymmetry in the hook contract: `
 
 ---
 
-## The group listing comes from `complete | filter`, not from `pack`
+## The group listing comes from `_monom_complete | filter`, not from `pack`
 
-**Chosen:** on pack's exit 3, `_monom_list_group` re-runs `_monom_cfg complete | mnmd filter <tokens> ""` to produce the `available:` line.
+**Chosen:** on pack's exit 3, `_monom_list_group` re-runs `_monom_complete | mnmd filter <tokens> ""` to produce the `available:` line.
 
 **Rejected:** having pack print the children it already has, saving a subprocess on a path that has already failed.
 
@@ -84,3 +84,27 @@ The precedence — a valid local path overrides the global value, an invalid one
 ## Writability is probed in a subshell
 
 `( : >> "$debug_candidate" ) 2>/dev/null` rather than a direct redirect. `:` is a POSIX special builtin, so a redirection failure on it aborts the *calling* shell — which here is the user's interactive session. The subshell absorbs the abort. This is a correctness requirement, not a style choice.
+
+---
+
+## The fallback to default discovery lives in the shell
+
+**Chosen:** `_monom_complete` runs `_monom_cfg complete` and, only when it prints nothing, runs `mnmd discover`.
+
+**Rejected:** (a) `mnmd filter` running discovery itself when its stdin is empty, and (b) `mnmd discover` running the `complete` hook and falling back internally.
+
+**Why.** (a) would save a process, but it turns filter — a pure function of `(stdin, args)` that must never fail — into something that walks the filesystem, and the group listing and `mnmd check` would each need their own copy of the same fallback. (b) is the "mnmd spawns the user config" design that `internal/filter/TRADEOFFS.md` already rejected. The fallback is the same attempt-and-fallback shape as the `run` hook's, which also lives in `monom()`: one `[ -n ]` test. It adds no process to a project whose hook answers, and in a zero-config project `mnmd discover` takes the place of the hook the author did not write, so the pipeline stays at two processes.
+
+**What it costs.** A `complete` hook that is broken in a way that prints nothing gets default discovery instead of an empty list, silently. `mnmd check` shows which one ran (`(default discovery)` in its summary).
+
+---
+
+## `_monom_cfg` checks for a shebang before running the config
+
+**Chosen:** `_monom_cfg` executes `$_MONOM_USER_CONFIG` only if it is an executable regular file whose first line starts with `#!`; otherwise it returns 0 with no output.
+
+**Rejected:** running whatever is there, as before, or deciding the config's shape once in Go.
+
+**Why.** The config can now be absent, empty, or declarative. Running an absent one fails with 127, which `monom()` would report as a failing `run` hook. Worse, bash and zsh run a shebang-less executable file as a shell script, so a declarative config with the execute bit set would have each declared path executed as a command. Go cannot make this decision without adding a subprocess to every hook call (`_setup_monom` short-circuits and never calls `mnmd` when the root is pinned), so the check is two builtins: a test and a `read`. `internal/config` applies the same rule, so the shell and `mnmd check` agree on what a hook script is.
+
+**What it costs.** One file read per hook call. A hook script must start with a shebang, which every runnable script already does.

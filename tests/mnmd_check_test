@@ -1,0 +1,60 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd check (the doctor)
+# Run directly: bash tests/mnmd_check_test
+#
+# Most of mnmd check's contract (severities, MONOM_CHECK_ROOT_CONTENTS, config
+# hooks, declarations, path-spaces) is covered by tests/cases/mnmd_check.yaml.
+# These stay here because a case can't express them: one needs a directory
+# outside any project or git repo, the other asserts on output that contains
+# the absolute path of the monom file.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# check_in <project> — runs mnmd check from inside the project with no pre-set
+# plumbing, so check resolves the root and the config file itself. Prints
+# stdout+stderr; the exit code is check's.
+check_in() {
+  (cd "$1" && env -u _MONOM_USER_CONFIG -u _MONOM_PROJECT_ROOT -u MONOM_CHECK_ROOT_CONTENTS \
+    "$MONOMD" check 2>&1)
+}
+
+test_check_without_config_or_root_exits_nonzero() {
+  local tmp
+  tmp=$(mktemp -d)
+  check_in "$tmp" >/dev/null
+  assertNotEquals "check must exit non-zero with no project root" 0 $?
+  rm -rf "$tmp"
+}
+
+test_check_unknown_setting_is_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'CFG'
+check.root-contnets = error
+CFG
+  output=$(check_in "$proj")
+  assertNotEquals "a typo'd key fails check" 0 $?
+  assertContains "config is an error" "$output" "error: [config] $proj/monom:"
+  rm -rf "$proj"
+}
+
+test_check_invalid_discover_hide_pattern_is_an_error() {
+  local proj output
+  proj=$(make_zero_config_project)
+  cat > "$proj/monom" <<'CFG'
+discover.hide = [
+CFG
+  output=$(check_in "$proj")
+  assertNotEquals "an invalid glob fails check" 0 $?
+  assertContains "config is an error" "$output" "error: [config] $proj/monom: line 1: invalid value \"[\" for discover.hide"
+  rm -rf "$proj"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

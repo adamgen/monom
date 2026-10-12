@@ -1,0 +1,6 @@
+#!/bin/sh
+# An invalid hide pattern is a config error for `mnmd check`; discovery
+# ignores it and still applies the valid one.
+case "$1" in
+  config) printf 'discover.hide = [\ndiscover.hide = *.TXT\n' ;;
+esac

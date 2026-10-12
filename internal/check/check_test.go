@@ -5,162 +5,287 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/adamgen/monom/internal/config"
 )
 
-func writeTempScript(t *testing.T, content string, mode os.FileMode) string {
+func writeFile(t *testing.T, dir, rel, content string, mode os.FileMode) string {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "user_config")
-	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		t.Fatalf("writeTempScript: %v", err)
+	p := filepath.Join(dir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	return path
+	if err := os.WriteFile(p, []byte(content), mode); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+	return p
 }
 
-func TestCheck_AllValidPathsReturnsNoProblems(t *testing.T) {
-	script := writeTempScript(t, "#!/bin/sh\necho 'category1/sub1\ncategory1/sub2\ncommand1'\n", 0o755)
-
-	problems, err := Check(script)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(problems) != 0 {
-		t.Errorf("expected no problems, got %v", problems)
-	}
-}
-
-func TestCheck_PathWithSpaceIsReported(t *testing.T) {
-	script := writeTempScript(t, "#!/bin/sh\nprintf 'my command/sub\\ncommand1\\n'\n", 0o755)
-
-	problems, err := Check(script)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(problems) != 1 {
-		t.Errorf("expected 1 problem, got %v", problems)
-	}
-}
-
-func TestCheck_MultipleInvalidPathsAllReported(t *testing.T) {
-	script := writeTempScript(t, "#!/bin/sh\nprintf 'bad path/x\\nanother bad/y\\ncommand1\\n'\n", 0o755)
-
-	problems, err := Check(script)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(problems) != 2 {
-		t.Errorf("expected 2 problems, got %v", problems)
-	}
-}
-
-// --- command map validation (monom-map.json next to the user config) ---
-
-// writeMapProject builds a project dir with an executable user config (empty
-// complete output), a command map, and any extra files given as path→mode.
-// Returns the user config path.
-func writeMapProject(t *testing.T, mapJSON string, files map[string]os.FileMode) string {
+// hookScript returns a hook script that prints complete on `complete` and
+// config on `config`.
+func hookScript(t *testing.T, dir, complete, cfg string) string {
 	t.Helper()
-	dir := t.TempDir()
-	cfg := filepath.Join(dir, "monom")
-	if err := os.WriteFile(cfg, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatalf("write config: %v", err)
+	return writeFile(t, dir, "monom", "#!/bin/sh\ncase \"$1\" in\n  complete) printf '"+complete+"' ;;\n  config) printf '"+cfg+"' ;;\nesac\n", 0o755)
+}
+
+// zeroConfigRoot returns a root holding one registered command and one
+// executable the gate rejects.
+func zeroConfigRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	writeFile(t, root, "deploy", "#!/bin/sh\n", 0o755)
+	writeFile(t, root, "notes.TXT", "text\n", 0o755)
+	return root
+}
+
+func only(t *testing.T, rep Report, check string) []Problem {
+	t.Helper()
+	var out []Problem
+	for _, p := range rep.Problems {
+		if p.Check == check {
+			out = append(out, p)
+		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "monom-map.json"), []byte(mapJSON), 0o644); err != nil {
-		t.Fatalf("write map: %v", err)
+	return out
+}
+
+func mustCheck(t *testing.T, in Input) Report {
+	t.Helper()
+	rep, err := Check(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
+	return rep
+}
+
+func TestCheck_HookOutputPathsAreValidatedAndDiscoveryDoesNotRun(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := hookScript(t, root, "category1/sub1\\nmy command/sub\\nanother bad/y\\n", "")
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if rep.Discovered || len(rep.Commands) != 3 {
+		t.Errorf("commands = %v discovered = %v, want the hook's 3 paths", rep.Commands, rep.Discovered)
+	}
+	if got := only(t, rep, PathSpaces); len(got) != 2 || got[0].Severity != config.SeverityError {
+		t.Errorf("path-spaces = %v, want 2 errors", got)
+	}
+	if got := only(t, rep, RootContents); len(got) != 0 {
+		t.Errorf("root contents are not inspected when the complete hook answers: %v", got)
+	}
+}
+
+func TestCheck_EmptyCompleteFallsBackToDiscovery(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := hookScript(t, root, "", "")
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if !rep.Discovered || strings.Join(rep.Commands, ",") != "deploy" {
+		t.Errorf("commands = %v discovered = %v, want [deploy] via discovery", rep.Commands, rep.Discovered)
+	}
+}
+
+func TestCheck_RootContentsSeverityResolution(t *testing.T) {
+	cases := []struct {
+		name, user, project, want string
+	}{
+		{"default is warning", "", "", config.SeverityWarning},
+		{"user env makes it an error", config.SeverityError, "", config.SeverityError},
+		{"project overrides user", config.SeverityError, config.SeverityWarning, config.SeverityWarning},
+		{"project opts into strict", "", config.SeverityError, config.SeverityError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := zeroConfigRoot(t)
+			content := ""
+			if c.project != "" {
+				content = "check.root-contents = " + c.project + "\n"
+			}
+			cfg := writeFile(t, root, "monom", content, 0o644)
+
+			rep := mustCheck(t, Input{Root: root, UserConfig: cfg, UserSeverity: c.user})
+			got := only(t, rep, RootContents)
+			if len(got) != 1 || got[0].Severity != c.want {
+				t.Fatalf("root-contents = %v, want one %s", got, c.want)
+			}
+			if !strings.Contains(got[0].Message, "notes.TXT") {
+				t.Errorf("message should name the skipped executable: %q", got[0].Message)
+			}
+		})
+	}
+}
+
+func TestCheck_InvalidUserSeverityIsAConfigErrorAndDefaultStands(t *testing.T) {
+	root := zeroConfigRoot(t)
+	rep := mustCheck(t, Input{Root: root, UserConfig: filepath.Join(root, "monom"), UserSeverity: "loud"})
+	if got := only(t, rep, Config); len(got) != 1 || got[0].Severity != config.SeverityError {
+		t.Errorf("config = %v, want one error", got)
+	}
+	if got := only(t, rep, RootContents); len(got) != 1 || got[0].Severity != config.SeverityWarning {
+		t.Errorf("root-contents = %v, want default warning", got)
+	}
+}
+
+func TestCheck_ConfigHookSettingsApplyToScriptProjects(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := hookScript(t, root, "", "check.root-contents = error\\n")
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if got := only(t, rep, RootContents); len(got) != 1 || got[0].Severity != config.SeverityError {
+		t.Errorf("root-contents = %v, want one error", got)
+	}
+}
+
+func TestCheck_FailingConfigHookIsAConfigError(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "#!/bin/sh\n[ \"$1\" = config ] && { echo boom >&2; exit 2; }\necho deploy\n", 0o755)
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	got := only(t, rep, Config)
+	if len(got) != 1 || !strings.Contains(got[0].Message, "boom") {
+		t.Errorf("config = %v, want one error carrying the hook's stderr", got)
+	}
+}
+
+func TestCheck_DeclarativeConfigProblemsAndInvalidDeclarationsAreErrors(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "missing/cmd\ncheck.bogus = 1\n", 0o644)
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if got := only(t, rep, Declared); len(got) != 1 || got[0].Severity != config.SeverityError {
+		t.Errorf("declared-commands = %v, want one error", got)
+	}
+	if got := only(t, rep, Config); len(got) != 1 || got[0].Severity != config.SeverityError {
+		t.Errorf("config = %v, want one error", got)
+	}
+}
+
+func TestCheck_NonExecutableHookScriptIsARootContentsFinding(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "deploy", "#!/bin/sh\n", 0o755)
+	cfg := writeFile(t, root, "monom", "#!/bin/sh\necho deploy\n", 0o644)
+
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	got := only(t, rep, RootContents)
+	if len(got) != 1 || !strings.Contains(got[0].Message, "not executable") {
+		t.Errorf("root-contents = %v, want the missing execute bit reported", got)
+	}
+}
+
+func TestCheck_EmptyUserConfigPathReturnsError(t *testing.T) {
+	if _, err := Check(Input{Root: t.TempDir()}); err == nil {
+		t.Fatal("expected error for empty config path")
+	}
+}
+
+func TestCheck_DiscoveryWithoutRootReturnsError(t *testing.T) {
+	if _, err := Check(Input{UserConfig: filepath.Join(t.TempDir(), "monom")}); err == nil {
+		t.Fatal("expected error when discovery has no root")
+	}
+}
+
+func TestCheck_FailingCompleteHookReturnsError(t *testing.T) {
+	root := t.TempDir()
+	cfg := writeFile(t, root, "monom", "#!/bin/sh\n[ \"$1\" = complete ] && exit 1\nexit 0\n", 0o755)
+	if _, err := Check(Input{Root: root, UserConfig: cfg}); err == nil {
+		t.Fatal("expected error when complete fails")
+	}
+}
+
+func TestReportCount(t *testing.T) {
+	rep := Report{Problems: []Problem{
+		{Severity: config.SeverityError}, {Severity: config.SeverityWarning}, {Severity: config.SeverityWarning},
+	}}
+	if rep.Count(config.SeverityError) != 1 || rep.Count(config.SeverityWarning) != 2 {
+		t.Errorf("counts wrong: %+v", rep)
+	}
+}
+
+func TestCheck_DiscoverHideSilencesRootContentsFromEitherConfigShape(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "discover.hide = *.TXT\n", 0o644)
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if len(rep.Problems) != 0 || strings.Join(rep.Commands, ",") != "deploy" {
+		t.Errorf("declarative: commands=%v problems=%v, want deploy and no problems", rep.Commands, rep.Problems)
+	}
+
+	root = zeroConfigRoot(t)
+	cfg = hookScript(t, root, "", "discover.hide = *.TXT\\n")
+	rep = mustCheck(t, Input{Root: root, UserConfig: cfg})
+	if len(rep.Problems) != 0 || strings.Join(rep.Commands, ",") != "deploy" {
+		t.Errorf("config hook: commands=%v problems=%v, want deploy and no problems", rep.Commands, rep.Problems)
+	}
+}
+
+func TestCheck_InvalidDiscoverHidePatternIsAConfigError(t *testing.T) {
+	root := zeroConfigRoot(t)
+	cfg := writeFile(t, root, "monom", "discover.hide = [\n", 0o644)
+	rep := mustCheck(t, Input{Root: root, UserConfig: cfg})
+	got := only(t, rep, Config)
+	if len(got) != 1 || !strings.Contains(got[0].Message, "discover.hide") {
+		t.Errorf("config = %v, want one discover.hide error", got)
+	}
+}
+
+// --- command map validation (monom-map.json at the project root) ---
+
+// mapProblems checks a root holding an empty hook script, the given command
+// map, and the given executables (path→mode), and returns the command-map
+// problems.
+func mapProblems(t *testing.T, mapJSON string, files map[string]os.FileMode) []Problem {
+	t.Helper()
+	root := t.TempDir()
+	cfg := writeFile(t, root, "monom", "#!/bin/sh\n", 0o755)
+	writeFile(t, root, "monom-map.json", mapJSON, 0o644)
 	for rel, mode := range files {
-		path := filepath.Join(dir, rel)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), mode); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
+		writeFile(t, root, rel, "#!/bin/sh\n", mode)
 	}
-	return cfg
+	return only(t, mustCheck(t, Input{Root: root, UserConfig: cfg}), CommandMap)
 }
 
-func checkProblems(t *testing.T, cfg string) []string {
+func assertOneMapError(t *testing.T, problems []Problem, substr string) {
 	t.Helper()
-	problems, err := Check(cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	return problems
-}
-
-func assertOneProblemContaining(t *testing.T, problems []string, substr string) {
-	t.Helper()
-	if len(problems) != 1 || !strings.Contains(problems[0], substr) {
-		t.Errorf("expected 1 problem containing %q, got %v", substr, problems)
+	if len(problems) != 1 || problems[0].Severity != config.SeverityError || !strings.Contains(problems[0].Message, substr) {
+		t.Errorf("command-map = %v, want one error containing %q", problems, substr)
 	}
 }
 
 func TestCheck_ValidMapReturnsNoProblems(t *testing.T) {
-	cfg := writeMapProject(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+	got := mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
 		map[string]os.FileMode{"scripts/m.sh": 0o755})
-	if problems := checkProblems(t, cfg); len(problems) != 0 {
-		t.Errorf("expected no problems, got %v", problems)
+	if len(got) != 0 {
+		t.Errorf("command-map = %v, want none", got)
 	}
 }
 
 func TestCheck_UnparsableMapIsReported(t *testing.T) {
-	cfg := writeMapProject(t, `{"db": {"a": "x.sh", "a": "y.sh"}}`, nil)
-	assertOneProblemContaining(t, checkProblems(t, cfg), "duplicate key")
+	assertOneMapError(t, mapProblems(t, `{"db": {"a": "x.sh", "a": "y.sh"}}`, nil), "duplicate key")
 }
 
 func TestCheck_MissingMapTargetIsReported(t *testing.T) {
-	cfg := writeMapProject(t, `{"deploy": "ops/gone.sh"}`, nil)
-	assertOneProblemContaining(t, checkProblems(t, cfg), "does not exist")
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/gone.sh"}`, nil), "does not exist")
 }
 
 func TestCheck_NonExecutableMapTargetIsReported(t *testing.T) {
-	cfg := writeMapProject(t, `{"deploy": "ops/d.sh"}`,
-		map[string]os.FileMode{"ops/d.sh": 0o644})
-	assertOneProblemContaining(t, checkProblems(t, cfg), "not executable")
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/d.sh"}`,
+		map[string]os.FileMode{"ops/d.sh": 0o644}), "not executable")
 }
 
 func TestCheck_MapCommandShadowingTreePathIsReported(t *testing.T) {
-	cfg := writeMapProject(t, `{"deploy": "ops/d.sh"}`,
-		map[string]os.FileMode{"ops/d.sh": 0o755, "deploy": 0o755})
-	assertOneProblemContaining(t, checkProblems(t, cfg), "shadows tree path")
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/d.sh"}`,
+		map[string]os.FileMode{"ops/d.sh": 0o755, "deploy": 0o755}), "shadows tree path")
 }
 
 func TestCheck_MapCategoryShadowingTreeCommandIsReported(t *testing.T) {
-	cfg := writeMapProject(t, `{"db": {"migrate": "scripts/m.sh"}}`,
-		map[string]os.FileMode{"scripts/m.sh": 0o755, "db": 0o755})
-	assertOneProblemContaining(t, checkProblems(t, cfg), "shadows tree command")
+	assertOneMapError(t, mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+		map[string]os.FileMode{"scripts/m.sh": 0o755, "db": 0o755}), "shadows tree command")
 }
 
 func TestCheck_MapCategoryOverTreeDirectoryMerges(t *testing.T) {
 	// A category over a real directory is the hybrid pattern, not shadowing:
 	// unmapped children fall back to pack against that directory.
-	cfg := writeMapProject(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+	got := mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
 		map[string]os.FileMode{"scripts/m.sh": 0o755, "db/seed": 0o755})
-	if problems := checkProblems(t, cfg); len(problems) != 0 {
-		t.Errorf("expected no problems, got %v", problems)
-	}
-}
-
-func TestCheck_EmptyUserConfigReturnsError(t *testing.T) {
-	_, err := Check("")
-	if err == nil {
-		t.Fatal("expected error for empty userConfig")
-	}
-}
-
-func TestCheck_NonExecutableUserConfigReturnsError(t *testing.T) {
-	script := writeTempScript(t, "#!/bin/sh\necho 'command1'\n", 0o644)
-
-	_, err := Check(script)
-	if err == nil {
-		t.Fatal("expected error for non-executable userConfig")
-	}
-}
-
-func TestCheck_MissingUserConfigReturnsError(t *testing.T) {
-	_, err := Check("/tmp/this_path_does_not_exist_monom_test")
-	if err == nil {
-		t.Fatal("expected error for missing userConfig")
+	if len(got) != 0 {
+		t.Errorf("command-map = %v, want none", got)
 	}
 }

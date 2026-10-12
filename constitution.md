@@ -14,7 +14,7 @@ The project name is **monom** — always lowercase, even at the start of a sente
 
 ## Mission
 
-monom is a CLI framework that turns a file tree into a tab-completable command tree. You organize your scripts in folders, add a `monom` config file that defines how to discover and run commands, and monom automatically gives you a full-featured CLI with tab completion — in any shell, for any script language.
+monom is a CLI framework that turns a file tree into a tab-completable command tree. You organize your scripts in folders, optionally add a `monom` config file that customizes how commands are discovered and run, and monom automatically gives you a full-featured CLI with tab completion — in any shell, for any script language.
 
 The core promise: **your file tree is your command tree**. Folders become command categories. Scripts become commands. No boilerplate, no registration, no framework lock-in.
 
@@ -24,7 +24,7 @@ The core promise: **your file tree is your command tree**. Folders become comman
 
 There are two distinct roles:
 
-**The CLI Author** — a developer building a CLI tool or monorepo manager using monom. They write the `monom` config file and the command scripts. They work against the monom interface.
+**The CLI Author** — a developer building a CLI tool or monorepo manager using monom. They write the command scripts and, when they need to customize anything, the `monom` config file. They work against the monom interface.
 
 **The CLI User** — a developer (often on the same team) who uses the CLI the author built. They type `my-tool <Tab>` and run commands. They never know or care that monom exists underneath.
 
@@ -82,13 +82,11 @@ The current hooks are documented in `architecture.md`.
 
 ## Principle: The Required User Config Interface Requires a Constitution Amendment to Change
 
-The monom config file (the executable `monom` at the project root) is the seam between monom and the author's project. The set of subcommands monom *requires* it to expose is part of monom's stability contract — projects that comply today must continue to work tomorrow.
+The monom config file (the file named `monom` at the project root) is the seam between monom and the author's project. The set of subcommands monom *requires* it to expose is part of monom's stability contract — projects that comply today must continue to work tomorrow.
 
-The currently required interface is:
+The currently required interface is **empty**: the config file itself is optional, and every subcommand of a hook-script config is an optional hook.
 
-```
-<monom-config-file> complete   # prints all discoverable command paths, one per line
-```
+> **Amendment (zero-config discovery).** `complete` was previously the one required subcommand. It is now an optional hook: when it prints nothing — including when there is no config file, or the config is not a hook script — monom falls back to its built-in default discovery (`mnmd discover`). Projects that implement `complete` keep working unchanged, because a hook that prints something still replaces the default entirely. The reason: requiring authors to write discovery logic before anything works contradicts "no boilerplate, no registration".
 
 Adding to this required set, removing from it, or changing the contract of any required subcommand requires an amendment to this document. Optional hooks are documented in `architecture.md` and may evolve there without amendment.
 

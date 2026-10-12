@@ -51,3 +51,12 @@ func TestCheckNudge_suppressed_for_install_subcommand(t *testing.T) {
 		t.Errorf("expected no nudge for install subcommand, got: %q", out)
 	}
 }
+
+func TestCheckNudge_suppressed_for_version_subcommand(t *testing.T) {
+	t.Setenv("MONOM_ACTIVE", "")
+	for _, sub := range []string{"version", "--version"} {
+		if out := captureStderr(t, func() { checkNudge(sub) }); out != "" {
+			t.Errorf("expected no nudge for %q, got: %q", sub, out)
+		}
+	}
+}

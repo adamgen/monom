@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestLoadWithoutAMapFileIsAnErrorNamingTheRoot(t *testing.T) {
+	dir := t.TempDir()
+	_, err := Load(dir)
+	if err == nil || !strings.Contains(err.Error(), "no monom-map.json found at project root "+dir) {
+		t.Fatalf("Load(%s) = %v, want a missing-map error naming the root", dir, err)
+	}
+}
+
 func parse(t *testing.T, src string) *Node {
 	t.Helper()
 	n, err := Parse(strings.NewReader(src))

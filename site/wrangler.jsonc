@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "monom-site",
+  "compatibility_date": "2026-09-28",
+  "routes": [{ "pattern": "monom.dev", "custom_domain": true }],
+  // Production is only the custom domain: the bare monom-site.<subdomain>.workers.dev
+  // route stays off. Version URLs (<alias|version>-monom-site.<subdomain>.workers.dev)
+  // are on, for the per-PR previews in .github/workflows/preview-site.yml.
+  "workers_dev": false,
+  "preview_urls": true,
+  // Assets-only Worker: build/client holds the Vite client bundle plus the
+  // prerendered index.html, docs/index.html and 404.html (scripts/prerender.mjs).
+  "assets": {
+    "directory": "./build/client",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

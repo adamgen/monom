@@ -1,0 +1,99 @@
+name: Release
+
+# Pushing a v* tag runs the full CI, cross-compiles mnmd for linux and darwin
+# (amd64, arm64) with build.sh, and publishes monom-<os>-<arch>.tar.gz plus
+# checksums.txt as a GitHub Release. install.sh downloads exactly these assets
+# (releases/latest/download/<name>), so the names must not change.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# workflow_dispatch re-runs a release for an existing tag, as a draft by
+# default: gh workflow run release.yml --ref v0.1.0 [-f draft=false]
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: Create the release as a draft (an existing release is updated in place either way)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build and publish ${{ github.ref_name }}
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check the ref is a version tag
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]] || [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::run this workflow on a tag like v1.2.3 (got $GITHUB_REF)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Cross-compile and package (build.sh dist)
+        run: VERSION="$TAG" CGO_ENABLED=0 ./build.sh dist dist
+
+      - name: Check the tarballs
+        run: |
+          cd dist
+          sha256sum -c checksums.txt
+          for t in monom-*.tar.gz; do
+            listing="$(tar -tzf "$t")"
+            printf '%s\n' "$listing"
+            grep -qx "${t%.tar.gz}/bin/mnmd" <<<"$listing"
+          done
+          tar -xzf monom-linux-amd64.tar.gz -C "$RUNNER_TEMP"
+          test "$("$RUNNER_TEMP/monom-linux-amd64/bin/mnmd" version)" = "$TAG"
+
+      # The real installer against these exact files, in an empty HOME.
+      - name: install.sh against the built assets
+        run: |
+          home="$(mktemp -d)"
+          HOME="$home" SHELL=/bin/bash MONOM_DOWNLOAD_BASE="file://$PWD/dist" bash install.sh
+          test "$("$home/.local/share/monom/bin/mnmd" version)" = "$TAG"
+          grep -qx "source \"$home/.local/share/monom/src/monom\"" "$home/.bashrc"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: monom-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            exit 0
+          fi
+          flags=(--verify-tag --title "$TAG" --generate-notes)
+          [ "$DRAFT" = true ] && flags+=(--draft)
+          [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+          gh release create "$TAG" "${flags[@]}" dist/*

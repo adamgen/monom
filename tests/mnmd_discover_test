@@ -1,0 +1,26 @@
+#!/bin/bash
+# shUnit2 e2e tests for: mnmd discover (zero-config default discovery)
+# Run directly: bash tests/mnmd_discover_test
+#
+# The discovery gate and the monom file's effect on it are covered by
+# tests/cases/mnmd_discover.yaml. This stays here because it needs a directory
+# outside any project or git repo, which a committed fixture can't be.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+test_discover_exits_nonzero_without_project_root() {
+  local tmp
+  tmp=$(mktemp -d)
+  (cd "$tmp" && _MONOM_PROJECT_ROOT="" "$MONOMD" discover) >/dev/null 2>&1
+  assertNotEquals "discover must fail without a root" 0 $?
+  rm -rf "$tmp"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

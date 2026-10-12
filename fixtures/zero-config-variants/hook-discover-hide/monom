@@ -1,0 +1,6 @@
+#!/bin/sh
+# A hook script with only a config hook: complete prints nothing, so default
+# discovery runs, with the hide patterns the config hook prints.
+case "$1" in
+  config) printf 'discover.hide = *.TXT\ndiscover.hide = scratch\n' ;;
+esac
