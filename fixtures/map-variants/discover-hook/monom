@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Demo: the complete hook extends the command map with default discovery.
+# Discovery also registers the map's own targets, so each mapped script
+# appears twice: once by its map path, once by its file path.
+case "$1" in
+  complete)
+    mnmd map complete
+    mnmd discover
+    ;;
+  run)
+    shift
+    mnmd map resolve "$@"
+    ;;
+esac

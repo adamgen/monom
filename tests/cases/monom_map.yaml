@@ -40,3 +40,17 @@ cases:
     input: "monom db "
     action: tab
     expect: [migrate, seed]
+
+groups:
+  # DEMO (review note 1, not a contract): a complete hook that adds
+  # `mnmd discover` to `mnmd map complete` registers each mapped script
+  # twice, by its map path and by its file path.
+  - name: discover in the complete hook
+    root: fixtures/map-variants/discover-hook
+    cases:
+      - name: "DEMO: one mapped script runs from two command paths"
+        input: monom db migrate; monom scripts legacy run_migrations.sh
+        action: enter
+        expect: |
+          ran scripts/legacy/run_migrations.sh
+          ran scripts/legacy/run_migrations.sh
