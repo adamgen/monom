@@ -3,7 +3,7 @@ import { Code } from "~/components/Code";
 import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
 import { CHECK } from "~/lib/project";
-import { GITHUB_URL, INSTALL, INSTALL_SCRIPT_MIRROR_URL, INSTALL_SCRIPT_URL } from "~/lib/site";
+import { GITHUB_URL, INSTALL, INSTALL_SCRIPT_MIRROR_URL, INSTALL_SCRIPT_URL, SITE_URL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
   { title: "Quick start — monom" },
@@ -12,6 +12,13 @@ export const meta: MetaFunction = () => [
     content:
       "Install monom, turn the scripts in your repo into a tab-completable CLI with no config file, and check it in CI.",
   },
+  { property: "og:title", content: "Quick start — monom" },
+  {
+    property: "og:description",
+    content:
+      "Install monom, turn the scripts in your repo into a tab-completable CLI with no config file, and check it in CI.",
+  },
+  { property: "og:url", content: `${SITE_URL}/docs` },
 ];
 
 const TOC = [

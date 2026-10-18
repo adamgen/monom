@@ -148,16 +148,16 @@ p {
   height: 60px;
 }
 .brand {
-  text-decoration: none;
-}
-.logo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 17px;
-  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+/* The horizontal lockup is drawn for small sizes; keep it at least 20px tall. */
+.logo {
+  display: block;
+  height: 24px;
+  width: auto;
+  min-height: 20px;
 }
 .site-header nav {
   display: flex;
@@ -193,7 +193,7 @@ p {
   gap: 16px 28px;
 }
 .footer-inner .logo {
-  color: var(--text);
+  height: 22px;
 }
 .footer-inner p {
   margin: 0;
@@ -332,6 +332,24 @@ p {
 .hero > .wrap {
   position: relative;
   z-index: 1;
+}
+/* The Totality mark sits in the empty space beside the lede on wide screens.
+   Purely decorative; hidden where it would crowd the headline. */
+.hero-mark {
+  position: absolute;
+  /* The ring is ~151px of the 240px image; offset the glow margin so the ring
+     lines up with the content edge. */
+  right: calc(var(--gutter) - 42px);
+  bottom: 0;
+  width: 240px;
+  height: 240px;
+  pointer-events: none;
+  user-select: none;
+}
+@media (max-width: 1099px) {
+  .hero-mark {
+    display: none;
+  }
 }
 .eyebrow {
   display: flex;
