@@ -6,7 +6,7 @@ import { FileTree } from "~/components/FileTree";
 import { PathMap } from "~/components/PathMap";
 import { TabDemo } from "~/components/TabDemo";
 import { CHECK, ENTRIES, cmd } from "~/lib/project";
-import { GITHUB_URL, INSTALL } from "~/lib/site";
+import { GITHUB_URL, INSTALL, SITE_URL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
   { title: "monom — your file tree is your command tree" },
@@ -21,6 +21,7 @@ export const meta: MetaFunction = () => [
     content:
       "Drop scripts into folders and they're commands: monom db migrate.py, with Tab completion. Any language, no config file, no registration, nothing generated.",
   },
+  { property: "og:url", content: `${SITE_URL}/` },
 ];
 
 // Every tree, command and output below comes from lib/project.ts, which was
@@ -124,6 +125,15 @@ export default function Index() {
             </a>
           </div>
           <CopyCommand command={INSTALL} label="install" />
+          <img
+            className="hero-mark"
+            src="/brand/monom-icon-dark.svg"
+            alt=""
+            aria-hidden="true"
+            width={240}
+            height={240}
+            decoding="async"
+          />
         </div>
         <div className="wrap wide">
           <TabDemo />

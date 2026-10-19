@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/public/brand/monom-icon-dark.svg">
+    <img src="site/public/brand/monom-icon-light.svg" alt="monom" width="112" height="112">
+  </picture>
+</p>
+
 # monom
 
 monom is a CLI framework that turns a file tree into a tab-completable command tree. Organize your scripts in folders, and monom gives you a full-featured CLI with tab completion — in any shell, for any scripting language.
