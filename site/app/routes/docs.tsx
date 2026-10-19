@@ -150,11 +150,13 @@ infra/cloud/deploy`}</Code>
         <p>
           The file's path <em>is</em> the command, minus its extension:{" "}
           <code>db/migrate.py</code> is <code>monom db migrate</code>, and the full name,{" "}
-          <code>monom db migrate.py</code>, runs it too. A file keeps its extension when dropping
-          it would be ambiguous: something beside it is already named the stem, or another
-          executable there has the same one (<code>build.sh</code> and <code>build.py</code> both
-          stay as they are). Set <code>discover.strip-suffix = false</code> in the{" "}
-          <a href="#config">monom file</a> to keep every extension.
+          <code>monom db migrate.py</code>, runs it too. Only scripts, files with a shebang, lose
+          their extension. Two scripts that share a name (<code>build.sh</code> and{" "}
+          <code>build.py</code>) both keep theirs, and a script whose name is already taken (
+          <code>db.sh</code> beside the <code>db/</code> group) isn't registered, though{" "}
+          <code>monom db.sh</code> still runs it; <code>mnmd check</code> reports both. Set{" "}
+          <code>discover.strip-suffix = false</code> in the <a href="#config">monom file</a> to
+          keep every extension.
         </p>
         <p>
           Since the name rule has no dots, a file with an extension needs a shebang; without one
@@ -220,6 +222,16 @@ available: cloud`}</Code>
                 </td>
                 <td>always an error</td>
                 <td>A declared path that isn't an executable file inside the root.</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>command-names</code>
+                </td>
+                <td>always an error</td>
+                <td>
+                  Two scripts that share a name without their extensions, or a script whose name
+                  is already taken by something beside it.
+                </td>
               </tr>
               <tr>
                 <td>
@@ -302,7 +314,7 @@ discover.hide = infra/local`}</Code>
           <code>/</code> matches a name at any depth; one with a <code>/</code> matches a path from
           the root, and <code>*</code> never crosses a <code>/</code>. A declared path is
           registered even when a pattern hides it. <code>discover.strip-suffix = false</code>{" "}
-          keeps file extensions in command names; <code>monom</code> still runs a file by its
+          keeps file extensions in command names; <code>monom</code> still runs a script by its
           name without one.
         </p>
 
@@ -469,7 +481,7 @@ esac`}</Code>
                 </td>
                 <td>
                   Prints the absolute path the words resolve to; a name without its extension
-                  resolves to its file. Exit 3 means “that's a command group”.
+                  resolves to its script. Exit 3 means “that's a command group”.
                 </td>
               </tr>
               <tr>
@@ -501,8 +513,8 @@ esac`}</Code>
           </dd>
           <dt>A script is missing from Tab</dt>
           <dd>
-            Run <code>mnmd check</code>. It names executables the gate rejected and why; add a
-            shebang, rename it, or declare it in the monom file. Hidden, <code>_</code>-prefixed,
+            Run <code>mnmd check</code>. It names executables the gate rejected and why, and
+            scripts whose name is taken; add a shebang, rename it, or declare it in the monom file. Hidden, <code>_</code>-prefixed,
             and <code>discover.hide</code> matches are skipped on purpose. Looking for{" "}
             <code>deploy.sh</code>? Tab lists it as <code>deploy</code>.
           </dd>

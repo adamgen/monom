@@ -21,7 +21,7 @@ export type Entry = {
   command?: string;
   outcome: Outcome;
   lang?: Lang;
-  /** Why the gate decided what it did. */
+  /** Why the gate decided what it did. Starts with the shebang when there is one. */
   why: string;
   /** What running it prints. Commands only. */
   output?: string;

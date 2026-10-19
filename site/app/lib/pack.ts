@@ -9,7 +9,10 @@ export type Packed =
   | { group: true } // a command group: exit 3
   | { error: string }; // what mnmd pack prints
 
-const FILES = ENTRIES.filter((e) => e.outcome === "command").map((e) => e.path);
+const COMMANDS = ENTRIES.filter((e) => e.outcome === "command");
+const FILES = COMMANDS.map((e) => e.path);
+// Only a script, a file with a shebang, resolves by its stem.
+const SCRIPTS = COMMANDS.filter((e) => e.why.startsWith("#!")).map((e) => e.path);
 
 /** internal/discover's Stem: name without its last "." suffix, or "" when it has none. */
 function stem(name: string): string {
@@ -29,7 +32,7 @@ export function pack(root: string, words: string[]): Packed {
   // Nothing at the path: the last word may be a stripped command name.
   const dir = path.slice(0, path.lastIndexOf("/") + 1);
   const last = path.slice(dir.length);
-  const matches = FILES.filter((f) => {
+  const matches = SCRIPTS.filter((f) => {
     const name = f.slice(dir.length);
     return f.startsWith(dir) && !name.includes("/") && stem(name) === last;
   });
