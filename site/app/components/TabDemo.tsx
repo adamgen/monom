@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { commonPrefix, filter } from "~/lib/filter";
-import { CHECK, commands, paths } from "~/lib/project";
+import { pack } from "~/lib/pack";
+import { CHECK, commandOf, commands, paths } from "~/lib/project";
 import { FileTree } from "./FileTree";
 
 type Line =
@@ -10,6 +11,7 @@ type Line =
   | { kind: "list"; items: { name: string; group: boolean }[] };
 
 const PROMPT = "~/acme $";
+const ROOT = "/home/you/acme";
 const MAX_LINES = 14;
 
 const isGroup = (prefix: string) => paths.some((p) => p.startsWith(prefix + "/"));
@@ -35,17 +37,17 @@ function run(input: string): Line[] {
   if (trimmed === "mnmd check") {
     return CHECK.split("\n").slice(1).map((text) => ({ kind: text.startsWith("warning") ? ("err" as const) : ("out" as const), text }));
   }
-  if (trimmed === "mnmd root") return [{ kind: "out", text: "/home/you/acme" }];
+  if (trimmed === "mnmd root") return [{ kind: "out", text: ROOT }];
   const tokens = trimmed.split(/\s+/);
   if (tokens[0] !== "monom") {
     return [{ kind: "err", text: `bash: ${tokens[0]}: try 'monom' and press Tab` }];
   }
   const args = tokens.slice(1);
   if (args.length === 0) return groupMessage("monom", []);
-  const path = args.join("/");
-  if (commands[path]) return [{ kind: "out", text: commands[path] }];
-  if (isGroup(path)) return groupMessage(`'${args[args.length - 1]}' is a command group`, args);
-  return [{ kind: "err", text: `mnmd pack: pack: command not found: /home/you/acme/${path}` }];
+  const packed = pack(ROOT, args);
+  if ("file" in packed) return [{ kind: "out", text: commands[commandOf[packed.file]] }];
+  if ("group" in packed) return groupMessage(`'${args[args.length - 1]}' is a command group`, args);
+  return [{ kind: "err", text: `mnmd pack: ${packed.error}` }];
 }
 
 type TabResult = { input: string; list?: Line };

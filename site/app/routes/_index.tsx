@@ -5,7 +5,7 @@ import { CopyCommand } from "~/components/CopyCommand";
 import { FileTree } from "~/components/FileTree";
 import { PathMap } from "~/components/PathMap";
 import { TabDemo } from "~/components/TabDemo";
-import { CHECK, ENTRIES, cmd } from "~/lib/project";
+import { CHECK, ENTRIES, cmd, commandOf } from "~/lib/project";
 import { GITHUB_URL, INSTALL } from "~/lib/site";
 
 export const meta: MetaFunction = () => [
@@ -19,7 +19,7 @@ export const meta: MetaFunction = () => [
   {
     property: "og:description",
     content:
-      "Drop scripts into folders and they're commands: monom db migrate.py, with Tab completion. Any language, no config file, no registration, nothing generated.",
+      "Drop scripts into folders and they're commands: monom db migrate, with Tab completion. Any language, no config file, no registration, nothing generated.",
   },
 ];
 
@@ -49,8 +49,8 @@ const HOOK_SCRIPT = `#!/usr/bin/env bash
 case "$1" in
   run)
     shift
-    # monom ship → infra cloud deploy.sh
-    if [ "$1" = ship ]; then echo infra cloud deploy.sh; fi
+    # monom ship → infra cloud deploy
+    if [ "$1" = ship ]; then echo infra cloud deploy; fi
     ;;
   config)
     echo "discover.hide = tools"
@@ -112,7 +112,7 @@ export default function Index() {
           </h1>
           <p className="lede">
             Drop executables into your repo's folders, in any language, and they're already a CLI:{" "}
-            <code>monom db migrate.py</code>, with Tab completion in bash and zsh. No config file,
+            <code>{cmd(commandOf["db/migrate.py"])}</code>, with Tab completion in bash and zsh. No config file,
             no registration, nothing generated.
           </p>
           <div className="hero-actions">
@@ -166,8 +166,8 @@ export default function Index() {
                 </p>
                 <p>
                   Any language works: Python, Node, bash, Ruby, a compiled Go binary. The path is the
-                  command, extension included, so <code>db/migrate.py</code> is{" "}
-                  <code>{cmd("db/migrate.py")}</code>. A command-style name matches{" "}
+                  command, minus the file's extension, so <code>db/migrate.py</code> is{" "}
+                  <code>{cmd(commandOf["db/migrate.py"])}</code>. A command-style name matches{" "}
                   <code>^[a-z0-9][a-z0-9_-]*$</code> (lowercase, no dots), so a file with an
                   extension needs a shebang, and a compiled binary like <code>tools/lint</code>{" "}
                   gets in by name.
@@ -189,8 +189,9 @@ export default function Index() {
             <p className="stage-n">03</p>
             <h2>Your paths are your commands.</h2>
             <p className="section-lede">
-              Each folder is a word, and the file is the last one. The spaces you type are the
-              slashes in the path, so <code>{cmd("infra/cloud/deploy.sh")}</code> runs{" "}
+              Each folder is a word, and the file, without its extension, is the last one. The
+              spaces you type are the slashes in the path, so{" "}
+              <code>{cmd(commandOf["infra/cloud/deploy.sh"])}</code> runs{" "}
               <code>infra/cloud/deploy.sh</code>, from any folder inside the project.
             </p>
             <PathMap />
@@ -285,7 +286,7 @@ $ mnmd root
               <ul className="lang-list">
                 {LANGS.map((e) => (
                   <li key={e.path}>
-                    <span className="is-command-text">{cmd(e.path).replace(/^monom /, "")}</span>
+                    <span className="is-command-text">{cmd(e.command!).replace(/^monom /, "")}</span>
                     <span className="shebang">{e.why.replace(/,.*$/, "").replace(/:.*$/, "")}</span>
                   </li>
                 ))}
@@ -378,9 +379,9 @@ deploying to cloud...`}</Code>
                 the team has, with nothing committed for monom's sake.
               </p>
               <Code output>{`$ monom <Tab>
-db          infra       release.rb  tools
+db       infra    release  tools
 $ monom db <Tab>
-migrate.py  seed.js`}</Code>
+migrate  seed`}</Code>
             </article>
             <article className="audience">
               <h3>Your own toolbox</h3>

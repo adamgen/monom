@@ -1,8 +1,9 @@
 // The one example project every file tree, command, and output on the site
 // uses. It was built as a real project (a git repo, no monom file) and checked
 // against the real binaries: `mnmd discover`, `mnmd check`, running each
-// command, and Tab completion in bash and zsh. Change it only by rebuilding
-// that project and re-checking what the site quotes.
+// command by its name and its file name, and Tab completion in bash and zsh.
+// Change it only by rebuilding that project and re-checking what the site
+// quotes.
 
 export type Lang = "python" | "node" | "bash" | "sh" | "ruby" | "go" | "text";
 
@@ -16,9 +17,11 @@ export type Outcome =
 export type Entry = {
   /** Path from the project root. A trailing slash marks a directory entry. */
   path: string;
+  /** The command path discovery registers it as, suffix stripped. Commands only. */
+  command?: string;
   outcome: Outcome;
   lang?: Lang;
-  /** Why the gate decided what it did. */
+  /** Why the gate decided what it did. Starts with the shebang when there is one. */
   why: string;
   /** What running it prints. Commands only. */
   output?: string;
@@ -27,27 +30,31 @@ export type Entry = {
 export const PROJECT = "acme";
 
 export const ENTRIES: Entry[] = [
-  { path: "db/migrate.py", outcome: "command", lang: "python", why: "#!/usr/bin/env python3", output: "running db migrations..." },
-  { path: "db/seed.js", outcome: "command", lang: "node", why: "#!/usr/bin/env node", output: "seeding database..." },
-  { path: "infra/cloud/deploy.sh", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash", output: "deploying to cloud..." },
-  { path: "infra/local/start", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash, no extension", output: "starting local environment..." },
-  { path: "tools/lint", outcome: "command", lang: "go", why: "compiled Go binary: no shebang, command-shaped name", output: "lint: 0 issues" },
+  { path: "db/migrate.py", command: "db/migrate", outcome: "command", lang: "python", why: "#!/usr/bin/env python3", output: "running db migrations..." },
+  { path: "db/seed.js", command: "db/seed", outcome: "command", lang: "node", why: "#!/usr/bin/env node", output: "seeding database..." },
+  { path: "infra/cloud/deploy.sh", command: "infra/cloud/deploy", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash", output: "deploying to cloud..." },
+  { path: "infra/local/start", command: "infra/local/start", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash, no extension", output: "starting local environment..." },
+  { path: "tools/lint", command: "tools/lint", outcome: "command", lang: "go", why: "compiled Go binary: no shebang, command-shaped name", output: "lint: 0 issues" },
   { path: "tools/Format.sh", outcome: "warn", lang: "sh", why: "no shebang, and the name has a capital and a dot" },
   { path: "_lib/log.sh", outcome: "hidden", lang: "bash", why: "_-prefixed: private, never scanned" },
   { path: "node_modules/", outcome: "hidden", why: "built-in skip list, like vendor, venv, dist" },
   { path: "README.md", outcome: "ignored", lang: "text", why: "not executable" },
-  { path: "release.rb", outcome: "command", lang: "ruby", why: "#!/usr/bin/env ruby", output: "releasing..." },
+  { path: "release.rb", command: "release", outcome: "command", lang: "ruby", why: "#!/usr/bin/env ruby", output: "releasing..." },
 ];
 
+const COMMANDS = ENTRIES.filter((e) => e.outcome === "command");
+
 /** Registered command paths, in `mnmd discover` order (sorted). */
-export const paths = ENTRIES.filter((e) => e.outcome === "command")
-  .map((e) => e.path)
-  .sort();
+export const paths = COMMANDS.map((e) => e.command!).sort();
 
 /** Command path → what it prints when run. */
-export const commands: Record<string, string> = Object.fromEntries(
-  ENTRIES.filter((e) => e.outcome === "command").map((e) => [e.path, e.output ?? ""]),
-);
+export const commands: Record<string, string> = Object.fromEntries(COMMANDS.map((e) => [e.command!, e.output ?? ""]));
+
+/** Command path → the file it runs. */
+export const fileOf: Record<string, string> = Object.fromEntries(COMMANDS.map((e) => [e.command!, e.path]));
+
+/** File path → the command path it registers as. */
+export const commandOf: Record<string, string> = Object.fromEntries(COMMANDS.map((e) => [e.path, e.command!]));
 
 export const cmd = (path: string) => `monom ${path.split("/").join(" ")}`;
 

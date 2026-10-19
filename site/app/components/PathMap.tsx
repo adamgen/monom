@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { commands, paths } from "~/lib/project";
+import { commands, fileOf, paths } from "~/lib/project";
 import { FileTree, segClass } from "./FileTree";
 
 // Stage 3 of the adoption story: the tree on the left, a terminal on the
@@ -14,7 +14,7 @@ const RESUME_MS = 5000;
 
 type Shown = { path: string; typed: number; done: boolean };
 
-/** "db/migrate.py" → [" db", " migrate.py"], the words after "monom" with their leading space. */
+/** "db/migrate" → [" db", " migrate"], the words after "monom" with their leading space. */
 const wordsOf = (path: string) => path.split("/").map((w) => ` ${w}`);
 const lengthOf = (path: string) => "monom".length + wordsOf(path).join("").length;
 
@@ -117,7 +117,7 @@ export function PathMap() {
             <span className="pathmap-foot-label">runs</span>
             <span className="mono">
               ./
-              {shown.path.split("/").map((seg, i, all) => (
+              {fileOf[shown.path].split("/").map((seg, i, all) => (
                 <span key={i}>
                   <span className={i < lit ? `is-lit ${segClass(i, i === all.length - 1)}` : "is-dim"}>{seg}</span>
                   {i < all.length - 1 ? "/" : ""}
