@@ -16,7 +16,7 @@ How it works: Organize your executable scripts in a folder structure, optionally
 
 **Discovery gate** — the rule a scanned executable must pass to be registered: it has a shebang, its name matches the naming pattern (`^[a-z0-9][a-z0-9_-]*$`), or it is declared in a declarative monom config file.
 
-**Suffix stripping** — default discovery registering a file under its name without the file suffix (`scripts/setup.sh` → `scripts/setup`), unless that stem would be ambiguous in its directory. On by default; `discover.strip-suffix = false` turns it off. `mnmd pack` resolves a stripped name back to its file.
+**Suffix stripping** — default discovery registering a script (an executable with a shebang) under its file name without the suffix (`scripts/setup.sh` → `scripts/setup`). A stem two scripts share, or one an existing entry already owns, is a conflict that `mnmd check` reports. On by default; `discover.strip-suffix = false` turns it off. `mnmd pack` resolves a stripped name back to its script.
 
 **Registered command** — a command path that is part of the CLI: the `complete` hook's output, or default discovery's gated set plus declarations. Completion, group listings, and `mnmd check` all see exactly the registered set.
 

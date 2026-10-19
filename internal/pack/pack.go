@@ -36,12 +36,13 @@ func (e *GroupError) ExitCode() int { return cli.ExitCodes.GroupError }
 // is then resolved against the project root discovered by FindProjectRoot.
 //
 // When nothing exists at that path, the last word may be a command name whose
-// file suffix default discovery stripped: the one executable file in its
-// directory with that stem (setup → setup.sh) is resolved instead. Pack does
-// this whether or not stripping is on, without reading the config.
+// file suffix default discovery stripped: the one script (an executable with a
+// shebang) in its directory with that stem (setup → setup.sh) is resolved
+// instead. Pack does this whether or not stripping is on, without reading the
+// config.
 //
 // Returns an error if words is empty, no project root is found, the resolved
-// path does not exist, the stem names more than one executable, or the file is
+// path does not exist, the stem names more than one script, or the file is
 // not executable. When the resolved path is a directory, it returns a
 // *GroupError — a distinct outcome signalling "this is a command group", not a
 // generic failure. Pack does not enumerate the group's children; that is the

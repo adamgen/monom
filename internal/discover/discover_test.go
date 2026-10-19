@@ -32,7 +32,7 @@ func TestDiscover_RecordsWhichGateRuleRegisteredEachCommand(t *testing.T) {
 
 	res := Discover(root, []string{"Weird.BIN"}, config.Settings{})
 	want := []Command{
-		{Path: "Weird", Via: ViaDeclared},
+		{Path: "Weird.BIN", Via: ViaDeclared},
 		{Path: "bin/server", Via: ViaPattern},
 		{Path: "deploy", Via: ViaShebang},
 	}
