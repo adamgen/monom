@@ -1,0 +1,116 @@
+# `mnmd map complete` / `mnmd map resolve`: the command-map backend a hook
+# script wires into its `complete` and `run` hooks, and the map validation in
+# `mnmd check`. fixtures/brownfield-project is the runnable example;
+# fixtures/map-variants/* each hold one broken map (no monom file, so the root
+# is pinned).
+
+root: fixtures/brownfield-project
+shells: [bash, zsh]
+
+cases:
+  - name: map complete prints the sorted slash-delimited command paths
+    input: mnmd map complete
+    action: enter
+    expect: |
+      db/migrate
+      db/seed
+      deploy
+      release
+
+  - name: map resolve prints a nested command's target as path tokens
+    input: mnmd map resolve db migrate
+    action: enter
+    expect: scripts legacy run_migrations.sh
+
+  - name: map resolve handles the object node form
+    input: mnmd map resolve deploy
+    action: enter
+    expect: ops full_deploy.sh
+
+  - name: map resolve handles the string shorthand form
+    input: mnmd map resolve release
+    action: enter
+    expect: tools make_release.sh
+
+  - name: a map category exits 3 with no output, the payload-free group signal
+    input: mnmd map resolve db
+    action: enter
+    exit: 3
+    expect: ""
+
+  - name: an unmapped command prints nothing and exits 0 so the run hook falls back to the tree
+    input: mnmd map resolve nope
+    action: enter
+    expect: ""
+
+  - name: words past a mapped command are no match, not that command
+    input: mnmd map resolve deploy --force
+    action: enter
+    expect: ""
+
+  - name: filter drills into map categories like tree ones
+    input: mnmd map complete | mnmd filter db ""
+    action: enter
+    expect: |
+      migrate
+      seed
+
+  - name: check validates the hook's commands and the map, and passes on the fixture
+    input: mnmd check
+    action: enter
+    expect: ✔ 5 commands OK
+
+groups:
+  - name: invalid JSON
+    root: fixtures/map-variants/invalid-json
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: invalid JSON is a loud error
+        input: mnmd map complete
+        action: enter
+        exit: 1
+        expect: "mnmd map: invalid JSON: invalid character 'n'"
+
+  - name: duplicate keys
+    root: fixtures/map-variants/duplicate-keys
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: a duplicate key is an error instead of a silently swallowed command
+        input: mnmd map complete
+        action: enter
+        exit: 1
+        expect: 'mnmd map: duplicate key "a" at "db"'
+
+  - name: run and children
+    root: fixtures/map-variants/run-and-children
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: a node with both a run target and children is an error
+        input: mnmd map complete
+        action: enter
+        exit: 1
+        expect: 'mnmd map: "db" has both a "run" target and children — a node is a command or a category, not both'
+
+  - name: missing target
+    root: fixtures/map-variants/missing-target
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: check reports a map target that does not exist
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [command-map] monom-map.json: target of "deploy" does not exist: ops/gone.sh
+          mnmd check: 1 error(s), 0 warning(s)
+
+  - name: shadows tree
+    root: fixtures/map-variants/shadows-tree
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: check reports a map command that makes a tree command unreachable
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [command-map] monom-map.json: command "deploy" shadows tree path deploy
+          mnmd check: 1 error(s), 0 warning(s)

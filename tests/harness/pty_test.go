@@ -123,7 +123,7 @@ func startPTY(t *testing.T, repo, root, sh, compdump string, extraEnv []string) 
 	dir := shQuote(filepath.Join(repo, root))
 	src := shQuote(filepath.Join(repo, "src", "monom"))
 	env := []string{
-		"HOME=" + home, "PATH=" + os.Getenv("PATH"), "TERM=xterm", "LANG=C.UTF-8",
+		"HOME=" + home, casePath(repo), "TERM=xterm", "LANG=C.UTF-8",
 		fmt.Sprintf("COLUMNS=%d", ptyCols), fmt.Sprintf("LINES=%d", ptyRows),
 	}
 	env = append(env, extraEnv...)

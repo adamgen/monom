@@ -28,7 +28,7 @@ complete -F _monom_completion monom
 # Completes the first argument with the list of known mnmd subcommands.
 _mnmd_completion() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local subcommands="filter root pack discover check install completion"
+  local subcommands="filter root pack discover check install map completion"
   # Only complete the first positional argument (subcommand slot).
   if [[ "${COMP_CWORD}" -eq 1 ]]; then
     # shellcheck disable=SC2207

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # monom user config for the hooks-project fixture.
-# `run` aliases `dbm` to `db migrate` and fails on purpose for `explode`;
+# `run` aliases `dbm` to `db migrate`, fails on purpose for `explode`, and
+# answers `virt` with the group signal (exit 3), the way `mnmd map resolve`
+# does for a command-map category: `virt/` has no directory on disk.
 # `empty/` is a command group with no commands in it.
 
 case "$1" in
   complete)
-    printf '%s\n' release db/migrate explode
+    printf '%s\n' release db/migrate explode virt/one virt/two
     ;;
   run)
     shift
@@ -13,8 +15,9 @@ case "$1" in
       dbm) echo "db migrate" ;;
       explode)
         echo "run hook: boom" >&2
-        exit 3
+        exit 1
         ;;
+      virt) [ $# -eq 1 ] && exit 3 ;;
     esac
     ;;
 esac

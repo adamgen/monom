@@ -115,7 +115,7 @@ Validation is strict, and happens before any test runs. Unknown keys, missing re
 
 ### Environment
 
-Every case starts from your environment with the monom variables removed (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG`, `MONOM_ACTIVE`, `MONOM_CHECK_ROOT_CONTENTS`); keys cases start from an almost empty one. `env:` adds variables on top, at the suite, group or case level:
+Every case starts from your environment with the monom variables removed (`_MONOM_PROJECT_ROOT`, `_MONOM_USER_CONFIG`, `MONOM_DEBUG_LOG`, `MONOM_ACTIVE`, `MONOM_CHECK_ROOT_CONTENTS`); keys cases start from an almost empty one. In both, the repo's `bin/` comes first on `PATH`, as `install.sh`'s `~/.local/bin/mnmd` link does for a user, so a fixture's hook script can run `mnmd` (the `mnmd()` function `src/monom` defines does not reach a hook's subprocess). `env:` adds variables on top, at the suite, group or case level:
 
 ```yaml
 groups:
@@ -161,7 +161,7 @@ A keys case starts a real interactive shell in a 100×24 pseudo-terminal (`githu
 
 The session is set up like a user's shell, with everything that could vary pinned:
 
-- A temporary `HOME` and `TERM=xterm`, `LANG=C.UTF-8`, plus `PATH` and the case's `env`; nothing else from your environment.
+- A temporary `HOME` and `TERM=xterm`, `LANG=C.UTF-8`, plus `PATH` (with the repo's `bin/` first) and the case's `env`; nothing else from your environment.
 - bash: `bash --noprofile --rcfile <tmp>/.bashrc -i` and a private inputrc: no bracketed paste or bell, `show-all-if-ambiguous off` (so the first Tab completes the common prefix and the second lists), no pager or colours.
 - zsh: `zsh --no-globalrcs -i` with `ZDOTDIR=<tmp>`: `emulate -R zsh`, `auto_menu auto_list list_ambiguous no_menu_complete`, and bracketed paste off. On an ambiguous word the first Tab lists and the second inserts the first candidate. `compinit -C` loads a compdump that is built once per run.
 - The rc then `cd`s into `root` and sources `src/monom`, and the prompt is `PROMPT$ `.

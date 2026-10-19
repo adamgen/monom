@@ -8,8 +8,10 @@ package cli
 //   - Success (0): leaf resolved / normal output.
 //   - Error (1): generic real error (no args, not found, not executable,
 //     no project root, install/check failures).
-//   - GroupError (3): pack command-group signal — payload-free, reserved
-//     exclusively for the pack subcommand.
+//   - GroupError (3): the command-group signal — payload-free, reserved for
+//     resolvers on the run path. Emitted by `pack` (directory) and
+//     `map resolve` (category node); the shell treats a run hook's exit 3
+//     the same way. See TRADEOFFS.md.
 var ExitCodes = struct {
 	Success    int
 	Error      int

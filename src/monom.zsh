@@ -55,7 +55,7 @@ fi
 # Completes the first argument with the list of known mnmd subcommands.
 _mnmd() {
   local -a subcommands
-  subcommands=(filter root pack discover check install completion)
+  subcommands=(filter root pack discover check install map completion)
   # Only complete the first positional argument (subcommand slot).
   # $words is set by zsh's completion system; $words[1] is "mnmd".
   # SC2154: referenced but not assigned — false positive for zsh completion variables.

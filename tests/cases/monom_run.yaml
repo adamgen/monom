@@ -46,8 +46,9 @@ cases:
       available: db, infra, release
 
 groups:
-  # fixtures/hooks-project: `run` aliases `dbm` to `db migrate` and fails for
-  # `explode`; `empty/` is a group with no commands.
+  # fixtures/hooks-project: `run` aliases `dbm` to `db migrate`, fails for
+  # `explode`, and answers `virt` with the group signal; `empty/` is a group
+  # with no commands.
   - name: hooks
     root: fixtures/hooks-project
     cases:
@@ -59,10 +60,20 @@ groups:
       - name: failing run hook surfaces its error and never falls back to the literal command
         input: monom explode
         action: enter
-        exit: 3
+        exit: 1
         expect: |
-          monom: run hook failed (exit 3)
+          monom: run hook failed (exit 1)
           run hook: boom
+
+      # virt/ has no directory, so pack alone would say "command not found":
+      # the listing can only come from the hook's exit 3.
+      - name: run hook exit 3 is the group signal and lists children like pack's
+        input: monom virt
+        action: enter
+        exit: 1
+        expect: |
+          monom: 'virt' is a command group
+          available: one, two
 
       - name: an empty group is reported without an available list
         input: monom empty
@@ -73,4 +84,4 @@ groups:
       - name: tab offers exactly what the complete hook lists
         input: "monom "
         action: tab
-        expect: [db, explode, release]
+        expect: [db, explode, release, virt]

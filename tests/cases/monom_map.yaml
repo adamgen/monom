@@ -1,0 +1,56 @@
+# `monom` through the command map: fixtures/brownfield-project's hook script
+# delegates `complete` and `run` to `mnmd map` (and lists native/ itself). The
+# map is an overlay: mapped commands run scattered scripts, unmapped ones fall
+# back to the file tree, and a map category, which has no directory on disk,
+# gets the same group listing as a tree directory.
+
+root: fixtures/brownfield-project
+shells: [bash, zsh]
+
+cases:
+  - name: a mapped command runs the scattered script
+    input: monom db migrate
+    action: enter
+    expect: ran scripts/legacy/run_migrations.sh
+
+  - name: an object-form command runs its target
+    input: monom deploy
+    action: enter
+    expect: ran ops/full_deploy.sh
+
+  - name: an unmapped command falls back to the file tree
+    input: monom native hello
+    action: enter
+    expect: ran native/hello
+
+  - name: a map category lists its children from the map
+    input: monom db
+    action: enter
+    exit: 1
+    expect: |
+      monom: 'db' is a command group
+      available: migrate, seed
+
+  - name: tab offers map commands and tree commands side by side
+    input: "monom "
+    action: tab
+    expect: [db, deploy, native, release]
+
+  - name: tab drills into a map category
+    input: "monom db "
+    action: tab
+    expect: [migrate, seed]
+
+groups:
+  # DEMO (review note 1, not a contract): a complete hook that adds
+  # `mnmd discover` to `mnmd map complete` registers each mapped script
+  # twice, by its map path and by its file path.
+  - name: discover in the complete hook
+    root: fixtures/map-variants/discover-hook
+    cases:
+      - name: "DEMO: one mapped script runs from two command paths"
+        input: monom db migrate; monom scripts legacy run_migrations.sh
+        action: enter
+        expect: |
+          ran scripts/legacy/run_migrations.sh
+          ran scripts/legacy/run_migrations.sh

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# monom user config for the brownfield-project fixture.
+#
+# Demonstrates the command-map backend: discovery and routing delegate to
+# `mnmd map`, which reads monom-map.json at the project root. Unmapped
+# commands fall through to the file tree (native/) via the run hook's
+# empty-output fallback — the map is an overlay, not a replacement.
+#
+# Requires `mnmd` on PATH (the fixture's tests prepend the repo's bin/).
+
+case "$1" in
+  complete)
+    mnmd map complete
+    root="$(cd "$(dirname "$0")" && pwd)"
+    find "$root/native" -type f -perm -u+x -print | sed "s#^$root/##" | sort
+    ;;
+  run)
+    shift
+    mnmd map resolve "$@"
+    ;;
+esac

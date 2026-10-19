@@ -225,3 +225,67 @@ func TestCheck_InvalidDiscoverHidePatternIsAConfigError(t *testing.T) {
 		t.Errorf("config = %v, want one discover.hide error", got)
 	}
 }
+
+// --- command map validation (monom-map.json at the project root) ---
+
+// mapProblems checks a root holding an empty hook script, the given command
+// map, and the given executables (path→mode), and returns the command-map
+// problems.
+func mapProblems(t *testing.T, mapJSON string, files map[string]os.FileMode) []Problem {
+	t.Helper()
+	root := t.TempDir()
+	cfg := writeFile(t, root, "monom", "#!/bin/sh\n", 0o755)
+	writeFile(t, root, "monom-map.json", mapJSON, 0o644)
+	for rel, mode := range files {
+		writeFile(t, root, rel, "#!/bin/sh\n", mode)
+	}
+	return only(t, mustCheck(t, Input{Root: root, UserConfig: cfg}), CommandMap)
+}
+
+func assertOneMapError(t *testing.T, problems []Problem, substr string) {
+	t.Helper()
+	if len(problems) != 1 || problems[0].Severity != config.SeverityError || !strings.Contains(problems[0].Message, substr) {
+		t.Errorf("command-map = %v, want one error containing %q", problems, substr)
+	}
+}
+
+func TestCheck_ValidMapReturnsNoProblems(t *testing.T) {
+	got := mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+		map[string]os.FileMode{"scripts/m.sh": 0o755})
+	if len(got) != 0 {
+		t.Errorf("command-map = %v, want none", got)
+	}
+}
+
+func TestCheck_UnparsableMapIsReported(t *testing.T) {
+	assertOneMapError(t, mapProblems(t, `{"db": {"a": "x.sh", "a": "y.sh"}}`, nil), "duplicate key")
+}
+
+func TestCheck_MissingMapTargetIsReported(t *testing.T) {
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/gone.sh"}`, nil), "does not exist")
+}
+
+func TestCheck_NonExecutableMapTargetIsReported(t *testing.T) {
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/d.sh"}`,
+		map[string]os.FileMode{"ops/d.sh": 0o644}), "not executable")
+}
+
+func TestCheck_MapCommandShadowingTreePathIsReported(t *testing.T) {
+	assertOneMapError(t, mapProblems(t, `{"deploy": "ops/d.sh"}`,
+		map[string]os.FileMode{"ops/d.sh": 0o755, "deploy": 0o755}), "shadows tree path")
+}
+
+func TestCheck_MapCategoryShadowingTreeCommandIsReported(t *testing.T) {
+	assertOneMapError(t, mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+		map[string]os.FileMode{"scripts/m.sh": 0o755, "db": 0o755}), "shadows tree command")
+}
+
+func TestCheck_MapCategoryOverTreeDirectoryMerges(t *testing.T) {
+	// A category over a real directory is the hybrid pattern, not shadowing:
+	// unmapped children fall back to pack against that directory.
+	got := mapProblems(t, `{"db": {"migrate": "scripts/m.sh"}}`,
+		map[string]os.FileMode{"scripts/m.sh": 0o755, "db/seed": 0o755})
+	if len(got) != 0 {
+		t.Errorf("command-map = %v, want none", got)
+	}
+}

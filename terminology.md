@@ -24,6 +24,10 @@ How it works: Organize your executable scripts in a folder structure, optionally
 
 **Project root** — the directory that is monom's base for a project. Resolved as: `$_MONOM_PROJECT_ROOT` when it names a directory (what an alias pins); else the nearest directory upward from `$PWD` containing a file named `monom`; else the nearest git root. Pre-setting `$_MONOM_PROJECT_ROOT` is the one public affordance of the internal shell↔Go plumbing.
 
+**Command map** — the optional `monom-map.json` at the project root, mapping command paths to executable scripts located elsewhere in the project. A discovery/routing backend for the `complete` and `run` hooks (via `mnmd map`), used to give brownfield projects a clean command tree without moving their scripts. The map is an overlay on the file tree: unmapped commands fall through to normal path resolution.
+
+**Group signal** — exit code 3 on the execution path, meaning "these tokens name a category, not a command." Payload-free by contract: the emitter (`mnmd pack` for a directory, a `run` hook / `mnmd map resolve` for a map category) prints nothing, and the shell renders the child listing from the discovery pipeline.
+
 **mnmd** — the compiled Go binary. The engine of monom. Implements all internal logic: project root discovery, completion filtering, command resolution, and more. Sourcing `src/monom` defines a user-facing `mnmd()` shell function, so `mnmd` is callable by name in the user's shell without `bin/` being on `$PATH`.
 
 **CLI author** — the developer building a CLI tool using monom.

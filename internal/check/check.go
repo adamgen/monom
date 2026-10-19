@@ -9,10 +9,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/adamgen/monom/internal/config"
 	"github.com/adamgen/monom/internal/discover"
+	"github.com/adamgen/monom/internal/mapfile"
 )
 
 // Check names, printed with every problem.
@@ -29,6 +32,9 @@ const (
 	// directories it could not read, or a hook script missing its execute bit.
 	// The only check whose severity is configurable.
 	RootContents = "root-contents"
+	// CommandMap: the command map (monom-map.json) does not parse, a run
+	// target is unusable, or a map entry shadows a tree path.
+	CommandMap = "command-map"
 )
 
 // UserSeverityEnv is the user-level (global) setting for the root-contents
@@ -149,6 +155,12 @@ func Check(in Input) (Report, error) {
 		}
 	}
 
+	if in.Root != "" {
+		for _, msg := range checkMap(in.Root) {
+			errorf(CommandMap, "%s", msg)
+		}
+	}
+
 	severity := settings.RootContents
 	if severity == "" {
 		severity = config.SeverityWarning
@@ -168,6 +180,71 @@ func nonEmptyLines(b []byte) []string {
 		}
 	}
 	return out
+}
+
+// checkMap validates the command map when one exists at the project root.
+// Absent map = no problems: the
+// map is optional. Present map = every target must exist, be a regular file,
+// and be executable, and no map entry may shadow a tree path that pack could
+// otherwise resolve.
+func checkMap(rootDir string) []string {
+	path := filepath.Join(rootDir, mapfile.FileName)
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return []string{fmt.Sprintf("%s: cannot open: %v", mapfile.FileName, err)}
+	}
+	defer f.Close()
+
+	m, err := mapfile.Parse(f)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: %v", mapfile.FileName, err)}
+	}
+
+	var problems []string
+	mapfile.Walk(m, func(cmdPath string, n *mapfile.Node) {
+		treePath := filepath.Join(rootDir, cmdPath)
+		treeInfo, treeErr := os.Stat(treePath)
+
+		if n.IsCommand() {
+			// The map wins over the tree (the run hook fires before pack), so
+			// any tree entry at the same path is silently unreachable.
+			if treeErr == nil {
+				problems = append(problems, fmt.Sprintf("%s: command %q shadows tree path %s", mapfile.FileName, cmdPath, cmdPath))
+			}
+			problems = append(problems, checkTarget(rootDir, cmdPath, n.Run)...)
+			return
+		}
+
+		// A map category over a tree DIRECTORY merges (unmapped children fall
+		// back to pack) — only a category over a tree FILE shadows a command.
+		if treeErr == nil && !treeInfo.IsDir() {
+			problems = append(problems, fmt.Sprintf("%s: category %q shadows tree command %s", mapfile.FileName, cmdPath, cmdPath))
+		}
+	})
+	return problems
+}
+
+// checkTarget validates one command's run target on disk. Messages name the
+// target as the map spells it, relative to the root.
+func checkTarget(rootDir, cmdPath, target string) []string {
+	abs := filepath.Join(rootDir, target)
+	fi, err := os.Stat(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{fmt.Sprintf("%s: target of %q does not exist: %s", mapfile.FileName, cmdPath, target)}
+		}
+		return []string{fmt.Sprintf("%s: cannot stat target of %q: %v", mapfile.FileName, cmdPath, err)}
+	}
+	if fi.IsDir() {
+		return []string{fmt.Sprintf("%s: target of %q is a directory: %s", mapfile.FileName, cmdPath, target)}
+	}
+	if fi.Mode()&0o111 == 0 {
+		return []string{fmt.Sprintf("%s: target of %q is not executable: %s", mapfile.FileName, cmdPath, target)}
+	}
+	return nil
 }
 
 // hasSpaceInSegment reports whether any slash-delimited segment contains a space.

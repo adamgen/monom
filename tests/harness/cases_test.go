@@ -155,7 +155,7 @@ func runCase(t *testing.T, repo string, c Case, sh string) {
 		args = []string{"--no-rcs", "-c", caseScript(repo, c, sh)}
 	}
 	cmd := exec.CommandContext(ctx, shellPath, args...)
-	cmd.Env = append(cleanEnv(), caseEnv(repo, c)...)
+	cmd.Env = append(cleanEnv(repo), caseEnv(repo, c)...)
 
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -249,15 +249,22 @@ func envLine(c Case) string {
 	return "  env:    " + strings.Join(kv, " ") + "\n"
 }
 
-func cleanEnv() []string {
-	var env []string
+func cleanEnv(repo string) []string {
+	env := []string{casePath(repo)}
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		if !contains(scrubbedEnv, name) {
+		if name != "PATH" && !contains(scrubbedEnv, name) {
 			env = append(env, kv)
 		}
 	}
 	return env
+}
+
+// casePath puts the repo's bin/ first on PATH, as install.sh's
+// ~/.local/bin/mnmd link does for a user, so hook scripts can run `mnmd`:
+// the mnmd() function src/monom defines does not reach their subprocesses.
+func casePath(repo string) string {
+	return "PATH=" + filepath.Join(repo, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
 }
 
 var spaceRun = regexp.MustCompile(`[[:space:]]+`)

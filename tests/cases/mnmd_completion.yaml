@@ -7,7 +7,7 @@ cases:
   - name: empty line offers every subcommand
     input: "mnmd "
     action: tab
-    expect: [filter, root, pack, discover, check, install, completion]
+    expect: [filter, root, pack, discover, check, install, map, completion]
 
   - name: prefix narrows the subcommands
     input: mnmd fi

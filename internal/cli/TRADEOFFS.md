@@ -30,6 +30,18 @@ The same reasoning applies to documentation: duplicating the values into `archit
 
 ---
 
+## Exit 3 is the group signal for every resolver, not a pack-private code
+
+**Chosen:** exit 3 means "these tokens name a category" wherever it appears on the run path — `pack` emits it for a directory, `map resolve` for a map category, and `monom()` treats a run hook's exit 3 identically to pack's, rendering the same child listing.
+
+**Rejected:** keeping 3 exclusive to pack and giving hook-signalled groups a different code (or reporting them as hook failures).
+
+**Why.** A command-map category has no directory on disk, so pack cannot see it — the only process that knows `monom db` names a group is the run hook. The user-facing outcome is *identical* to pack's directory case, and the shell already has the rendering machinery; a second code would duplicate the branch and the docs for one behavior, and "hook failure" would turn a correct answer into an error message.
+
+**What it costs.** Run hooks lose exit 3 as an ordinary failure code. An author's hook that happens to exit 3 for a real error gets a group listing instead of its error message — a silent misrendering monom cannot detect. The contract is documented in `architecture.md`'s run-hook table, but it is a genuine carve-out from the author's exit-code namespace.
+
+---
+
 ## `filter` is exempt from the whole mechanism
 
 `runFilter` calls `os.Exit(0)` directly and never reaches the dispatch tail. This is not an oversight — filter is constitutionally forbidden from exiting non-zero, so participating in an exit-code mechanism would be meaningless at best and dangerous at worst. See `internal/filter/TRADEOFFS.md`.
