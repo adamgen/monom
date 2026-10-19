@@ -1,0 +1,2 @@
+# Command names keep their file suffix.
+discover.strip-suffix = false

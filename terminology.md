@@ -16,6 +16,8 @@ How it works: Organize your executable scripts in a folder structure, optionally
 
 **Discovery gate** — the rule a scanned executable must pass to be registered: it has a shebang, its name matches the naming pattern (`^[a-z0-9][a-z0-9_-]*$`), or it is declared in a declarative monom config file.
 
+**Suffix stripping** — default discovery registering a file under its name without the file suffix (`scripts/setup.sh` → `scripts/setup`), unless that stem would be ambiguous in its directory. On by default; `discover.strip-suffix = false` turns it off. `mnmd pack` resolves a stripped name back to its file.
+
 **Registered command** — a command path that is part of the CLI: the `complete` hook's output, or default discovery's gated set plus declarations. Completion, group listings, and `mnmd check` all see exactly the registered set.
 
 **Command packing** — the process by which a command invocation is transformed back into the full path of the executable to run. Implemented by `mnmd pack`, which takes the user's space-separated command tokens as CLI arguments, joins them with `/`, resolves against the project root, and prints the absolute executable path to stdout.

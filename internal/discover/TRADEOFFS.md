@@ -63,3 +63,27 @@ Scanning broadly anyway (rather than only looking for shebangs) is what lets `mn
 **Why.** A hook script's settings live in its `config` hook, and `mnmd check` already reads them there. A setting that `check` honored but discovery ignored would make the two disagree about the registered set. The shell calls `mnmd discover` only when the `complete` hook printed nothing, so the extra subprocess is paid only by hook projects that rely on default discovery; declarative and zero-config projects pay nothing. Errors are swallowed because discovery runs on Tab, which must never be noisy; `mnmd check` reports them.
 
 **What it costs.** One more process per Tab in a hook script without a `complete` hook. And a `config` hook must not call `mnmd discover`, or the two would recurse.
+
+---
+
+## An ambiguous stem keeps its suffix instead of picking a winner
+
+**Chosen:** when stripping would give two executables in one directory the same command name (`build.sh` and `build.py`), or the stem is already taken by another entry (`release` beside `release.sh`, or a `db/` directory beside `db.sh`), the suffixed files are registered under their full names, and `mnmd pack build` is an error that names both files.
+
+**Rejected:** a precedence rule that strips one of them, such as preferring `.sh`, or the first in sort order, so `monom build` still runs something.
+
+**Why.** It is the time bomb that `internal/pack/TRADEOFFS.md` turns down for command groups. If `build` resolved to `build.py` by some rule, then adding `build.sh` beside it, or renaming either file, would silently change what `monom build` runs, with no error and no diff that looks related. With the full names, both commands show up in completion as they are, and the bare stem fails loudly.
+
+**What it costs.** Adding a second file with the same stem renames the first command: `monom build` stops working and has to become `monom build.sh`. It fails loudly, but it does break scripts and muscle memory that used the short name.
+
+---
+
+## Declarations are stripped like any other registered file
+
+**Chosen:** a declared `tools/Build.EXE` registers as `tools/Build`, under the same ambiguity rules as a scanned file.
+
+**Rejected:** registering declarations exactly as written, since the author typed that path on purpose.
+
+**Why.** A declaration decides *whether* a file is a command, not what it is called: it exists to get past the gate, the same job a shebang does for a scanned file. If declarations kept their suffix, the same file would get a different command name depending on whether it was declared or had a shebang, and adding a shebang would rename the command. With one naming rule, pack resolves both spellings anyway.
+
+**What it costs.** An author can't keep one declared file's suffix while every other file is stripped. Their only option is `discover.strip-suffix = false` for the whole project.

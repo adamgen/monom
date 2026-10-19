@@ -6,7 +6,7 @@
 # root would resolve to this repository's git root.) It holds one executable
 # per gate outcome:
 #   deploy            shebang                        -> registered
-#   scripts/setup.sh  shebang (any name is fine)     -> registered
+#   scripts/setup.sh  shebang (any name is fine)     -> registered as scripts/setup
 #   build/compile     no shebang, command-like name  -> registered (name pattern)
 #   notes.TXT         no shebang, not a command name -> not registered
 #   _lib/helper, .hidden/tool, node_modules/pkg/cli  -> never scanned (noise)
@@ -28,7 +28,7 @@ groups:
         expect: |
           build/compile
           deploy
-          scripts/setup.sh
+          scripts/setup
 
   - name: empty monom file
     root: fixtures/zero-config-variants/empty-monom
@@ -46,12 +46,13 @@ groups:
     root: fixtures/zero-config-variants/declared
     cases:
       - name: declared executables are registered even when they fail the gate or are private
+        # notes.TXT is declared; like any registered file it loses its suffix
         input: mnmd discover
         action: enter
         expect: |
           _lib/helper
           deploy
-          notes.TXT
+          notes
 
   - name: invalid declarations
     root: fixtures/zero-config-variants/declared-invalid
@@ -104,6 +105,47 @@ groups:
       _MONOM_PROJECT_ROOT: "{root}"
     cases:
       - name: discovery ignores an invalid hide pattern and applies the valid ones
+        input: mnmd discover
+        action: enter
+        expect: deploy
+
+  # Suffix stripping: a registered file's command name drops its suffix,
+  # unless that would be ambiguous. On by default.
+  - name: suffix stripping
+    root: fixtures/zero-config-variants/suffix
+    cases:
+      - name: suffixes are stripped by default unless the stem is ambiguous or taken
+        # deploy.sh -> deploy (the non-executable deploy.md does not count);
+        # tools/lint.bash -> tools/lint; pkg.tar.gz loses only its last suffix.
+        # build.sh and build.py share a stem, release and db already exist,
+        # so those keep their suffixes.
+        input: mnmd discover
+        action: enter
+        expect: |
+          build.py
+          build.sh
+          db.sh
+          db/migrate
+          deploy
+          pkg.tar
+          release
+          release.sh
+          tools/lint
+
+  - name: suffix stripping off
+    root: fixtures/zero-config-variants/suffix-off
+    cases:
+      - name: discover.strip-suffix = false keeps file suffixes in command names
+        input: mnmd discover
+        action: enter
+        expect: |
+          deploy.sh
+          tools/lint.bash
+
+  - name: invalid suffix stripping value
+    root: fixtures/zero-config-variants/suffix-invalid
+    cases:
+      - name: discovery ignores an invalid strip-suffix value and keeps stripping
         input: mnmd discover
         action: enter
         expect: deploy

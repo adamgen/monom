@@ -63,10 +63,22 @@ const KeyRootContents = "check.root-contents"
 // matches its path relative to the project root. Both use path.Match syntax.
 const KeyDiscoverHide = "discover.hide"
 
+// KeyStripSuffix turns suffix stripping in default discovery on or off: a
+// registered file's command name drops its suffix (setup.sh → setup). On when
+// unset.
+const KeyStripSuffix = "discover.strip-suffix"
+
 // Settings holds the recognised config keys. A zero value field means unset.
 type Settings struct {
 	RootContents string   // SeverityWarning, SeverityError, or "" when unset
 	Hide         []string // discover.hide patterns, normalized, in order
+	StripSuffix  *bool    // discover.strip-suffix, or nil when unset
+}
+
+// StripsSuffix reports whether default discovery strips file suffixes: the
+// discover.strip-suffix setting, true when unset.
+func (s Settings) StripsSuffix() bool {
+	return s.StripSuffix == nil || *s.StripSuffix
 }
 
 // File is a loaded monom config file.
@@ -155,6 +167,9 @@ func (s Settings) Merge(over Settings) Settings {
 	if len(over.Hide) > 0 {
 		s.Hide = append(s.Hide[:len(s.Hide):len(s.Hide)], over.Hide...)
 	}
+	if over.StripSuffix != nil {
+		s.StripSuffix = over.StripSuffix
+	}
 	return s
 }
 
@@ -174,6 +189,17 @@ func (s *Settings) set(key, value string) string {
 			return fmt.Sprintf("invalid value %q for %s: %s", value, key, problem)
 		}
 		s.Hide = append(s.Hide, p)
+		return ""
+	case KeyStripSuffix:
+		var v bool
+		switch value {
+		case "true":
+			v = true
+		case "false":
+		default:
+			return fmt.Sprintf("invalid value %q for %s: want %q or %q", value, key, "true", "false")
+		}
+		s.StripSuffix = &v
 		return ""
 	default:
 		return fmt.Sprintf("unknown setting %q", key)

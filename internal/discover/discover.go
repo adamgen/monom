@@ -9,6 +9,9 @@
 // discover.hide patterns. Explicitly declared paths (from a declarative monom
 // config file) are registered regardless of the scan, the noise rules, and the
 // gate — including hide patterns.
+//
+// Unless the config turns it off, every registered file's command name drops
+// its suffix (see Stem and dirIndex.commandName).
 package discover
 
 import (
@@ -52,7 +55,7 @@ const (
 
 // Command is a registered command path.
 type Command struct {
-	Path string // slash-delimited, relative to the project root
+	Path string // slash-delimited, relative to the project root; the file's suffix stripped
 	Via  Via
 }
 
@@ -82,10 +85,13 @@ func (r Result) Paths() []string {
 // Discover scans projectRoot and returns the registered command set, sorted by
 // path. declared are command paths the author registered explicitly; they
 // bypass both the noise rules and the gate, but must name an executable file.
-// hide are the config's discover.hide patterns (see isHiddenOrPrivate); an
-// invalid pattern matches nothing.
-func Discover(projectRoot string, declared, hide []string) Result {
+// settings.Hide are the config's discover.hide patterns (see
+// isHiddenOrPrivate); an invalid pattern matches nothing. Command paths have
+// their suffix stripped unless settings turn it off; Skipped and Invalid
+// always name files as they are on disk.
+func Discover(projectRoot string, declared []string, settings config.Settings) Result {
 	var res Result
+	hide := settings.Hide
 	seen := map[string]bool{}
 
 	for _, d := range declared {
@@ -140,8 +146,29 @@ func Discover(projectRoot string, declared, hide []string) Result {
 		return nil
 	})
 
+	if settings.StripsSuffix() {
+		stripSuffixes(projectRoot, res.Commands)
+	}
 	sort.Slice(res.Commands, func(i, j int) bool { return res.Commands[i].Path < res.Commands[j].Path })
 	return res
+}
+
+// stripSuffixes replaces each command's file name with its command name,
+// reading each directory that holds a suffixed command once.
+func stripSuffixes(projectRoot string, commands []Command) {
+	dirs := map[string]dirIndex{}
+	for i, c := range commands {
+		dir, name := path.Split(c.Path)
+		if Stem(name) == "" {
+			continue
+		}
+		idx, ok := dirs[dir]
+		if !ok {
+			idx = readDirIndex(filepath.Join(projectRoot, filepath.FromSlash(dir)))
+			dirs[dir] = idx
+		}
+		commands[i].Path = dir + idx.commandName(name)
+	}
 }
 
 // skipDir reports whether a directory's contents are excluded from the scan:

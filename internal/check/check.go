@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -135,7 +136,7 @@ func Check(in Input) (Report, error) {
 		if in.Root == "" {
 			return rep, fmt.Errorf("check: default discovery needs a project root, and none was found")
 		}
-		res := discover.Discover(in.Root, cfg.Declared, settings.Hide)
+		res := discover.Discover(in.Root, cfg.Declared, settings)
 		rep.Commands = res.Paths()
 		rep.Discovered = true
 		for _, msg := range res.Invalid {
@@ -188,8 +189,7 @@ func nonEmptyLines(b []byte) []string {
 // and be executable, and no map entry may shadow a tree path that pack could
 // otherwise resolve.
 func checkMap(rootDir string) []string {
-	path := filepath.Join(rootDir, mapfile.FileName)
-	f, err := os.Open(path)
+	f, err := os.Open(filepath.Join(rootDir, mapfile.FileName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -213,6 +213,10 @@ func checkMap(rootDir string) []string {
 			// any tree entry at the same path is silently unreachable.
 			if treeErr == nil {
 				problems = append(problems, fmt.Sprintf("%s: command %q shadows tree path %s", mapfile.FileName, cmdPath, cmdPath))
+			} else if dir, stem := path.Split(cmdPath); os.IsNotExist(treeErr) {
+				if m := discover.StemMatches(filepath.Join(rootDir, dir), stem); len(m) == 1 {
+					problems = append(problems, fmt.Sprintf("%s: command %q shadows tree path %s", mapfile.FileName, cmdPath, dir+m[0]))
+				}
 			}
 			problems = append(problems, checkTarget(rootDir, cmdPath, n.Run)...)
 			return

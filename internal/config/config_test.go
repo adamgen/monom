@@ -183,6 +183,22 @@ func TestSettingsMerge_HidePatternsAppendWithoutAliasing(t *testing.T) {
 	}
 }
 
+func TestStripSuffix_OnWhenUnsetAndAnExplicitFalseSurvivesMerge(t *testing.T) {
+	if !(Settings{}).StripsSuffix() {
+		t.Error("unset strip-suffix must strip")
+	}
+	_, off, problems := Parse(strings.NewReader("discover.strip-suffix = true\ndiscover.strip-suffix = false\n"), true)
+	if len(problems) != 0 {
+		t.Fatalf("problems = %v", problems)
+	}
+	if off.StripsSuffix() {
+		t.Error("the last strip-suffix line must win")
+	}
+	if (Settings{}).Merge(off).StripsSuffix() || off.Merge(Settings{}).StripsSuffix() {
+		t.Error("an unset override must not reset an explicit false, and an explicit false must override")
+	}
+}
+
 func TestProjectSettings_ReadsTheConfigHookLeniently(t *testing.T) {
 	p := writeFile(t, "#!/bin/sh\n[ \"$1\" = config ] && printf 'discover.hide = scratch\\ndiscover.hide = [\\n'\n", 0o755)
 	f, err := Load(p)

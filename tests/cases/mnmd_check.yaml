@@ -129,6 +129,25 @@ groups:
           error: [config] config hook output line 1: invalid value "[" for discover.hide: invalid pattern (see path.Match)
           mnmd check: 1 error(s), 0 warning(s)
 
+  - name: suffix stripping
+    root: fixtures/zero-config-variants/suffix
+    cases:
+      - name: stripped command names and suffixes kept for ambiguity are all healthy
+        input: mnmd check
+        action: enter
+        expect: ✔ 9 commands OK (default discovery)
+
+  - name: invalid strip-suffix
+    root: fixtures/zero-config-variants/suffix-invalid
+    cases:
+      - name: an invalid discover.strip-suffix value is a config error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [config] config hook output line 1: invalid value "yes" for discover.strip-suffix: want "true" or "false"
+          mnmd check: 1 error(s), 0 warning(s)
+
   # the other checks are errors regardless of root-contents
   - name: invalid declarations
     root: fixtures/zero-config-variants/declared-invalid

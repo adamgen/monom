@@ -178,7 +178,7 @@ func runDiscover() error {
 	// discover when the complete hook printed nothing, so this runs at most
 	// one extra hook per Tab, and only in hook projects without a complete.
 	settings := cfg.ProjectSettings()
-	res := discover.Discover(projectRoot, cfg.Declared, settings.Hide)
+	res := discover.Discover(projectRoot, cfg.Declared, settings)
 	debuglog.Log("[mnmd discover] root=%s registered=%d skipped=%d", projectRoot, len(res.Commands), len(res.Skipped))
 	for _, p := range res.Paths() {
 		fmt.Println(p)

@@ -151,6 +151,8 @@ Called by the `monom()` shell function when the user executes a command. Takes t
 
 Pack is self-sufficient: it discovers the project root itself (same algorithm as `mnmd root` — see below), validates the file exists and is executable, and prints the absolute path. The shell `monom()` function reduces to a single `exec` call.
 
+When nothing exists at the joined path, pack resolves the last token as a [stripped command name](#mnmd-discover): the one executable file in that directory whose stem is the token (`mnmd pack scripts setup` → `…/scripts/setup.sh`). Two or more such files are an `ambiguous command` error naming them. An exact path always wins, so the full file name keeps working. Pack does this without reading the monom config, so it resolves stems even when `discover.strip-suffix` is off.
+
 ```bash
 $ mnmd pack category1 sub_command1
 /path/to/project/category1/sub_command1
@@ -201,13 +203,15 @@ Discovery has two stages:
 
    A path containing a space is never registered, whatever else holds: it could not be typed as command tokens.
 
+**Suffix stripping.** A registered file's command name is its file name without the suffix: the last `.` and what follows it, so `scripts/setup.sh` registers as `scripts/setup` and `pkg.tar.gz` as `pkg.tar`. A leading dot is not a suffix. The suffix stays when stripping would be ambiguous: an entry named the stem already exists in that directory (a file, or a directory, which makes it a group), or another executable file there has the same stem (`build.sh` and `build.py` both stay as they are). Non-executable files (`deploy.md` beside `deploy.sh`) never count. Declarations are stripped like any other registered file. On by default; [`discover.strip-suffix = false`](#the-user-config-interface) turns it off. `mnmd check` reports gate rejections by file name, suffix included.
+
 Executables the scan found but the gate rejected are reported by `mnmd check` under `root-contents`. Exits non-zero only when no project root can be found.
 
 ```
 $ mnmd discover
 build/compile
 deploy
-scripts/setup.sh
+scripts/setup
 ```
 
 ---
@@ -223,7 +227,7 @@ It validates the **registered command set** — the `complete` hook's output, or
 | `path-spaces` | always error | A registered path with a space in a segment. `mnmd filter` silently drops it, so the command can never be completed. |
 | `declared-commands` | always error | A declaration that is not an executable file inside the root. |
 | `config` | always error | An invalid line, unknown key, or invalid value in the monom config file or `config` hook output; a failing `config` hook; an invalid `MONOM_CHECK_ROOT_CONTENTS`. |
-| `command-map` | always error | Only when `monom-map.json` exists at the root. The file does not parse (duplicate keys included — JSON decoders otherwise keep the last occurrence silently, swallowing a command); a run target is missing, not a regular file, not executable, or outside the root; or a map entry shadows the file tree. A map command over any existing tree path, or a map category over a tree *file*, makes that tree entry unreachable (the run hook fires before pack). A map category over a tree *directory* merges — unmapped children fall back to pack — and is fine. |
+| `command-map` | always error | Only when `monom-map.json` exists at the root. The file does not parse (duplicate keys included — JSON decoders otherwise keep the last occurrence silently, swallowing a command); a run target is missing, not a regular file, not executable, or outside the root; or a map entry shadows the file tree. A map command over any existing tree path or over a file pack would resolve by its stem (`deploy` over `deploy.sh`), or a map category over a tree *file*, makes that tree entry unreachable (the run hook fires before pack). A map category over a tree *directory* merges — unmapped children fall back to pack — and is fine. |
 | `root-contents` | **warning by default**, configurable | The root's contents that monom cannot use as they are: executables default discovery found but did not register, directories it could not read, a hook script without its execute bit. |
 
 `root-contents` severity resolves as: the project's `check.root-contents` setting, else the user's `MONOM_CHECK_ROOT_CONTENTS`, else `warning`. Values are `warning` or `error`.
@@ -361,6 +365,8 @@ check.root-contents = error
 # treat more entries as hidden (repeatable)
 discover.hide = *.TXT
 discover.hide = tools/wip-*
+# keep file suffixes in command names
+discover.strip-suffix = false
 ```
 
 - A line containing `=` is a setting. Unknown keys and invalid values are `config` errors in `mnmd check`. A single-valued setting set twice keeps the last value; a repeatable one collects every line.
@@ -370,6 +376,7 @@ discover.hide = tools/wip-*
 | --- | --- | --- | --- |
 | `check.root-contents` | `warning`, `error` | `warning` (or `$MONOM_CHECK_ROOT_CONTENTS`) | Severity of `mnmd check`'s `root-contents` check. |
 | `discover.hide` | a [`path.Match`](https://pkg.go.dev/path#Match) pattern; repeatable, one per line | none | Default discovery treats matching entries as hidden, like dot-files: a matching file is never registered or reported under `root-contents`, and a matching directory is never scanned. A pattern without a `/` matches an entry's name at any depth (`*.TXT`, `scratch`); one with a `/` matches its path from the root (`tools/wip-*`), and `*` never crosses a `/`. A leading `./` and trailing `/` are dropped; absolute paths, `..`, and malformed patterns are `config` errors. Declarations win over it. |
+| `discover.strip-suffix` | `true`, `false` | `true` | Whether default discovery [strips file suffixes](#mnmd-discover) from command names. It changes only what is registered; `mnmd pack` resolves stems either way. |
 
 **Hook scripts** implement any subset of the hooks below; no subcommand is required. monom does not care how a hook script is implemented — shell, Python, Go, anything that prints to stdout.
 
@@ -389,7 +396,7 @@ release
 
 ### Hook: `config` — project settings
 
-Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. It must not call `mnmd discover`. Absent or empty → defaults.
+Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` and `discover.strip-suffix` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. It must not call `mnmd discover`. Absent or empty → defaults.
 
 ```
 $ _monom_cfg config

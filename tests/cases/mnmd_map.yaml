@@ -114,3 +114,16 @@ groups:
         expect: |
           error: [command-map] monom-map.json: command "deploy" shadows tree path deploy
           mnmd check: 1 error(s), 0 warning(s)
+
+  - name: shadows a stripped tree name
+    root: fixtures/map-variants/shadows-stem
+    env: {_MONOM_PROJECT_ROOT: "{root}"}
+    cases:
+      - name: check reports a map command over the stripped name of a tree file
+        # pack would resolve `deploy` to deploy.sh, but the run hook fires first
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [command-map] monom-map.json: command "deploy" shadows tree path deploy.sh
+          mnmd check: 1 error(s), 0 warning(s)
