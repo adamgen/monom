@@ -25,10 +25,10 @@ groups:
         action: tab
         expect: [compile]
 
-      - name: a shebang admits any name
+      - name: a shebang admits any name, offered without its suffix
         input: "monom scripts "
         action: tab
-        expect: [setup.sh]
+        expect: [setup]
 
       - name: an ungated executable is not offered
         input: monom notes
@@ -203,3 +203,135 @@ groups:
         input: "monom "
         action: tab
         expect: [deploy]
+
+  - name: suffix stripping
+    root: fixtures/zero-config-variants/suffix
+    cases:
+      # tab: stripped names are what completion offers
+      - name: tab offers scripts without their suffix
+        input: "monom "
+        action: tab
+        expect: [deploy, tools]
+
+      - name: tab offers stripped names inside a group
+        input: "monom tools "
+        action: tab
+        expect: [fmt-v1.2, lint]
+
+      - name: tab completes a prefix to the stripped name
+        input: monom dep
+        action: tab
+        expect: [deploy]
+
+      - name: tab never offers a file that is not a script
+        input: monom pk
+        action: tab
+        expect: []
+
+      # enter: the stripped name runs the script
+      - name: a stripped command name runs its script
+        input: monom deploy
+        action: enter
+        expect: ran deploy.sh
+
+      - name: a stripped command name runs inside a group
+        input: monom tools lint; monom tools fmt-v1.2
+        action: enter
+        expect: |
+          ran tools/lint.bash
+          ran tools/fmt-v1.2.sh
+
+      - name: the full file name still runs
+        input: monom deploy.sh
+        action: enter
+        expect: ran deploy.sh
+
+      - name: a group lists its children by their stripped names
+        input: monom tools
+        action: enter
+        exit: 1
+        expect: |
+          monom: 'tools' is a command group
+          available: fmt-v1.2, lint
+
+      # keys: real Tab presses
+      - name: keys complete a stripped command name
+        input: monom dep
+        action: keys
+        tabs: 1
+        line: "monom deploy "
+        candidates: []
+
+      - name: keys complete a stripped name inside a group
+        input: monom tools l
+        action: keys
+        tabs: 1
+        line: "monom tools lint "
+
+  - name: two scripts sharing a stem
+    root: fixtures/zero-config-variants/suffix-ambiguous
+    cases:
+      - name: tab offers both scripts that share a stem by their full names
+        input: "monom "
+        action: tab
+        expect: [build.py, build.sh, deploy]
+
+      - name: a stem shared by two scripts is ambiguous and runs nothing
+        input: monom build
+        action: enter
+        exit: 1
+        expect: "mnmd pack: pack: ambiguous command build: matches build.py, build.sh"
+
+      - name: each script that shares a stem runs by its full name
+        input: monom build.py; monom build.sh
+        action: enter
+        expect: |
+          ran build.py
+          ran build.sh
+
+  - name: a stem that is already taken
+    root: fixtures/zero-config-variants/suffix-taken
+    cases:
+      - name: tab offers the directory or file that owns a name, not the script beside it
+        input: "monom "
+        action: tab
+        expect: [db, release]
+
+      - name: a directory owns its name over a script with that stem
+        input: monom db
+        action: enter
+        exit: 1
+        expect: |
+          monom: 'db' is a command group
+          available: migrate
+
+      - name: a file owns its name over a script with that stem
+        input: monom release
+        action: enter
+        expect: ran release
+
+      - name: an unregistered script still runs by its full name
+        input: monom db.sh; monom release.sh
+        action: enter
+        expect: |
+          ran db.sh
+          ran release.sh
+
+  - name: suffix stripping off
+    root: fixtures/zero-config-variants/suffix-off
+    cases:
+      - name: with strip-suffix off tab offers full file names
+        input: "monom "
+        action: tab
+        expect: [build.py, build.sh, deploy.sh, tools]
+
+      - name: with strip-suffix off the full file name runs
+        input: monom tools lint.bash
+        action: enter
+        expect: ran tools/lint.bash
+
+      - name: with strip-suffix off the stem still runs, like any unregistered path
+        # pack does not read the config; strip-suffix only decides what is offered
+        input: monom deploy
+        action: enter
+        expect: ran deploy.sh

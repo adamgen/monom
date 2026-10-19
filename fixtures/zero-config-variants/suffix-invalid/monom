@@ -1,0 +1,7 @@
+#!/bin/sh
+# A hook script with only a config hook, printing an invalid strip-suffix
+# value: `mnmd check` reports it, and discovery ignores it and keeps the
+# default, which strips.
+case "$1" in
+  config) echo "discover.strip-suffix = yes" ;;
+esac

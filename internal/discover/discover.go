@@ -9,6 +9,9 @@
 // discover.hide patterns. Explicitly declared paths (from a declarative monom
 // config file) are registered regardless of the scan, the noise rules, and the
 // gate — including hide patterns.
+//
+// Unless the config turns it off, every registered script's command name
+// drops its suffix (see Stem and stripSuffixes).
 package discover
 
 import (
@@ -52,7 +55,7 @@ const (
 
 // Command is a registered command path.
 type Command struct {
-	Path string // slash-delimited, relative to the project root
+	Path string // slash-delimited, relative to the project root; a script's suffix stripped
 	Via  Via
 }
 
@@ -68,6 +71,7 @@ type Result struct {
 	Skipped    []Skipped // executables the scan found but the gate rejected
 	Unreadable []string  // directories the scan could not read
 	Invalid    []string  // declarations that do not name an executable file
+	Conflicts  []string  // scripts suffix stripping could not give their command name
 }
 
 // Paths returns the registered command paths.
@@ -82,10 +86,13 @@ func (r Result) Paths() []string {
 // Discover scans projectRoot and returns the registered command set, sorted by
 // path. declared are command paths the author registered explicitly; they
 // bypass both the noise rules and the gate, but must name an executable file.
-// hide are the config's discover.hide patterns (see isHiddenOrPrivate); an
-// invalid pattern matches nothing.
-func Discover(projectRoot string, declared, hide []string) Result {
+// settings.Hide are the config's discover.hide patterns (see
+// isHiddenOrPrivate); an invalid pattern matches nothing. Scripts' command
+// paths have their suffix stripped unless settings turn it off; Skipped,
+// Invalid and Conflicts name files as they are on disk.
+func Discover(projectRoot string, declared []string, settings config.Settings) Result {
 	var res Result
+	hide := settings.Hide
 	seen := map[string]bool{}
 
 	for _, d := range declared {
@@ -140,6 +147,10 @@ func Discover(projectRoot string, declared, hide []string) Result {
 		return nil
 	})
 
+	if settings.StripsSuffix() {
+		res.Commands, res.Conflicts = stripSuffixes(projectRoot, res.Commands)
+		sort.Strings(res.Conflicts)
+	}
 	sort.Slice(res.Commands, func(i, j int) bool { return res.Commands[i].Path < res.Commands[j].Path })
 	return res
 }

@@ -51,6 +51,8 @@ monom scans the project for executables and turns them into the command tree. On
 
 Hidden and `_`-prefixed files and directories, `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, and nested monom projects are never scanned. To hide more, add `discover.hide = <pattern>` lines to the `monom` file (or print them from a hook script's `config` hook). A pattern without a `/` matches a name at any depth; one with a `/` matches a path from the root. Both use `path.Match` globs. A declared path is registered even when a pattern hides it. `mnmd discover` prints the registered commands.
 
+A script's command name drops its file suffix: `scripts/setup.sh` is `monom scripts setup`, and the full `monom scripts setup.sh` still runs it. Only scripts, executables with a shebang, are stripped. When two scripts share a name (`build.sh`, `build.py`) both keep their suffix. When the name is already taken (`db.sh` beside a `db/` folder) the existing entry wins and the script is not registered. `mnmd check` reports both as errors. To keep every suffix, set `discover.strip-suffix = false`.
+
 **How the root is found**, first match wins: `$_MONOM_PROJECT_ROOT` (what an alias pins), the nearest directory upward containing a file named `monom`, the nearest git root. The current directory alone is never a root.
 
 **The `monom` file** is optional and comes in two forms. An executable script with a shebang implements [hooks](architecture.md#hooks) (`complete`, `run`, `debug`, `config`) to customize anything. Any other file is declarative and is never executed:
@@ -63,6 +65,8 @@ check.root-contents = error
 # treat more entries as hidden, like dot-files (one pattern per line)
 discover.hide = *.TXT
 discover.hide = tools/wip-*
+# keep file suffixes in command names (default: true, setup.sh is `setup`)
+discover.strip-suffix = false
 ```
 
 **Checking a project.** `mnmd check` validates the registered commands. Problems in the root's contents — executables that were found but not registered, for example — are **warnings** by default and do not fail the run. Every other problem is an error and exits 1. To make root-contents problems errors, set `check.root-contents = error` in a declarative `monom` file, or print it from a hook script's `config` hook. Set `MONOM_CHECK_ROOT_CONTENTS=error` to make that your default everywhere. A project's own setting wins over it.

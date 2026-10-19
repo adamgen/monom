@@ -29,3 +29,15 @@ Routing the listing through `complete | filter` costs an extra subprocess on a p
 An author who wants `monom infra` to *do* something says so explicitly in their own config via the `run` hook, mapping `infra` → `infra cloud deploy`. The override is then visible in their repo, versioned with their project, and impossible to trigger by accident.
 
 **What it costs.** The common case — a group with one obvious entry point — needs three lines of `run` hook instead of zero. Accepted: the cost is paid once per project, by the author, in a place they can read; the alternative charges every user, forever, at a moment when nothing appears wrong.
+
+---
+
+## Pack resolves a stripped stem without reading the config
+
+**Chosen:** when nothing exists at the joined path, pack resolves the last token to the one script (an executable with a shebang) with that stem, whether or not the project turned `discover.strip-suffix` off.
+
+**Rejected:** having pack honor `discover.strip-suffix = false` and only resolve exact paths when it is off.
+
+**Why.** In a hook-script project the setting comes from the `config` hook, so honoring it would cost a subprocess on every execution. That is the roundtrip `internal/discover/TRADEOFFS.md` already refuses to pay for the gate (*`pack` does not enforce the gate*). The setting decides what the CLI offers; pack resolves what can be resolved without ambiguity. The stem fallback only runs when the exact path does not exist, so it never changes what an existing path runs.
+
+**What it costs.** With stripping off, `monom deploy` still runs `deploy.sh`, even though completion offers only `deploy.sh`. It can only be reached by typing it on purpose. And a command that does not exist costs one directory read before the "command not found" error.

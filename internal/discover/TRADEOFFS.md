@@ -63,3 +63,39 @@ Scanning broadly anyway (rather than only looking for shebangs) is what lets `mn
 **Why.** A hook script's settings live in its `config` hook, and `mnmd check` already reads them there. A setting that `check` honored but discovery ignored would make the two disagree about the registered set. The shell calls `mnmd discover` only when the `complete` hook printed nothing, so the extra subprocess is paid only by hook projects that rely on default discovery; declarative and zero-config projects pay nothing. Errors are swallowed because discovery runs on Tab, which must never be noisy; `mnmd check` reports them.
 
 **What it costs.** One more process per Tab in a hook script without a `complete` hook. And a `config` hook must not call `mnmd discover`, or the two would recurse.
+
+---
+
+## Two scripts sharing a stem keep their suffixes instead of picking a winner
+
+**Chosen:** when two scripts in one directory share a stem (`build.sh` and `build.py`), both are registered under their full names, `mnmd pack build` is an error naming both, and `mnmd check` reports a `command-names` error.
+
+**Rejected:** a precedence rule that strips one of them, such as preferring `.sh`, or the first in sort order, so `monom build` still runs something.
+
+**Why.** It is the time bomb that `internal/pack/TRADEOFFS.md` turns down for command groups. If `build` resolved to `build.py` by some rule, then adding `build.sh` beside it, or renaming either file, would silently change what `monom build` runs, with no error and no diff that looks related. Showing both full names surfaces the clash to the author in completion, and the check error makes CI catch it.
+
+**What it costs.** Adding a second script with the same stem renames the first command: `monom build` stops working and has to become `monom build.sh`. It fails loudly, but it does break scripts and muscle memory that used the short name until the author renames one.
+
+---
+
+## An existing entry owns its name over a script with that stem
+
+**Chosen:** a script whose stem already names an entry in its directory is not registered: `db/` beside `db.sh` offers only `db` (the group), and `release` beside `release.sh` offers only `release`. `mnmd check` reports the script under `command-names`; it still runs by its full name.
+
+**Rejected:** registering the script under its full name next to the entry, so completion offers `db` and `db.sh` side by side.
+
+**Why.** The entry already resolves the name: pack tries the exact path first, so `monom db` is the group whatever the script is. Offering `db.sh` beside it puts a file suffix back into the CLI's surface, which stripping exists to remove, as a second command that reads like a sibling of the group. Dropping it keeps the surface clean, and the check error tells the author instead of letting the script disappear quietly.
+
+**What it costs.** The script is reachable only by typing its full name, and `mnmd check` fails until the author renames one of the two. A project that keeps a `release` binary next to its `release.sh` build script has to rename one, or turn stripping off.
+
+---
+
+## Only scripts lose their suffix
+
+**Chosen:** suffix stripping, and pack's stem resolution, apply only to scripts: executable files with a shebang. A declared file without a shebang keeps its name (`tools/Build.EXE`), and other executables (a stray `deploy.log`, a `pkg.tar.gz`) never compete for a stem.
+
+**Rejected:** stripping every registered file, declarations included, and counting every executable toward a stem's ambiguity.
+
+**Why.** Pack must resolve exactly the names discovery registers, and it cannot read the config (see `internal/pack/TRADEOFFS.md`), so it cannot know what is declared. A shebang can be checked from the file alone. A suffixed name never matches the naming pattern, so a script is the only suffixed file the scan registers anyway. Counting every executable would let a file that is not a command make a real one ambiguous: `chmod -R +x` would put a `deploy.log` next to `deploy.sh`, and `mnmd check` would fail on a command-names error for a file that was never a command.
+
+**What it costs.** A declared file keeps its suffix in its command name. Adding a shebang strips it, which renames the command.

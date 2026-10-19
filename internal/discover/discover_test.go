@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/adamgen/monom/internal/config"
 )
 
 func write(t *testing.T, root, rel, content string, mode os.FileMode) {
@@ -28,11 +30,11 @@ func TestDiscover_RecordsWhichGateRuleRegisteredEachCommand(t *testing.T) {
 	write(t, root, "bin/server", "\x7fELF", 0o755)
 	write(t, root, "Weird.BIN", "\x7fELF", 0o755)
 
-	res := Discover(root, []string{"Weird.BIN"}, nil)
+	res := Discover(root, []string{"Weird.BIN"}, config.Settings{})
 	want := []Command{
 		{Path: "Weird.BIN", Via: ViaDeclared},
 		{Path: "bin/server", Via: ViaPattern},
-		{Path: "deploy.sh", Via: ViaShebang},
+		{Path: "deploy", Via: ViaShebang},
 	}
 	if !reflect.DeepEqual(res.Commands, want) {
 		t.Errorf("commands = %+v, want %+v", res.Commands, want)
@@ -60,7 +62,7 @@ func TestDiscover_SkippedExecutablesCarryTheReason(t *testing.T) {
 	write(t, root, "data.CSV", "a,b\n", 0o755)
 	write(t, root, "my cmd", script, 0o755)
 
-	res := Discover(root, nil, nil)
+	res := Discover(root, nil, config.Settings{})
 	if len(res.Commands) != 0 {
 		t.Fatalf("nothing should be registered, got %+v", res.Commands)
 	}
@@ -85,7 +87,7 @@ func TestDiscover_EveryNoiseDirectoryIsSkipped(t *testing.T) {
 	write(t, root, ".hidden-file", script, 0o755)
 	write(t, root, "_private", script, 0o755)
 
-	res := Discover(root, nil, nil)
+	res := Discover(root, nil, config.Settings{})
 	if len(res.Commands) != 0 || len(res.Skipped) != 0 {
 		t.Errorf("noise must be invisible, got commands=%+v skipped=%+v", res.Commands, res.Skipped)
 	}
@@ -98,7 +100,7 @@ func TestDiscover_RootConfigFileIsNotACommandButANestedOneIsABoundary(t *testing
 	write(t, root, "tools/build", script, 0o755)
 	write(t, root, "run", script, 0o755)
 
-	res := Discover(root, nil, nil)
+	res := Discover(root, nil, config.Settings{})
 	if got := res.Paths(); !reflect.DeepEqual(got, []string{"run"}) {
 		t.Errorf("paths = %v, want [run]", got)
 	}
@@ -107,7 +109,7 @@ func TestDiscover_RootConfigFileIsNotACommandButANestedOneIsABoundary(t *testing
 func TestDiscover_NonExecutableFilesAreNeitherRegisteredNorSkipped(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "readme", script, 0o644)
-	res := Discover(root, nil, nil)
+	res := Discover(root, nil, config.Settings{})
 	if len(res.Commands) != 0 || len(res.Skipped) != 0 {
 		t.Errorf("got commands=%+v skipped=%+v", res.Commands, res.Skipped)
 	}
@@ -119,7 +121,7 @@ func TestDiscover_SymlinkToExecutableIsRegistered(t *testing.T) {
 	if err := os.Symlink(filepath.Join(root, "_impl", "tool"), filepath.Join(root, "tool")); err != nil {
 		t.Skipf("symlinks unsupported: %v", err)
 	}
-	if got := Discover(root, nil, nil).Paths(); !reflect.DeepEqual(got, []string{"tool"}) {
+	if got := Discover(root, nil, config.Settings{}).Paths(); !reflect.DeepEqual(got, []string{"tool"}) {
 		t.Errorf("paths = %v, want [tool]", got)
 	}
 }
@@ -131,7 +133,7 @@ func TestDiscover_InvalidDeclarationsAreReportedAndNotRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := Discover(root, []string{"missing", "plain", "group", "has space"}, nil)
+	res := Discover(root, []string{"missing", "plain", "group", "has space"}, config.Settings{})
 	if len(res.Commands) != 0 {
 		t.Errorf("nothing should be registered, got %+v", res.Commands)
 	}
@@ -143,7 +145,7 @@ func TestDiscover_InvalidDeclarationsAreReportedAndNotRegistered(t *testing.T) {
 func TestDiscover_DuplicateDeclarationRegisteredOnce(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "deploy", script, 0o755)
-	res := Discover(root, []string{"deploy", "deploy"}, nil)
+	res := Discover(root, []string{"deploy", "deploy"}, config.Settings{})
 	if got := res.Paths(); !reflect.DeepEqual(got, []string{"deploy"}) {
 		t.Errorf("paths = %v, want [deploy]", got)
 	}
@@ -161,7 +163,7 @@ func TestDiscover_UnreadableDirectoryIsRecordedAndSkipped(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(locked, 0o755) })
 
-	res := Discover(root, nil, nil)
+	res := Discover(root, nil, config.Settings{})
 	if !reflect.DeepEqual(res.Unreadable, []string{"locked"}) {
 		t.Errorf("unreadable = %v, want [locked]", res.Unreadable)
 	}
@@ -211,7 +213,7 @@ func TestDiscover_HidePatternsExcludeFilesAndDirectoriesButNotDeclarations(t *te
 	write(t, root, "tools/wip-new", script, 0o755)
 	write(t, root, "tools/wip-keep", script, 0o755)
 
-	res := Discover(root, []string{"tools/wip-keep"}, []string{"*.TXT", "scratch", "tools/wip-*"})
+	res := Discover(root, []string{"tools/wip-keep"}, config.Settings{Hide: []string{"*.TXT", "scratch", "tools/wip-*"}})
 	want := []string{"deploy", "tools/build", "tools/wip-keep"}
 	if got := res.Paths(); !reflect.DeepEqual(got, want) {
 		t.Errorf("paths = %v, want %v", got, want)

@@ -6,7 +6,7 @@
 # root would resolve to this repository's git root.) It holds one executable
 # per gate outcome:
 #   deploy            shebang                        -> registered
-#   scripts/setup.sh  shebang (any name is fine)     -> registered
+#   scripts/setup.sh  shebang (any name is fine)     -> registered as scripts/setup
 #   build/compile     no shebang, command-like name  -> registered (name pattern)
 #   notes.TXT         no shebang, not a command name -> not registered
 #   _lib/helper, .hidden/tool, node_modules/pkg/cli  -> never scanned (noise)
@@ -28,7 +28,7 @@ groups:
         expect: |
           build/compile
           deploy
-          scripts/setup.sh
+          scripts/setup
 
   - name: empty monom file
     root: fixtures/zero-config-variants/empty-monom
@@ -46,6 +46,7 @@ groups:
     root: fixtures/zero-config-variants/declared
     cases:
       - name: declared executables are registered even when they fail the gate or are private
+        # notes.TXT has no shebang, so it is not a script and keeps its suffix
         input: mnmd discover
         action: enter
         expect: |
@@ -104,6 +105,64 @@ groups:
       _MONOM_PROJECT_ROOT: "{root}"
     cases:
       - name: discovery ignores an invalid hide pattern and applies the valid ones
+        input: mnmd discover
+        action: enter
+        expect: deploy
+
+  # Suffix stripping: a registered script's command name drops its suffix.
+  # On by default.
+  - name: suffix stripping
+    root: fixtures/zero-config-variants/suffix
+    cases:
+      - name: scripts are registered without their suffix
+        # deploy.md (not executable), deploy.txt and the pkg.tar.gz tarball
+        # (no shebang) are not scripts: they are not commands and do not make
+        # deploy ambiguous. tools/fmt-v1.2.sh loses only its last suffix.
+        input: mnmd discover
+        action: enter
+        expect: |
+          deploy
+          tools/fmt-v1.2
+          tools/lint
+
+  - name: two scripts sharing a stem
+    root: fixtures/zero-config-variants/suffix-ambiguous
+    cases:
+      - name: scripts that share a stem both keep their suffix
+        input: mnmd discover
+        action: enter
+        expect: |
+          build.py
+          build.sh
+          deploy
+
+  - name: a stem that is already taken
+    root: fixtures/zero-config-variants/suffix-taken
+    cases:
+      - name: a script whose stem names an existing directory or file is not registered
+        # db.sh beside db/, release.sh beside release
+        input: mnmd discover
+        action: enter
+        expect: |
+          db/migrate
+          release
+
+  - name: suffix stripping off
+    root: fixtures/zero-config-variants/suffix-off
+    cases:
+      - name: discover.strip-suffix = false keeps file suffixes in command names
+        input: mnmd discover
+        action: enter
+        expect: |
+          build.py
+          build.sh
+          deploy.sh
+          tools/lint.bash
+
+  - name: invalid suffix stripping value
+    root: fixtures/zero-config-variants/suffix-invalid
+    cases:
+      - name: discovery ignores an invalid strip-suffix value and keeps stripping
         input: mnmd discover
         action: enter
         expect: deploy

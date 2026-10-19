@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/adamgen/monom/internal/cli"
+	"github.com/adamgen/monom/internal/discover"
 	"github.com/adamgen/monom/internal/root"
 )
 
@@ -34,11 +35,18 @@ func (e *GroupError) ExitCode() int { return cli.ExitCodes.GroupError }
 // "sub_command"]). They are joined with "/" to form a relative file path, which
 // is then resolved against the project root discovered by FindProjectRoot.
 //
+// When nothing exists at that path, the last word may be a command name whose
+// file suffix default discovery stripped: the one script (an executable with a
+// shebang) in its directory with that stem (setup → setup.sh) is resolved
+// instead. Pack does this whether or not stripping is on, without reading the
+// config.
+//
 // Returns an error if words is empty, no project root is found, the resolved
-// path does not exist, or the file is not executable. When the resolved path is
-// a directory, it returns a *GroupError — a distinct outcome signalling "this is
-// a command group", not a generic failure. Pack does not enumerate the group's
-// children; that is the caller's job via the `complete` discovery hook.
+// path does not exist, the stem names more than one script, or the file is
+// not executable. When the resolved path is a directory, it returns a
+// *GroupError — a distinct outcome signalling "this is a command group", not a
+// generic failure. Pack does not enumerate the group's children; that is the
+// caller's job via the `complete` discovery hook.
 func Pack(words []string) (string, error) {
 	if len(words) == 0 {
 		return "", fmt.Errorf("pack: no command tokens provided")
@@ -53,10 +61,18 @@ func Pack(words []string) (string, error) {
 	absPath := filepath.Join(projectRoot, relPath)
 
 	fi, err := os.Stat(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
+	if os.IsNotExist(err) {
+		dir, stem := filepath.Split(absPath)
+		switch matches := discover.StemMatches(dir, stem); len(matches) {
+		case 0:
 			return "", fmt.Errorf("pack: command not found: %s", absPath)
+		case 1:
+			return filepath.Join(dir, matches[0]), nil
+		default:
+			return "", fmt.Errorf("pack: ambiguous command %s: matches %s", relPath, strings.Join(matches, ", "))
 		}
+	}
+	if err != nil {
 		return "", fmt.Errorf("pack: cannot stat %s: %w", absPath, err)
 	}
 	if fi.IsDir() {
