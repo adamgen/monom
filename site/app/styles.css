@@ -466,10 +466,6 @@ p {
 .completions .is-group {
   color: var(--group);
 }
-.completions .is-group::after {
-  content: "/";
-  opacity: 0.5;
-}
 .completions .is-command {
   color: var(--accent);
 }
