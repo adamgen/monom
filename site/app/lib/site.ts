@@ -3,3 +3,9 @@ export const INSTALL_SCRIPT_URL = "https://monom.dev/install.sh";
 // The same file straight from the repo, in case monom.dev is unreachable.
 export const INSTALL_SCRIPT_MIRROR_URL = "https://raw.githubusercontent.com/adamgen/monom/main/install.sh";
 export const INSTALL = `curl -fsSL ${INSTALL_SCRIPT_URL} | bash`;
+
+// Visual theme. "pixel" is the flat bitmap/terminal variant (styles in
+// theme-pixel.css, scoped to <html data-theme="pixel">); "default" is the
+// original Geist look. Copy, sections and components are the same in both.
+export type Theme = "default" | "pixel";
+export const THEME: Theme = "pixel";

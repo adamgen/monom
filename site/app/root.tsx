@@ -12,27 +12,42 @@ import {
 } from "@remix-run/react";
 import type { ReactNode } from "react";
 import { Logo } from "~/components/Logo";
-import { GITHUB_URL } from "~/lib/site";
+import { GITHUB_URL, THEME } from "~/lib/site";
 import styles from "~/styles.css?url";
+import pixelTheme from "~/theme-pixel.css?url";
 
-export const links: LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap",
-  },
-  { rel: "stylesheet", href: styles },
-  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-];
+const PIXEL = THEME === "pixel";
+
+export const links: LinksFunction = () =>
+  PIXEL
+    ? [
+        // Self-hosted bitmap/mono faces (public/fonts, SIL OFL 1.1): no font CDN.
+        { rel: "preload", href: "/fonts/VT323.woff2", as: "font", type: "font/woff2", crossOrigin: "anonymous" },
+        { rel: "preload", href: "/fonts/JetBrainsMono.woff2", as: "font", type: "font/woff2", crossOrigin: "anonymous" },
+        { rel: "stylesheet", href: styles },
+        { rel: "stylesheet", href: pixelTheme },
+        { rel: "icon", href: "/pixel/favicon.svg", type: "image/svg+xml" },
+        { rel: "icon", href: "/pixel/favicon-32.png", type: "image/png", sizes: "32x32" },
+        { rel: "apple-touch-icon", href: "/pixel/favicon-192.png" },
+      ]
+    : [
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap",
+        },
+        { rel: "stylesheet", href: styles },
+        { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      ];
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme={THEME}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0b0c0b" />
+        <meta name="theme-color" content={PIXEL ? "#0e0b1a" : "#0b0c0b"} />
         <Meta />
         <Links />
       </head>
