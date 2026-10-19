@@ -20,7 +20,7 @@ export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap",
   },
   { rel: "stylesheet", href: styles },
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -32,7 +32,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0b0c0b" />
+        <meta name="theme-color" content="#f4efe6" />
         <Meta />
         <Links />
       </head>
@@ -59,12 +59,12 @@ function SiteHeader() {
           <Logo />
         </Link>
         <nav aria-label="Primary">
-          <Link to="/#adopt">How it works</Link>
-          <NavLink to="/docs">Quick start</NavLink>
+          <Link to="/#how">How it works</Link>
           <Link to="/#compare">Compare</Link>
-          <a href={GITHUB_URL} className="nav-gh">
-            GitHub
-          </a>
+          <NavLink to="/docs">Quick start</NavLink>
+          <Link to="/#install" className="nav-install">
+            Install
+          </Link>
         </nav>
       </div>
     </header>

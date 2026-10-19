@@ -12,12 +12,14 @@
 
 **What it costs:** Remix v2 is in maintenance mode, and new features land in React Router instead. The site will need that migration eventually, or a rewrite if Remix 3 is chosen once it ships.
 
-## The homepage demo ports `mnmd filter` to TypeScript instead of running the real binary
+## The homepage picker reads the example project instead of porting `mnmd filter`
 
-**Chosen:** `app/lib/filter.ts` reimplements `internal/filter` in about 30 lines, and the demo runs it in the browser against the site's example project (`app/lib/project.ts`). `app/lib/pack.ts` does the same for `mnmd pack`'s resolution, so Enter in the demo runs a command by its stripped name or its file name.
+**Chosen:** `CommandMap` walks `app/lib/project.ts` and shows the command a file or folder becomes. Clicking a folder shows the group listing; Tab steps through scripts.
 
-**Rejected:** compiling `internal/filter` to WebAssembly (`GOOS=js GOARCH=wasm`, or TinyGo) and calling the real code.
+**Rejected:**
+- A terminal that ports `mnmd filter` and `mnmd pack` to TypeScript and autoplays keystrokes.
+- Compiling those packages to WebAssembly and calling the real code.
 
-**Why:** Standard Go WASM output starts at ~2 MB (TinyGo ~100 KB) and needs `wasm_exec.js` plus a Go toolchain in the site build. That is a lot of weight and build coupling for two small functions that each fit on a screen, one of which (`pack`) reads a filesystem the browser doesn't have.
+**Why:** The page's job is the mapping from path to command, which the example project already records. A second implementation of filter and pack had nothing checking it, and a Go WASM build is a lot of weight for a homepage. The quick start still shows real `mnmd check` output.
 
-**What it costs:** The two implementations can drift. `architecture.md` lists the mirrored files. A change to filter or pack semantics must be ported by hand, and nothing automated catches a miss.
+**What it costs:** The site no longer demonstrates prefix completion or `mnmd pack` resolving a typed line. Those stay covered by the Go tests and the shell harness.
