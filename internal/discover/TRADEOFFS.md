@@ -66,24 +66,36 @@ Scanning broadly anyway (rather than only looking for shebangs) is what lets `mn
 
 ---
 
-## An ambiguous stem keeps its suffix instead of picking a winner
+## Two scripts sharing a stem keep their suffixes instead of picking a winner
 
-**Chosen:** when stripping would give two executables in one directory the same command name (`build.sh` and `build.py`), or the stem is already taken by another entry (`release` beside `release.sh`, or a `db/` directory beside `db.sh`), the suffixed files are registered under their full names, and `mnmd pack build` is an error that names both files.
+**Chosen:** when two scripts in one directory share a stem (`build.sh` and `build.py`), both are registered under their full names, `mnmd pack build` is an error naming both, and `mnmd check` reports a `command-names` error.
 
 **Rejected:** a precedence rule that strips one of them, such as preferring `.sh`, or the first in sort order, so `monom build` still runs something.
 
-**Why.** It is the time bomb that `internal/pack/TRADEOFFS.md` turns down for command groups. If `build` resolved to `build.py` by some rule, then adding `build.sh` beside it, or renaming either file, would silently change what `monom build` runs, with no error and no diff that looks related. With the full names, both commands show up in completion as they are, and the bare stem fails loudly.
+**Why.** It is the time bomb that `internal/pack/TRADEOFFS.md` turns down for command groups. If `build` resolved to `build.py` by some rule, then adding `build.sh` beside it, or renaming either file, would silently change what `monom build` runs, with no error and no diff that looks related. Showing both full names surfaces the clash to the author in completion, and the check error makes CI catch it.
 
-**What it costs.** Adding a second file with the same stem renames the first command: `monom build` stops working and has to become `monom build.sh`. It fails loudly, but it does break scripts and muscle memory that used the short name.
+**What it costs.** Adding a second script with the same stem renames the first command: `monom build` stops working and has to become `monom build.sh`. It fails loudly, but it does break scripts and muscle memory that used the short name until the author renames one.
 
 ---
 
-## Declarations are stripped like any other registered file
+## An existing entry owns its name over a script with that stem
 
-**Chosen:** a declared `tools/Build.EXE` registers as `tools/Build`, under the same ambiguity rules as a scanned file.
+**Chosen:** a script whose stem already names an entry in its directory is not registered: `db/` beside `db.sh` offers only `db` (the group), and `release` beside `release.sh` offers only `release`. `mnmd check` reports the script under `command-names`; it still runs by its full name.
 
-**Rejected:** registering declarations exactly as written, since the author typed that path on purpose.
+**Rejected:** registering the script under its full name next to the entry, so completion offers `db` and `db.sh` side by side.
 
-**Why.** A declaration decides *whether* a file is a command, not what it is called: it exists to get past the gate, the same job a shebang does for a scanned file. If declarations kept their suffix, the same file would get a different command name depending on whether it was declared or had a shebang, and adding a shebang would rename the command. With one naming rule, pack resolves both spellings anyway.
+**Why.** The entry already resolves the name: pack tries the exact path first, so `monom db` is the group whatever the script is. Offering `db.sh` beside it puts a file suffix back into the CLI's surface, which stripping exists to remove, as a second command that reads like a sibling of the group. Dropping it keeps the surface clean, and the check error tells the author instead of letting the script disappear quietly.
 
-**What it costs.** An author can't keep one declared file's suffix while every other file is stripped. Their only option is `discover.strip-suffix = false` for the whole project.
+**What it costs.** The script is reachable only by typing its full name, and `mnmd check` fails until the author renames one of the two. A project that keeps a `release` binary next to its `release.sh` build script has to rename one, or turn stripping off.
+
+---
+
+## Only scripts lose their suffix
+
+**Chosen:** suffix stripping, and pack's stem resolution, apply only to scripts: executable files with a shebang. A declared file without a shebang keeps its name (`tools/Build.EXE`), and other executables (a stray `deploy.log`, a `pkg.tar.gz`) never compete for a stem.
+
+**Rejected:** stripping every registered file, declarations included, and counting every executable toward a stem's ambiguity.
+
+**Why.** Pack must resolve exactly the names discovery registers, and it cannot read the config (see `internal/pack/TRADEOFFS.md`), so it cannot know what is declared. A shebang can be checked from the file alone. A suffixed name never matches the naming pattern, so a script is the only suffixed file the scan registers anyway. Counting every executable would let a file that is not a command make a real one ambiguous: `chmod -R +x` would put a `deploy.log` next to `deploy.sh`, and `mnmd check` would fail on a command-names error for a file that was never a command.
+
+**What it costs.** A declared file keeps its suffix in its command name. Adding a shebang strips it, which renames the command.

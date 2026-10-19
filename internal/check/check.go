@@ -33,6 +33,9 @@ const (
 	// directories it could not read, or a hook script missing its execute bit.
 	// The only check whose severity is configurable.
 	RootContents = "root-contents"
+	// CommandNames: suffix stripping could not give a script its command
+	// name — two scripts share a stem, or the stem names an existing entry.
+	CommandNames = "command-names"
 	// CommandMap: the command map (monom-map.json) does not parse, a run
 	// target is unusable, or a map entry shadows a tree path.
 	CommandMap = "command-map"
@@ -141,6 +144,9 @@ func Check(in Input) (Report, error) {
 		rep.Discovered = true
 		for _, msg := range res.Invalid {
 			errorf(Declared, "%s", msg)
+		}
+		for _, msg := range res.Conflicts {
+			errorf(CommandNames, "%s", msg)
 		}
 		for _, s := range res.Skipped {
 			rootContents = append(rootContents, fmt.Sprintf("executable not registered: %s (%s); add a shebang, rename it, or declare it in the monom config file", s.Path, s.Reason))

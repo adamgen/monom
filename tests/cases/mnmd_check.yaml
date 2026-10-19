@@ -132,10 +132,44 @@ groups:
   - name: suffix stripping
     root: fixtures/zero-config-variants/suffix
     cases:
-      - name: stripped command names and suffixes kept for ambiguity are all healthy
+      - name: stripped scripts are healthy and non-scripts are reported by their file name
         input: mnmd check
         action: enter
-        expect: ✔ 9 commands OK (default discovery)
+        expect: |
+          warning: [root-contents] executable not registered: deploy.txt (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          warning: [root-contents] executable not registered: pkg.tar.gz (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          ✔ 3 commands OK (default discovery), 2 warning(s)
+
+  - name: two scripts sharing a stem
+    root: fixtures/zero-config-variants/suffix-ambiguous
+    cases:
+      - name: scripts that share a stem are a command-names error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [command-names] build.py, build.sh share the command name build, so each keeps its suffix; rename all but one
+          mnmd check: 1 error(s), 0 warning(s)
+
+  - name: a stem that is already taken
+    root: fixtures/zero-config-variants/suffix-taken
+    cases:
+      - name: a script whose stem names an existing directory or file is a command-names error
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [command-names] db.sh is not registered: its command name db is taken by the directory db; rename one of them
+          error: [command-names] release.sh is not registered: its command name release is taken by the file release; rename one of them
+          mnmd check: 2 error(s), 0 warning(s)
+
+  - name: suffix stripping off
+    root: fixtures/zero-config-variants/suffix-off
+    cases:
+      - name: with strip-suffix off scripts that share a stem are not an error
+        input: mnmd check
+        action: enter
+        expect: ✔ 4 commands OK (default discovery)
 
   - name: invalid strip-suffix
     root: fixtures/zero-config-variants/suffix-invalid

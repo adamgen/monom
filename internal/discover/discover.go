@@ -10,8 +10,8 @@
 // config file) are registered regardless of the scan, the noise rules, and the
 // gate — including hide patterns.
 //
-// Unless the config turns it off, every registered file's command name drops
-// its suffix (see Stem and dirIndex.commandName).
+// Unless the config turns it off, every registered script's command name
+// drops its suffix (see Stem and stripSuffixes).
 package discover
 
 import (
@@ -55,7 +55,7 @@ const (
 
 // Command is a registered command path.
 type Command struct {
-	Path string // slash-delimited, relative to the project root; the file's suffix stripped
+	Path string // slash-delimited, relative to the project root; a script's suffix stripped
 	Via  Via
 }
 
@@ -71,6 +71,7 @@ type Result struct {
 	Skipped    []Skipped // executables the scan found but the gate rejected
 	Unreadable []string  // directories the scan could not read
 	Invalid    []string  // declarations that do not name an executable file
+	Conflicts  []string  // scripts suffix stripping could not give their command name
 }
 
 // Paths returns the registered command paths.
@@ -86,9 +87,9 @@ func (r Result) Paths() []string {
 // path. declared are command paths the author registered explicitly; they
 // bypass both the noise rules and the gate, but must name an executable file.
 // settings.Hide are the config's discover.hide patterns (see
-// isHiddenOrPrivate); an invalid pattern matches nothing. Command paths have
-// their suffix stripped unless settings turn it off; Skipped and Invalid
-// always name files as they are on disk.
+// isHiddenOrPrivate); an invalid pattern matches nothing. Scripts' command
+// paths have their suffix stripped unless settings turn it off; Skipped,
+// Invalid and Conflicts name files as they are on disk.
 func Discover(projectRoot string, declared []string, settings config.Settings) Result {
 	var res Result
 	hide := settings.Hide
@@ -147,28 +148,11 @@ func Discover(projectRoot string, declared []string, settings config.Settings) R
 	})
 
 	if settings.StripsSuffix() {
-		stripSuffixes(projectRoot, res.Commands)
+		res.Commands, res.Conflicts = stripSuffixes(projectRoot, res.Commands)
+		sort.Strings(res.Conflicts)
 	}
 	sort.Slice(res.Commands, func(i, j int) bool { return res.Commands[i].Path < res.Commands[j].Path })
 	return res
-}
-
-// stripSuffixes replaces each command's file name with its command name,
-// reading each directory that holds a suffixed command once.
-func stripSuffixes(projectRoot string, commands []Command) {
-	dirs := map[string]dirIndex{}
-	for i, c := range commands {
-		dir, name := path.Split(c.Path)
-		if Stem(name) == "" {
-			continue
-		}
-		idx, ok := dirs[dir]
-		if !ok {
-			idx = readDirIndex(filepath.Join(projectRoot, filepath.FromSlash(dir)))
-			dirs[dir] = idx
-		}
-		commands[i].Path = dir + idx.commandName(name)
-	}
 }
 
 // skipDir reports whether a directory's contents are excluded from the scan:

@@ -34,7 +34,7 @@ An author who wants `monom infra` to *do* something says so explicitly in their 
 
 ## Pack resolves a stripped stem without reading the config
 
-**Chosen:** when nothing exists at the joined path, pack resolves the last token to the one executable with that stem, whether or not the project turned `discover.strip-suffix` off.
+**Chosen:** when nothing exists at the joined path, pack resolves the last token to the one script (an executable with a shebang) with that stem, whether or not the project turned `discover.strip-suffix` off.
 
 **Rejected:** having pack honor `discover.strip-suffix = false` and only resolve exact paths when it is off.
 

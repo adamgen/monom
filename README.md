@@ -51,7 +51,7 @@ monom scans the project for executables and turns them into the command tree. On
 
 Hidden and `_`-prefixed files and directories, `node_modules`, `vendor`, `__pycache__`, `venv`, `target`, `dist`, and nested monom projects are never scanned. To hide more, add `discover.hide = <pattern>` lines to the `monom` file (or print them from a hook script's `config` hook). A pattern without a `/` matches a name at any depth; one with a `/` matches a path from the root. Both use `path.Match` globs. A declared path is registered even when a pattern hides it. `mnmd discover` prints the registered commands.
 
-A command's name drops its file suffix: `scripts/setup.sh` is `monom scripts setup`, and the full `monom scripts setup.sh` still runs it. A file keeps its suffix when stripping it would be ambiguous: something named `setup` already exists beside it, or another executable there is also `setup.<something>`. To keep every suffix, set `discover.strip-suffix = false`.
+A script's command name drops its file suffix: `scripts/setup.sh` is `monom scripts setup`, and the full `monom scripts setup.sh` still runs it. Only scripts, executables with a shebang, are stripped. When two scripts share a name (`build.sh`, `build.py`) both keep their suffix. When the name is already taken (`db.sh` beside a `db/` folder) the existing entry wins and the script is not registered. `mnmd check` reports both as errors. To keep every suffix, set `discover.strip-suffix = false`.
 
 **How the root is found**, first match wins: `$_MONOM_PROJECT_ROOT` (what an alias pins), the nearest directory upward containing a file named `monom`, the nearest git root. The current directory alone is never a root.
 
