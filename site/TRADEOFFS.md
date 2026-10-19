@@ -14,10 +14,10 @@
 
 ## The homepage demo ports `mnmd filter` to TypeScript instead of running the real binary
 
-**Chosen:** `app/lib/filter.ts` reimplements `internal/filter` in about 30 lines, and the demo runs it in the browser against the site's example project (`app/lib/project.ts`).
+**Chosen:** `app/lib/filter.ts` reimplements `internal/filter` in about 30 lines, and the demo runs it in the browser against the site's example project (`app/lib/project.ts`). `app/lib/pack.ts` does the same for `mnmd pack`'s resolution, so Enter in the demo runs a command by its stripped name or its file name.
 
 **Rejected:** compiling `internal/filter` to WebAssembly (`GOOS=js GOARCH=wasm`, or TinyGo) and calling the real code.
 
-**Why:** Standard Go WASM output starts at ~2 MB (TinyGo ~100 KB) and needs `wasm_exec.js` plus a Go toolchain in the site build. That is a lot of weight and build coupling for one pure function that fits on a screen.
+**Why:** Standard Go WASM output starts at ~2 MB (TinyGo ~100 KB) and needs `wasm_exec.js` plus a Go toolchain in the site build. That is a lot of weight and build coupling for two small functions that each fit on a screen, one of which (`pack`) reads a filesystem the browser doesn't have.
 
-**What it costs:** The two implementations can drift. `architecture.md` lists the mirrored files. A change to filter semantics must be ported by hand, and nothing automated catches a miss.
+**What it costs:** The two implementations can drift. `architecture.md` lists the mirrored files. A change to filter or pack semantics must be ported by hand, and nothing automated catches a miss.

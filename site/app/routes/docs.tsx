@@ -44,7 +44,7 @@ export default function Docs() {
       <article className="prose">
         <h1>Quick start</h1>
         <p className="lede">
-          From nothing to a tab-completing <code>monom infra cloud deploy.sh</code>, with no config
+          From nothing to a tab-completing <code>monom infra cloud deploy</code>, with no config
           file. You'll need Linux or macOS, bash or zsh, and <code>curl</code>.
         </p>
 
@@ -123,8 +123,8 @@ $ printf '#!/usr/bin/env bash\\necho "deploying to cloud..."\\n' > infra/cloud/d
 $ printf '#!/usr/bin/env python3\\nprint("running db migrations...")\\n' > db/migrate.py
 $ chmod +x infra/cloud/deploy.sh db/migrate.py`}</Code>
         <Code output>{`$ mnmd discover
-db/migrate.py
-infra/cloud/deploy.sh`}</Code>
+db/migrate
+infra/cloud/deploy`}</Code>
         <p>
           That's it: there is no registration step. Default discovery registers an executable when
           it passes the <strong>gate</strong>:
@@ -148,19 +148,25 @@ infra/cloud/deploy.sh`}</Code>
           never registered, because they couldn't be typed as words.
         </p>
         <p>
-          The file's path <em>is</em> the command, extension included:{" "}
-          <code>db/migrate.py</code> is <code>monom db migrate.py</code>, and Tab completes the
-          whole name. Since the name rule has no dots, a file with an extension needs a shebang;
-          without one (<code>tools/Format.sh</code>) it isn't registered, and{" "}
-          <code>mnmd check</code> says why. Drop the extension, as in{" "}
-          <code>infra/local/start</code>, if you want a shorter command.
+          The file's path <em>is</em> the command, minus its extension:{" "}
+          <code>db/migrate.py</code> is <code>monom db migrate</code>, and the full name,{" "}
+          <code>monom db migrate.py</code>, runs it too. A file keeps its extension when dropping
+          it would be ambiguous: something beside it is already named the stem, or another
+          executable there has the same one (<code>build.sh</code> and <code>build.py</code> both
+          stay as they are). Set <code>discover.strip-suffix = false</code> in the{" "}
+          <a href="#config">monom file</a> to keep every extension.
+        </p>
+        <p>
+          Since the name rule has no dots, a file with an extension needs a shebang; without one
+          (<code>tools/Format.sh</code>) it isn't registered, and <code>mnmd check</code> names it
+          and says why.
         </p>
 
         <h2 id="try">4. Press Tab</h2>
         <Code output>{`$ monom <Tab>
 db     infra
 $ monom in<Tab>         # completes to: monom infra
-$ monom infra cloud deploy.sh
+$ monom infra cloud deploy
 deploying to cloud...
 $ monom infra
 monom: 'infra' is a command group
@@ -171,7 +177,7 @@ available: cloud`}</Code>
         </p>
         <p className="callout">
           Every word you type is part of the command path, so commands don't take arguments yet:{" "}
-          <code>monom release.rb v1.2</code> looks for <code>release.rb/v1.2</code>. Flag parsing (
+          <code>monom release v1.2</code> looks for <code>release/v1.2</code>. Flag parsing (
           <code>mnmd args</code>) is on the <a href={`${GITHUB_URL}/blob/main/BACKLOG.md`}>backlog</a>.
         </p>
 
@@ -295,7 +301,9 @@ discover.hide = infra/local`}</Code>
           <a href="https://pkg.go.dev/path#Match">path.Match</a> globs. One without a{" "}
           <code>/</code> matches a name at any depth; one with a <code>/</code> matches a path from
           the root, and <code>*</code> never crosses a <code>/</code>. A declared path is
-          registered even when a pattern hides it.
+          registered even when a pattern hides it. <code>discover.strip-suffix = false</code>{" "}
+          keeps file extensions in command names; <code>monom</code> still runs a file by its
+          name without one.
         </p>
 
         <h2 id="hooks">7. Hook scripts</h2>
@@ -334,7 +342,7 @@ discover.hide = infra/local`}</Code>
                 </td>
                 <td>
                   Prints settings in the declarative format (<code>check.root-contents</code>,{" "}
-                  <code>discover.hide</code>).
+                  <code>discover.hide</code>, <code>discover.strip-suffix</code>).
                 </td>
               </tr>
               <tr>
@@ -350,8 +358,8 @@ discover.hide = infra/local`}</Code>
 case "$1" in
   run)
     shift
-    # \`monom ship\` runs \`monom infra cloud deploy.sh\`
-    if [ "$1" = "ship" ]; then echo "infra cloud deploy.sh"; fi
+    # \`monom ship\` runs \`monom infra cloud deploy\`
+    if [ "$1" = "ship" ]; then echo "infra cloud deploy"; fi
     ;;
   config)
     echo "discover.hide = tools"
@@ -396,7 +404,7 @@ esac`}</Code>
           The repo's <a href={`${GITHUB_URL}/tree/main/fixtures`}>fixtures</a> are working
           examples of every shape: <code>demo-project</code> has a <code>complete</code> hook,{" "}
           <code>zero-config-project</code> has no monom file, and <code>zero-config-variants</code>{" "}
-          covers declarations, severity, and <code>discover.hide</code>.
+          covers declarations, severity, <code>discover.hide</code>, and suffix stripping.
         </p>
 
         <h2 id="anywhere">8. Use it from anywhere</h2>
@@ -460,8 +468,8 @@ esac`}</Code>
                   <code>mnmd pack &lt;words…&gt;</code>
                 </td>
                 <td>
-                  Prints the absolute path the words resolve to. Exit 3 means “that's a command
-                  group”.
+                  Prints the absolute path the words resolve to; a name without its extension
+                  resolves to its file. Exit 3 means “that's a command group”.
                 </td>
               </tr>
               <tr>
@@ -495,7 +503,8 @@ esac`}</Code>
           <dd>
             Run <code>mnmd check</code>. It names executables the gate rejected and why; add a
             shebang, rename it, or declare it in the monom file. Hidden, <code>_</code>-prefixed,
-            and <code>discover.hide</code> matches are skipped on purpose.
+            and <code>discover.hide</code> matches are skipped on purpose. Looking for{" "}
+            <code>deploy.sh</code>? Tab lists it as <code>deploy</code>.
           </dd>
           <dt>zsh: monom runs, but Tab does nothing</dt>
           <dd>

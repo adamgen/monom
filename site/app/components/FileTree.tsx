@@ -3,10 +3,11 @@ import { ENTRIES, LANG_LABEL, PROJECT, cmd, type Entry, type Outcome } from "~/l
 // The site's only file tree. Every tree on every page renders the same
 // project (lib/project.ts); sections differ only in what they annotate.
 
-type Node = { name: string; path: string[]; entry?: Entry; children: Node[]; dir: boolean };
+/** `words` is the node's path as typed after `monom`: a command file's last word has its suffix stripped. */
+type Node = { name: string; path: string[]; words: string[]; entry?: Entry; children: Node[]; dir: boolean };
 
 function build(): Node[] {
-  const root: Node = { name: "", path: [], children: [], dir: true };
+  const root: Node = { name: "", path: [], words: [], children: [], dir: true };
   for (const entry of ENTRIES) {
     const isDir = entry.path.endsWith("/");
     const parts = entry.path.replace(/\/$/, "").split("/");
@@ -14,12 +15,14 @@ function build(): Node[] {
     parts.forEach((part, i) => {
       let child = node.children.find((c) => c.name === part);
       if (!child) {
-        child = { name: part, path: [...node.path, part], children: [], dir: i < parts.length - 1 || isDir };
+        const path = [...node.path, part];
+        child = { name: part, path, words: path, children: [], dir: i < parts.length - 1 || isDir };
         node.children.push(child);
       }
       node = child;
     });
     node.entry = entry;
+    if (entry.command) node.words = entry.command.split("/");
   }
   return root.children;
 }
@@ -59,9 +62,9 @@ type Props = {
   active?: string[];
   /** The token being typed — highlights matching siblings. */
   partial?: string;
-  /** Linked only: the command path being shown, and how many of its segments are lit. */
+  /** Linked only: the command path being shown, and how many of its words are lit. */
   mapped?: { path: string; lit: number };
-  /** Linked only: a command file was hovered, focused or tapped. */
+  /** Linked only: a command file was hovered, focused or tapped; gets its command path. */
   onPick?: (path: string) => void;
 };
 
@@ -89,16 +92,16 @@ function TreeNode({ node, ctx }: { node: Node; ctx: Ctx }) {
   const outcome = outcomeOf(node);
   const usable = outcome === "command";
   const depth = node.path.length - 1;
-  const onBranch = !!active && usable && node.path.every((seg, i) => active[i] === seg);
+  const onBranch = !!active && usable && node.words.every((seg, i) => active[i] === seg);
   const isCandidate =
     !!active &&
     usable &&
     depth === active.length &&
-    node.path.slice(0, -1).every((seg, i) => active[i] === seg) &&
-    node.name.startsWith(partial);
+    node.words.slice(0, -1).every((seg, i) => active[i] === seg) &&
+    node.words[depth].startsWith(partial);
   const segs = mapped?.path.split("/") ?? [];
   const lit =
-    variant === "linked" && !!mapped && depth < mapped.lit && node.path.every((seg, i) => segs[i] === seg);
+    variant === "linked" && !!mapped && depth < mapped.lit && node.words.every((seg, i) => segs[i] === seg);
   const pickable = variant === "linked" && !!onPick && !node.dir && usable && !!node.entry;
   const cls = [
     "tree-row",
@@ -110,7 +113,7 @@ function TreeNode({ node, ctx }: { node: Node; ctx: Ctx }) {
   ].join(" ");
   const lang = plain ? undefined : node.entry?.lang;
   const showNote = annotate && !!node.entry;
-  const pick = pickable ? () => onPick!(node.entry!.path) : undefined;
+  const pick = pickable ? () => onPick!(node.entry!.command!) : undefined;
 
   return (
     <li>
@@ -121,7 +124,7 @@ function TreeNode({ node, ctx }: { node: Node; ctx: Ctx }) {
             ? {
                 role: "button",
                 tabIndex: 0,
-                "aria-label": `Show ${cmd(node.entry!.path)}`,
+                "aria-label": `Show ${cmd(node.entry!.command!)}`,
                 onMouseEnter: pick,
                 onFocus: pick,
                 onClick: pick,
@@ -138,7 +141,7 @@ function TreeNode({ node, ctx }: { node: Node; ctx: Ctx }) {
         )}
         {showNote && (
           <span className={`tree-note is-${outcome}`}>
-            {outcome === "command" ? cmd(node.entry!.path) : NOTE[outcome]}
+            {outcome === "command" ? cmd(node.entry!.command!) : NOTE[outcome]}
             <span className="tree-why">{node.entry!.why}</span>
           </span>
         )}
