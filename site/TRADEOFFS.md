@@ -21,3 +21,13 @@
 **Why:** Standard Go WASM output starts at ~2 MB (TinyGo ~100 KB) and needs `wasm_exec.js` plus a Go toolchain in the site build. That is a lot of weight and build coupling for one pure function that fits on a screen.
 
 **What it costs:** The two implementations can drift. `architecture.md` lists the mirrored files. A change to filter semantics must be ported by hand, and nothing automated catches a miss.
+
+## The pixel variant is a theme layer, not a fork
+
+**Chosen:** `app/theme-pixel.css`, loaded after `styles.css` and scoped to `<html data-theme="pixel">`, switched by `THEME` in `app/lib/site.ts`. It restyles the existing markup (palette, VT323 headings, JetBrains Mono body, 2px borders, stepped shadows, box-drawing labels via pseudo-elements). The only component change is `Logo`, which shows the round-3 bitmap "Eclipse" mark when the theme is `pixel`. Fonts are self-hosted subsets in `public/fonts` (SIL OFL 1.1, licenses alongside).
+
+**Rejected:** forking the routes or components into pixel copies.
+
+**Why:** The variant must keep copy, sections and the shared `FileTree` identical, so it is easiest to compare and to keep in sync when the markup is literally the same. Setting `THEME = "default"` restores the original look (Geist from Google Fonts, the file-tree logo).
+
+**What it costs:** Some decoration (frame labels such as `┤ ~/acme ├`, prompt glyphs, `[01/03]`) lives in CSS `content`, so it is invisible to the copy in the TSX. Each `content` also carries an empty alternative text (`content: "[" / ""`) so screen readers skip it; browsers without that syntax fall back to the plain declaration and may read it. Overrides depend on the base class names; renaming a class in `styles.css` means renaming it here too.
