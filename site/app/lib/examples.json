@@ -1,0 +1,4 @@
+{
+  "group": "monom: 'infra' is a command group\navailable: cloud, local",
+  "checkError": "error: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file\nmnmd check: 1 error(s), 0 warning(s)"
+}

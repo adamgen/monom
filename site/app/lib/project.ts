@@ -1,9 +1,9 @@
 // The one example project every file tree, command, and output on the site
-// uses. The entries live in project.json so CI can check them: the Go test
-// TestSiteProject (tests/harness/site_project_test.go) rebuilds this project
-// from fixtures/site-project, compiles tools/lint (Go) and tools/fmt (Rust)
-// from source, and asserts what the site quotes against the real mnmd and
-// monom in bash and zsh. Change project.json and the fixture together.
+// uses. Its real counterpart is fixtures/site-project (tools/lint and
+// tools/fmt are compiled from tests/harness/testdata/site-binaries);
+// tests/cases/site_homepage.yaml runs it in bash and zsh, and
+// TestSiteExamples (tests/harness/site_test.go) checks project.json against
+// that fixture and those cases. Change all three together.
 import entries from "./project.json";
 
 export type Lang = "python" | "node" | "bash" | "sh" | "ruby" | "go" | "rust" | "text";

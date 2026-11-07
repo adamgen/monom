@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+case "$1" in
+  complete)
+    cd "$(dirname "$0")" || exit
+    # tracked executables, minus this file
+    git ls-files -s | awk '$1 == 100755 { print $4 }' | grep -vx monom
+    ;;
+esac

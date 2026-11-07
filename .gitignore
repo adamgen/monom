@@ -11,3 +11,7 @@ tmp/*
 go.work
 go.work.sum
 dist/
+
+# Built by TestCases from tests/harness/testdata/site-binaries
+fixtures/site-project/tools/lint
+fixtures/site-project/tools/fmt

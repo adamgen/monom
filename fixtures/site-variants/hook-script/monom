@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# every hook is optional: without complete,
+# default discovery lists the commands
+case "$1" in
+  run)
+    shift
+    # monom ship → infra cloud deploy
+    if [ "$1" = ship ]; then echo infra cloud deploy; fi
+    ;;
+  config)
+    echo "discover.hide = tools"
+    ;;
+esac

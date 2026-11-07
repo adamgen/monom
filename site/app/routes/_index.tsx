@@ -6,7 +6,12 @@ import { FileTree } from "~/components/FileTree";
 import { PathMap } from "~/components/PathMap";
 import { TabDemo } from "~/components/TabDemo";
 import { CHECK, ENTRIES, cmd, commandOf } from "~/lib/project";
+import examples from "~/lib/examples.json";
 import { GITHUB_URL, INSTALL } from "~/lib/site";
+import checkErrorConfig from "../../../fixtures/site-variants/check-error/monom?raw";
+import completeHook from "../../../fixtures/site-variants/complete-hook/monom?raw";
+import declarativeConfig from "../../../fixtures/site-variants/declarative/monom?raw";
+import hookScript from "../../../fixtures/site-variants/hook-script/monom?raw";
 
 export const meta: MetaFunction = () => [
   { title: "monom — your file tree is your command tree" },
@@ -23,45 +28,30 @@ export const meta: MetaFunction = () => [
   },
 ];
 
-// Every tree, command and output below comes from lib/project.ts (entries in
-// lib/project.json) or is a snippet asserted verbatim by
-// tests/harness/site_project_test.go against the real mnmd/monom in bash and
-// zsh. Keep the two in sync: change a snippet here, change it there.
+// Every tree, command and output below is run for real by
+// tests/cases/site_homepage.yaml. The monom files are imported verbatim from
+// the fixtures those cases run in; the outputs come from lib/project.json and
+// lib/examples.json, which TestSiteExamples (tests/harness/site_test.go)
+// checks against the cases' expectations.
 const CHECK_WARN = `${CHECK}
 $ echo $?
 0`;
 
-const CHECK_ERROR = `$ echo 'check.root-contents = error' > monom
+const CHECK_ERROR = `$ echo '${checkErrorConfig.trim()}' > monom
 $ mnmd check
-error: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
-mnmd check: 1 error(s), 0 warning(s)
+${examples.checkError}
 $ echo $?
 1`;
 
-const DECLARATIVE = `# register an executable the gate would skip
-tools/Format.sh
-# make mnmd check fail on unregistered executables
-check.root-contents = error
-# hide more entries, like dot-files (repeatable)
-discover.hide = infra/local`;
+const DECLARATIVE = declarativeConfig.trim();
 
-const HOOK_SCRIPT = `#!/usr/bin/env bash
-# every hook is optional: without complete,
-# default discovery lists the commands
-case "$1" in
-  run)
-    shift
-    # monom ship → infra cloud deploy
-    if [ "$1" = ship ]; then echo infra cloud deploy; fi
-    ;;
-  config)
-    echo "discover.hide = tools"
-    ;;
-esac`;
+const HOOK_SCRIPT = hookScript.trim();
+
+// The complete arm of the hook, without the surrounding case/esac.
+const COMPLETE_ARM = completeHook.trim().split("\n").slice(2, -1).join("\n");
 
 const GROUP = `$ monom infra
-monom: 'infra' is a command group
-available: cloud, local`;
+${examples.group}`;
 
 const LANGS = ENTRIES.filter((e) => e.outcome === "command");
 
@@ -333,11 +323,7 @@ $ echo $?
                 A <code>complete</code> hook that prints paths replaces default discovery entirely:
                 read <code>git ls-files</code>, parse a manifest, anything that prints lines.
               </p>
-              <Code>{`  complete)
-    cd "$(dirname "$0")" || exit
-    # tracked executables, minus this file
-    git ls-files -s | awk '$1 == 100755 { print $4 }' | grep -vx monom
-    ;;`}</Code>
+              <Code>{COMPLETE_ARM}</Code>
             </article>
             <article className="feature">
               <h3>No lock-in</h3>

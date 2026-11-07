@@ -1,0 +1,6 @@
+# register an executable the gate would skip
+tools/Format.sh
+# make mnmd check fail on unregistered executables
+check.root-contents = error
+# hide more entries, like dot-files (repeatable)
+discover.hide = infra/local

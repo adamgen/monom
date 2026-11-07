@@ -1,0 +1,122 @@
+# What monom.dev's homepage shows, run for real. The site's example project
+# ("acme") is fixtures/site-project, mirroring site/app/lib/project.json;
+# TestSiteExamples (tests/harness/site_test.go) checks the two agree. The
+# config and hook snippets the homepage prints are the monom files under
+# fixtures/site-variants/, which the site imports verbatim.
+#
+# tools/lint (Go) and tools/fmt (Rust) are compiled from
+# tests/harness/testdata/site-binaries by TestCases before any case runs.
+# The project root is pinned with _MONOM_PROJECT_ROOT because these fixtures
+# sit inside monom's own git repo; the git-root fallback the homepage's
+# "Absent" card describes is covered by tests/mnmd_root_test.
+
+root: fixtures/site-project
+shells: [bash, zsh]
+env:
+  _MONOM_PROJECT_ROOT: "{root}"
+
+cases:
+  - name: discover lists the example's commands
+    input: mnmd discover
+    action: enter
+    expect: |
+      db/migrate
+      db/seed
+      infra/cloud/deploy
+      infra/local/start
+      release
+      tools/fmt
+      tools/lint
+
+  - name: check warns about the unregistered executable and passes
+    input: mnmd check
+    action: enter
+    expect: |
+      warning: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+      ✔ 7 commands OK (default discovery), 1 warning(s)
+
+  - {name: python runs, input: monom db migrate, action: enter, expect: running db migrations...}
+  - {name: node runs as monom db seed, input: monom db seed, action: enter, expect: seeding database...}
+  - {name: bash runs as monom infra cloud deploy, input: monom infra cloud deploy, action: enter, expect: deploying to cloud...}
+  - {name: an extensionless script runs, input: monom infra local start, action: enter, expect: starting local environment...}
+  - {name: the compiled Go binary runs, input: monom tools lint, action: enter, expect: "lint: 0 issues"}
+  - {name: the compiled Rust binary runs, input: monom tools fmt, action: enter, expect: "fmt: 0 files changed"}
+  - {name: ruby runs as monom release, input: monom release, action: enter, expect: releasing...}
+  - {name: no lock-in - the file still runs directly, input: ./infra/cloud/deploy.sh, action: enter, expect: deploying to cloud...}
+
+  - name: a folder is a group, not a command
+    input: monom infra
+    action: enter
+    exit: 1
+    expect: |
+      monom: 'infra' is a command group
+      available: cloud, local
+
+  - {name: tab lists the top level, input: "monom ", action: tab, expect: [db, infra, release, tools]}
+  - {name: tab drills into db, input: "monom db ", action: tab, expect: [migrate, seed]}
+  - {name: tab lists both binaries, input: "monom tools ", action: tab, expect: [fmt, lint]}
+
+  - name: real tab presses list db's commands
+    input: "monom db "
+    action: keys
+    tabs: 2
+    line: "monom db "
+    candidates: [migrate, seed]
+
+  - name: filter never fails mid-typing
+    input: "echo 'bad path/x' | mnmd filter bad; echo $?"
+    action: enter
+    expect: "0"
+
+  - name: mnmd root works from a subfolder
+    input: cd infra/cloud && mnmd root >/dev/null && echo found
+    action: enter
+    expect: found
+
+groups:
+  - name: shell surface
+    shells: [bash]
+    cases:
+      - name: monom and mnmd are shell functions
+        input: type -t monom mnmd
+        action: enter
+        expect: |
+          function
+          function
+
+  - name: check at error severity
+    root: fixtures/site-variants/check-error
+    cases:
+      - name: one config line makes check fail
+        input: mnmd check
+        action: enter
+        exit: 1
+        expect: |
+          error: [root-contents] executable not registered: tools/Format.sh (no shebang, and the name does not match ^[a-z0-9][a-z0-9_-]*$); add a shebang, rename it, or declare it in the monom config file
+          mnmd check: 1 error(s), 0 warning(s)
+
+  - name: declarative config
+    root: fixtures/site-variants/declarative
+    cases:
+      - name: a declared path registers and discover.hide hides
+        input: mnmd discover
+        action: enter
+        expect: |
+          db/migrate
+          tools/Format.sh
+      - name: with the executable declared, error severity passes
+        input: mnmd check >/dev/null
+        action: enter
+        expect: ""
+
+  - name: hook script
+    root: fixtures/site-variants/hook-script
+    cases:
+      - {name: the run hook maps ship to infra cloud deploy, input: monom ship, action: enter, expect: deploying to cloud...}
+      - {name: the config hook hides tools, input: mnmd discover, action: enter, expect: infra/cloud/deploy}
+
+  - name: complete hook
+    root: fixtures/site-variants/complete-hook
+    cases:
+      - {name: tab offers the hook's tracked executables, input: "monom ", action: tab, expect: [db, release.rb]}
+      - {name: the hook's list replaces discovery at every level, input: "monom db ", action: tab, expect: [migrate.py, seed.js]}

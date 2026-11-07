@@ -34,7 +34,7 @@ jobs:
           sudo apt-get install -y -qq shellcheck zsh ruby
           shellcheck --version | head -2
           zsh --version
-          # the site example project (TestSiteProject) runs all of these; it fails, not skips, without them in CI
+          # tests/cases/site_homepage.yaml runs all of these (TestCases builds tools/fmt with rustc); a missing one fails its cases
           python3 --version; node --version; ruby --version; rustc --version
           bash --version | head -1
 
