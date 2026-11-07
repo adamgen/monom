@@ -56,13 +56,6 @@ cases:
   - {name: tab drills into db, input: "monom db ", action: tab, expect: [migrate, seed]}
   - {name: tab lists both binaries, input: "monom tools ", action: tab, expect: [fmt, lint]}
 
-  - name: real tab presses list db's commands
-    input: "monom db "
-    action: keys
-    tabs: 2
-    line: "monom db "
-    candidates: [migrate, seed]
-
   - name: filter never fails mid-typing
     input: "echo 'bad path/x' | mnmd filter bad; echo $?"
     action: enter
@@ -74,6 +67,28 @@ cases:
     expect: found
 
 groups:
+  # Real key presses list a group in bash on the second Tab, in zsh on the
+  # first (a second zsh Tab starts menu completion), as in monom_keys.yaml.
+  - name: bash key presses
+    shells: [bash]
+    cases:
+      - name: bash second tab lists db's commands
+        input: "monom db "
+        action: keys
+        tabs: 2
+        line: "monom db "
+        candidates: [migrate, seed]
+
+  - name: zsh key presses
+    shells: [zsh]
+    cases:
+      - name: zsh first tab lists db's commands
+        input: "monom db "
+        action: keys
+        tabs: 1
+        line: "monom db "
+        candidates: [migrate, seed]
+
   - name: shell surface
     shells: [bash]
     cases:
