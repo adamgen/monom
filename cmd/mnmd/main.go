@@ -56,6 +56,8 @@ func main() {
 		err = runInstall()
 	case "map":
 		err = runMap()
+	case "cache":
+		err = runCache()
 	case "version", "--version":
 		fmt.Println(version)
 		return
@@ -71,7 +73,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: mnmd <subcommand> [args...]")
-	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install, map, version")
+	fmt.Fprintln(os.Stderr, "subcommands: filter, root, pack, discover, check, install, map, cache, version")
 }
 
 // checkNudge prints a hint to stderr when the shell integration is not active

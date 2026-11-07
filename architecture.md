@@ -275,6 +275,27 @@ A missing or unparsable map file is a loud error (exit 1, stderr): a config that
 
 ---
 
+### `mnmd cache run <path> [arg...]`
+
+The **run middleware**: what `monom()` calls instead of `exec` when the project root has a `monom-cache.json`. Projects without that file never reach it (one `[ -f ]` in the shell), so their execution is unchanged. For a command with no entry in the file, or with `MONOM_CACHE=off`, it `exec`s the command, so nothing stays resident.
+
+Today it has one middleware, the local **run cache** (`internal/runcache`), opt-in per command file:
+
+```json
+{ "build": { "inputs": ["src"], "outputs": ["dist"], "env": ["BUILD_MODE"] } }
+```
+
+Keys are root-relative command *file* paths (what `pack` resolved). `inputs` (required, files or directories, walked recursively) and `outputs` (files or directories) are root-relative; `env` names variables. Unknown keys, paths escaping the root or pointing into `.monom/`, and an empty `inputs` make the file invalid: `mnmd cache run` then exits 1 without running anything.
+
+The middleware has two phases around the command:
+
+| Phase | Does | On trouble |
+| --- | --- | --- |
+| **before** | Hashes a key from the command file's content, its args, every input file's path, content and execute bit, each declared env var (set/unset and a sha256 of the value), and the entry itself. A hit **short-circuits**: restores each output (replacing what is there), writes the stored stdout, then the stored stderr, prints `monom: cache hit for <file>` to stderr, and exits 0. The command does not run. | A key that can't be computed (missing input, non-regular file) prints `monom: cache bypassed …` and runs the command uncached. A damaged entry is a miss. |
+| **after** | Runs the command with stdin inherited and stdout/stderr teed to the terminal and to memory, then sees its exit status. Exit 0 with every output present → stored atomically (written to `.monom/cache/.tmp-*`, renamed to `.monom/cache/<key>`). | Non-zero exit: nothing stored, the status is returned unchanged (a signal is 128+n). A missing output or failed store prints `monom: not cached: …`; the command's status is still returned. |
+
+Only successful runs are stored. Env values are never written to disk (only their hashes enter the key), but stdout and stderr are stored as printed. There is no remote cache and no eviction: delete `.monom/` to clear it.
+
 ### `mnmd install`
 
 Activates the shell integration. Detects the user's shell from `$SHELL`, resolves the absolute path to `src/monom` relative to the running binary, selects the rc/profile file (`~/.zshrc` for zsh; `~/.bash_profile` for bash, falling back to `~/.bashrc`), and appends `source "<path>"` if no non-comment line already references that path. Idempotent: a second run prints `already installed` and changes nothing. Exits non-zero for any shell other than bash or zsh.
@@ -474,6 +495,7 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 | `_MONOM_PROJECT_ROOT`   | `_setup_monom()` via `mnmd root` discovery, or user       | Path to the currently active monom project root. Pre-setting this skips auto-discovery. All call sites read this via the `mnmd root` algorithm.                                       |
 | `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — `$_MONOM_PROJECT_ROOT/monom`, which may not exist. Shell scripts run its hooks via `_monom_cfg`, which only executes a hook script. |
 | `MONOM_CHECK_ROOT_CONTENTS` | user (optional) | User-level default severity (`warning` or `error`) for `mnmd check`'s `root-contents` check. A project's `check.root-contents` setting overrides it. Intentionally unprefixed: user-facing. |
+| `MONOM_CACHE`           | user (optional)                                           | `off` makes `mnmd cache run` exec every command uncached, ignoring `monom-cache.json` entries. |
 | `MONOM_DEBUG_LOG`       | user (optional), or `_setup_monom()` via the `debug` hook | If set to a file path, `mnmd` and shell functions append timestamped debug lines to that file. Intentionally unprefixed: it is a user-facing diagnostic, not internal plumbing. A project may override the global value via the [`debug` hook](#hook-debug--project-local-debug-log-path) when the hook path is valid (single-line) and writable. |
 
 

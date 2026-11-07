@@ -57,7 +57,7 @@ This makes `run`, `complete`, `pre-run`, `post-run` a reserved-name protocol at 
 
 Hook files that run around command execution, cascading project → category → command on the way in and in reverse on the way out (onion order). The category level is what earns it: a monorepo's `project1/pre-run` activates a toolchain once instead of being copied into every command. Absent file = skip layer, zero ceremony, consistent with the constitution's hook principle.
 
-Settle the runner semantics before starting: any `post-run` in the chain makes `exec` impossible (something must stay resident as parent), which changes signal handling and exit-code flow. Hook existence is a `stat`, so `pack` can detect "plain path, just exec" along its existing walk and projects without lifecycle hooks keep today's exact behavior.
+The run cache (`mnmd cache run`, `monom-cache.json`) is the first middleware on this path and fixes part of the runner: it already keeps a resident parent for cached commands, and execs everything else. User hooks would join it as more middlewares. Settle the runner semantics before starting: any `post-run` in the chain makes `exec` impossible (something must stay resident as parent), which changes signal handling and exit-code flow. Hook existence is a `stat`, so `pack` can detect "plain path, just exec" along its existing walk and projects without lifecycle hooks keep today's exact behavior.
 
 ---
 

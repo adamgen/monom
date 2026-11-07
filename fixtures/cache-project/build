@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# A cached command: reads src/, writes dist/. Every real run appends to
+# .runs, which is not a declared output, so tests can count executions.
+set -eu
+cd "$(dirname "$0")"
+echo run >> .runs
+[ "${BUILD_FAIL:-}" != 1 ] || { echo "build failed" >&2; exit 7; }
+[ "${BUILD_NO_OUTPUT:-}" != 1 ] || exit 0
+echo "building (${BUILD_MODE:-dev})"
+echo "note: copied 1 file" >&2
+mkdir -p dist
+cp src/greeting.txt dist/greeting.txt

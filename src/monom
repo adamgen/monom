@@ -179,6 +179,13 @@ monom() {
 
   if [ "$pack_status" -eq 0 ]; then
     rm -f "$pack_err"
+    # A project with monom-cache.json runs commands through the cache
+    # middleware (mnmd cache run), which execs commands it has no entry for.
+    # One stat; projects without the file keep the plain exec.
+    if [ -f "$_MONOM_PROJECT_ROOT/monom-cache.json" ]; then
+      mnmd cache run "$pack_out"
+      return
+    fi
     # Run via exec in a subshell so the user's interactive session is not replaced.
     ( exec "$pack_out" )
     return
