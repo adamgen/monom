@@ -628,6 +628,7 @@ p {
 .lang-sh { --lang: #9fe3a4; }
 .lang-ruby { --lang: #ff7b72; }
 .lang-go { --lang: #7fd3ff; }
+.lang-rust { --lang: #dea584; }
 .lang-text { --lang: #7f877d; }
 .tree-note {
   margin-left: auto;

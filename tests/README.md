@@ -210,3 +210,9 @@ When the difference is whitespace only, the diff shows spaces as `·` and tabs a
 ## shUnit2 tests
 
 Shared helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. See `CLAUDE.md` for the file skeleton and naming conventions.
+
+---
+
+## The site's example project
+
+monom.dev's homepage is backed by ordinary cases: `tests/cases/site_homepage.yaml` runs the example project (`fixtures/site-project`) and the config/hook snippets (`fixtures/site-variants/*`, whose `monom` files the site imports verbatim) in bash and zsh. `TestCases` compiles the project's `tools/lint` (Go) and `tools/fmt` (Rust) from `tests/harness/testdata/site-binaries` before any case runs, next to `bin/mnmd`; the outputs are git-ignored, and a missing compiler fails the run. `TestSiteExamples` (`tests/harness/site_test.go`) runs no shell: it checks that `site/app/lib/project.json` and `examples.json` match the fixture and the cases' expectations. Change the site's example, the fixture and the cases together.

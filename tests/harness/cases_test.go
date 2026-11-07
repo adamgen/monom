@@ -55,6 +55,7 @@ func TestCases(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("could not build mnmd: %v\n%s", err, out)
 	}
+	buildSiteBinaries(t, repo)
 
 	files := caseFiles(t, repo)
 	loaded := make([][]Case, len(files))
@@ -383,4 +384,24 @@ func hunkRange(n int) string {
 // shQuote single-quotes s for bash and zsh.
 func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// buildSiteBinaries compiles the site example project's two binaries,
+// tools/lint (Go) and tools/fmt (Rust), into fixtures/site-project from
+// testdata/site-binaries, the way bin/mnmd is built above. Both are
+// git-ignored. A missing compiler fails the run: tests/cases/site_homepage.yaml
+// runs both binaries, and silently skipping them would drop the claim.
+func buildSiteBinaries(t *testing.T, repo string) {
+	src := filepath.Join(repo, "tests/harness/testdata/site-binaries")
+	tools := filepath.Join(repo, "fixtures/site-project/tools")
+	for _, args := range [][]string{
+		{"go", "build", "-o", filepath.Join(tools, "lint"), "lint.go"},
+		{"rustc", "-O", "-o", filepath.Join(tools, "fmt"), "fmt.rs"},
+	} {
+		c := exec.Command(args[0], args[1:]...)
+		c.Dir = src
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("could not build the site example's %s: %v\n%s", filepath.Base(args[3]), err, out)
+		}
+	}
 }

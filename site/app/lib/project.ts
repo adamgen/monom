@@ -1,11 +1,12 @@
 // The one example project every file tree, command, and output on the site
-// uses. It was built as a real project (a git repo, no monom file) and checked
-// against the real binaries: `mnmd discover`, `mnmd check`, running each
-// command by its name and its file name, and Tab completion in bash and zsh.
-// Change it only by rebuilding that project and re-checking what the site
-// quotes.
+// uses. Its real counterpart is fixtures/site-project (tools/lint and
+// tools/fmt are compiled from tests/harness/testdata/site-binaries);
+// tests/cases/site_homepage.yaml runs it in bash and zsh, and
+// TestSiteExamples (tests/harness/site_test.go) checks project.json against
+// that fixture and those cases. Change all three together.
+import entries from "./project.json";
 
-export type Lang = "python" | "node" | "bash" | "sh" | "ruby" | "go" | "text";
+export type Lang = "python" | "node" | "bash" | "sh" | "ruby" | "go" | "rust" | "text";
 
 /** What default discovery does with an entry. */
 export type Outcome =
@@ -29,18 +30,7 @@ export type Entry = {
 
 export const PROJECT = "acme";
 
-export const ENTRIES: Entry[] = [
-  { path: "db/migrate.py", command: "db/migrate", outcome: "command", lang: "python", why: "#!/usr/bin/env python3", output: "running db migrations..." },
-  { path: "db/seed.js", command: "db/seed", outcome: "command", lang: "node", why: "#!/usr/bin/env node", output: "seeding database..." },
-  { path: "infra/cloud/deploy.sh", command: "infra/cloud/deploy", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash", output: "deploying to cloud..." },
-  { path: "infra/local/start", command: "infra/local/start", outcome: "command", lang: "bash", why: "#!/usr/bin/env bash, no extension", output: "starting local environment..." },
-  { path: "tools/lint", command: "tools/lint", outcome: "command", lang: "go", why: "compiled Go binary: no shebang, command-shaped name", output: "lint: 0 issues" },
-  { path: "tools/Format.sh", outcome: "warn", lang: "sh", why: "no shebang, and the name has a capital and a dot" },
-  { path: "_lib/log.sh", outcome: "hidden", lang: "bash", why: "_-prefixed: private, never scanned" },
-  { path: "node_modules/", outcome: "hidden", why: "built-in skip list, like vendor, venv, dist" },
-  { path: "README.md", outcome: "ignored", lang: "text", why: "not executable" },
-  { path: "release.rb", command: "release", outcome: "command", lang: "ruby", why: "#!/usr/bin/env ruby", output: "releasing..." },
-];
+export const ENTRIES = entries as Entry[];
 
 const COMMANDS = ENTRIES.filter((e) => e.outcome === "command");
 
@@ -78,5 +68,6 @@ export const LANG_LABEL: Record<Lang, string> = {
   sh: "sh",
   ruby: "rb",
   go: "go",
+  rust: "rs",
   text: "md",
 };
