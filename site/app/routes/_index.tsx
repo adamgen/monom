@@ -23,8 +23,10 @@ export const meta: MetaFunction = () => [
   },
 ];
 
-// Every tree, command and output below comes from lib/project.ts, which was
-// checked against the real mnmd/monom in bash and zsh.
+// Every tree, command and output below comes from lib/project.ts (entries in
+// lib/project.json) or is a snippet asserted verbatim by
+// tests/harness/site_project_test.go against the real mnmd/monom in bash and
+// zsh. Keep the two in sync: change a snippet here, change it there.
 const CHECK_WARN = `${CHECK}
 $ echo $?
 0`;
@@ -165,12 +167,12 @@ export default function Index() {
                   to a ready-to-use CLI, with Tab completion in bash and zsh.
                 </p>
                 <p>
-                  Any language works: Python, Node, bash, Ruby, a compiled Go binary. The path is the
+                  Any language works: Python, Node, bash, Ruby, a compiled Go or Rust binary. The path is the
                   command, minus the file's extension, so <code>db/migrate.py</code> is{" "}
                   <code>{cmd(commandOf["db/migrate.py"])}</code>. A command-style name matches{" "}
                   <code>^[a-z0-9][a-z0-9_-]*$</code> (lowercase, no dots), so a file with an
-                  extension needs a shebang, and a compiled binary like <code>tools/lint</code>{" "}
-                  gets in by name.
+                  extension needs a shebang, and compiled binaries like <code>tools/lint</code> (Go) and{" "}
+                  <code>tools/fmt</code> (Rust) get in by name.
                 </p>
                 <p className="muted">
                   Hidden and <code>_</code>-prefixed entries, <code>node_modules</code>,{" "}

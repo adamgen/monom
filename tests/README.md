@@ -210,3 +210,9 @@ When the difference is whitespace only, the diff shows spaces as `·` and tabs a
 ## shUnit2 tests
 
 Shared helpers live in `tests/helpers`, which is sourced by every test file and never executed directly. See `CLAUDE.md` for the file skeleton and naming conventions.
+
+---
+
+## The site's example project
+
+`TestSiteProject` (`tests/harness/site_project_test.go`) is the evidence behind monom.dev's homepage. It rebuilds the example project from `site/app/lib/project.json` and `fixtures/site-project` in a temp git repo, compiles `tools/lint` (Go) and `tools/fmt` (Rust) from `tests/harness/testdata/site-binaries`, and asserts the homepage's trees, command outputs, Tab listings and snippets in bash and zsh. Snippet constants are read straight from `site/app/routes/_index.tsx`. With `CI` set, a missing python3, node, ruby, rustc or zsh fails the test instead of skipping. Change the site's example and the fixture together.

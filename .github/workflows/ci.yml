@@ -28,12 +28,14 @@ jobs:
             go.sum
             tests/harness/go.sum
 
-      - name: Install shellcheck and zsh
+      - name: Install shellcheck, zsh and ruby
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq shellcheck zsh
+          sudo apt-get install -y -qq shellcheck zsh ruby
           shellcheck --version | head -2
           zsh --version
+          # the site example project (TestSiteProject) runs all of these; it fails, not skips, without them in CI
+          python3 --version; node --version; ruby --version; rustc --version
           bash --version | head -1
 
       - name: Download Go modules
