@@ -342,6 +342,10 @@ The aliasing feature (`make_monom_alias`) exists to let users bind a named comma
 
 No shell file should contain logic beyond what is technically impossible to move to Go.
 
+### Principle: One Config File, Shell-Native Settings
+
+All of a project's monom configuration lives in its one `monom` config (declarative lines, or a hook script's hooks). Features MUST NOT add config files (no `monom-cache.json`, no `monom.yaml`); they add settings or hooks there. Where a setting needs data (which files, which env), prefer a shell command the author writes (`cache.inputs.build = git ls-files -s src`) over a small schema monom has to grow.
+
 ---
 
 ## The User Config Interface
@@ -378,6 +382,8 @@ discover.strip-suffix = false
 | `check.root-contents` | `warning`, `error` | `warning` (or `$MONOM_CHECK_ROOT_CONTENTS`) | Severity of `mnmd check`'s `root-contents` check. |
 | `discover.hide` | a [`path.Match`](https://pkg.go.dev/path#Match) pattern; repeatable, one per line | none | Default discovery treats matching entries as hidden, like dot-files: a matching file is never registered or reported under `root-contents`, and a matching directory is never scanned. A pattern without a `/` matches an entry's name at any depth (`*.TXT`, `scratch`); one with a `/` matches its path from the root (`tools/wip-*`), and `*` never crosses a `/`. A leading `./` and trailing `/` are dropped; absolute paths, `..`, and malformed patterns are `config` errors. Declarations win over it. |
 | `discover.strip-suffix` | `true`, `false` | `true` | Whether default discovery [strips file suffixes](#mnmd-discover) from command names. It changes only what is registered; `mnmd pack` resolves stems either way. |
+| `cache.inputs.<command path>` | a shell command | none | Caches the command (`cache.inputs.db/migrate.py`) when [`mnmd cache`](#run-middleware) is in its chain; the command's stdout is the cache key's input. |
+| `cache.outputs.<command path>` | space-separated paths from the root | git-detected changes | Files or directories a cache hit restores. |
 
 **Hook scripts** implement any subset of the hooks below; no subcommand is required. monom does not care how a hook script is implemented — shell, Python, Go, anything that prints to stdout.
 
@@ -397,7 +403,7 @@ release
 
 ### Hook: `config` — project settings
 
-Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` and `discover.strip-suffix` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. It must not call `mnmd discover`. Absent or empty → defaults.
+Takes no input; prints settings in the declarative format (`key = value` lines; `#` comments allowed). The hook-script equivalent of a declarative file's settings; any other line is a `config` error. Read by `mnmd check`, and by `mnmd discover` for `discover.hide` and `discover.strip-suffix` — which puts it on the completion path of a hook script whose `complete` prints nothing (or that calls `mnmd discover` itself). There, an invalid line or a failing hook is ignored rather than reported; `mnmd check` reports it. `mnmd cache` also reads it, strictly (an invalid line fails the run). It must not call `mnmd discover`. Absent or empty → defaults.
 
 ```
 $ _monom_cfg config
@@ -473,7 +479,7 @@ When the config is executable, `monom()` asks `mnmd middleware <abs-path>` for t
 
 Each middleware gets the rest of the chain as its argv (`mw <next...>`, like `env` or `nice`) and either passes through (`exec "$@"`: terminal, stdio and signals untouched), wraps (runs `"$@"`, acts on its status: it must relay signals), or short-circuits (exits without running it). Exit statuses unwind inner → outer. Without a chain the command is exec'd as before and no `MONOM_COMMAND*` is set. Middleware runs in the command's subshell, so it can't change the user's shell. Commands take no arguments yet.
 
-**`mnmd cache <next...>`** is the built-in local cache (`internal/runcache`). `monom-cache.json` at the root opts command files in, keyed by `MONOM_COMMAND_PATH`: `{"build": {"inputs": ["src"], "outputs": ["dist"], "env": ["MODE"]}}` (inputs required; project-relative files or directories). No entry, or `MONOM_CACHE=off` → exec next. The key hashes the command file, next's argv, each input file's path/content/execute bit, each declared env var (value hashed, never stored) and the entry; a missing input bypasses the cache with a notice. A hit restores the outputs, replays stdout then stderr and exits 0 without calling next. A miss runs next (relaying SIGINT/SIGTERM/SIGHUP/SIGQUIT, 128+n on a signal) and stores only an exit-0 run whose outputs exist, atomically, in `.monom/cache/<key>`. An invalid `monom-cache.json` exits 1 without calling next. Limits: replay groups stdout before stderr; a cached run's output is piped, not a terminal (don't cache interactive commands); undeclared dependencies can give stale hits; no eviction or remote cache.
+**`mnmd cache <next...>`** is the built-in local cache (`internal/runcache`), configured only in the monom config. `cache.inputs.<command path> = <shell command>` opts a command in (keyed by `MONOM_COMMAND_PATH`); no setting, or `MONOM_CACHE=off` → exec next. The inputs command runs with `sh -c` from the project root on every run; its stdout, the command file, next's argv and the cache settings are hashed into the key. It should be fast and deterministic (sort lists: `git ls-files -s src`, `find src -type f | sort | xargs sha256sum`, `echo "$MODE"`); if it fails, monom warns (`monom: cache bypassed …`) and runs the command uncached with its real exit status. A hit restores files, replays stdout then stderr and exits 0 without calling next. A miss runs next (relaying SIGINT/SIGTERM/SIGHUP/SIGQUIT, 128+n on a signal) and stores only an exit-0 run, atomically, in `.monom/cache/<key>`. Files stored: with `cache.outputs.<command path> = dist out.txt`, those paths (a hit replaces them; a missing one is not cached). Otherwise, in a git work tree, monom fingerprints (size, mtime, mode) every path `git status --porcelain --untracked-files=all --ignored` lists under the root before and after the run, stores the files that changed or appeared (tracked, untracked or ignored) and records the ones that disappeared; a hit writes and deletes them again. `.monom/` is skipped. Outside git only stdout/stderr are cached. Limits: the git snapshot walks ignored trees (a large `node_modules` makes every run slower — set `cache.outputs` there); files changed concurrently by something else during the run get captured; only regular files are stored (a symlink output is not cached); replay groups stdout before stderr; a cached run's output is piped, not a terminal (don't cache interactive commands); an inputs command that misses a dependency gives stale hits; no eviction or remote cache; add `.monom/` to `.gitignore`.
 
 ---
 
