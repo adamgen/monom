@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
-# monom user config for the middleware-project fixture. Its `middleware` hook
-# prints each command's run middleware chain, outermost first. With
-# MW_HOOK_LOG set it also appends each call to that file, so
-# tests/monom_middleware_test can count calls.
+# middleware-project: the `middleware` hook prints each command's chain,
+# outermost first. MW_HOOK_LOG, when set, records each call (for
+# tests/monom_middleware_test).
 case "$1" in
   middleware)
     [ -z "${MW_HOOK_LOG:-}" ] || echo "middleware $2" >> "$MW_HOOK_LOG"
     case "$2" in
-      wrapped | fail7) printf '%s\n' _mw/outer _mw/inner.py ;;
+      wrapped | fail7) printf '%s\n' "_mw/outer outer" _mw/inner.py ;;
       denied) echo _mw/deny ;;
-      env) echo "_mw/pass" ;;
-      args) echo "_mw/outer --label tagged" ;;
-      stdin) echo _mw/pass ;;
+      show) echo env ;; # a pass-through found on PATH
       broken) echo "middleware hook: boom" >&2; exit 4 ;;
       missing) echo _mw/nope ;;
-      noexec) echo _mw/notexec ;;
     esac
     ;;
 esac

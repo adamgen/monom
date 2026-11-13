@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
+read -r line
+echo "stdin: $line"
 echo "MONOM_COMMAND_PATH=$MONOM_COMMAND_PATH"
 echo "MONOM_COMMAND=${MONOM_COMMAND#"$_MONOM_PROJECT_ROOT"/}"

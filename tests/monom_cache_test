@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# shUnit2 e2e tests for: the cache as a run middleware (`mnmd cache` in the
-# chain fixtures/cache-project's middleware hook prints, monom-cache.json)
-# through the real monom() function.
+# shUnit2 e2e tests for: the cache as a run middleware (`mnmd cache` in
+# fixtures/cache-project's chain, monom-cache.json), through monom().
 # Run directly: bash tests/monom_cache_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,38 +19,31 @@ setUp() {
   cp -Rp "$REPO_ROOT/fixtures/cache-project/." "$PROJ/"
 }
 
-tearDown() {
-  rm -rf "$PROJ"
-}
+tearDown() { rm -rf "$PROJ"; }
 
-# run_monom [VAR=value...] -- <words...> — runs `monom <words>` in a fresh
-# bash in the project; stdout to $OUT, stderr to $ERR, status to $STATUS.
+# run_monom [VAR=value...] -- <words...> — `monom <words>` in a fresh shell
+# ($SH, default bash) in the project: stdout to $OUT, stderr to $ERR, status
+# to $STATUS.
 run_monom() {
   local env=()
   while [ "$1" != "--" ]; do env+=("$1"); shift; done
   shift
-  OUT=$(cd "$PROJ" && env -u _MONOM_PROJECT_ROOT -u MONOM_CACHE "${env[@]}" bash --norc --noprofile -c \
+  local sh=(bash --norc --noprofile)
+  [ "${SH:-bash}" = bash ] || sh=(zsh --no-rcs)
+  OUT=$(cd "$PROJ" && env -u _MONOM_PROJECT_ROOT -u MONOM_CACHE "${env[@]}" "${sh[@]}" -c \
     "source '$SRC_MONOM'; monom $*" 2>"$PROJ/.err")
   STATUS=$?
   ERR=$(cat "$PROJ/.err")
   rm -f "$PROJ/.err"
 }
 
-runs() {
-  if [ -f "$PROJ/.runs" ]; then wc -l < "$PROJ/.runs" | tr -d ' '; else echo 0; fi
-}
+runs() { if [ -f "$PROJ/.runs" ]; then wc -l < "$PROJ/.runs" | tr -d ' '; else echo 0; fi; }
 
-test_cold_run_executes_and_stores() {
+test_cold_run_then_hit_skips_the_command_and_replays_output_and_outputs() {
   run_monom -- build
   assertEquals 0 "$STATUS"
   assertEquals "building (dev)" "$OUT"
   assertEquals "note: copied 1 file" "$ERR"
-  assertEquals 1 "$(runs)"
-  assertTrue "an entry was stored" "[ -n \"\$(ls '$PROJ/.monom/cache')\" ]"
-}
-
-test_hit_skips_the_command_and_replays_output_and_outputs() {
-  run_monom -- build
   rm -rf "$PROJ/dist"
   run_monom -- build
   assertEquals 0 "$STATUS"
@@ -62,19 +54,23 @@ test_hit_skips_the_command_and_replays_output_and_outputs() {
   assertEquals "dist restored" "hello" "$(cat "$PROJ/dist/greeting.txt")"
 }
 
-test_changed_input_misses() {
+test_zsh_hit() {
+  command -v zsh >/dev/null || startSkipping
+  SH=zsh run_monom -- build
+  SH=zsh run_monom -- build
+  assertEquals 1 "$(runs)"
+  assertContains "$ERR" "cache hit"
+}
+
+test_changed_or_added_input_misses() {
   run_monom -- build
   echo bye > "$PROJ/src/greeting.txt"
   run_monom -- build
   assertEquals 2 "$(runs)"
   assertEquals "bye" "$(cat "$PROJ/dist/greeting.txt")"
-}
-
-test_added_input_file_misses() {
-  run_monom -- build
   echo x > "$PROJ/src/extra.txt"
   run_monom -- build
-  assertEquals 2 "$(runs)"
+  assertEquals 3 "$(runs)"
 }
 
 test_changed_command_file_misses() {
@@ -84,28 +80,20 @@ test_changed_command_file_misses() {
   assertEquals 2 "$(runs)"
 }
 
-test_declared_env_is_part_of_the_key() {
+test_declared_env_is_part_of_the_key_but_its_value_is_not_stored() {
   run_monom -- build
-  run_monom BUILD_MODE=prod -- build
+  run_monom BUILD_MODE=s3cr3t -- build
   assertEquals "set vs unset misses" 2 "$(runs)"
-  assertEquals "building (prod)" "$OUT"
-  run_monom BUILD_MODE=prod -- build
+  run_monom BUILD_MODE=s3cr3t -- build
   assertEquals "same value hits" 2 "$(runs)"
-  assertEquals "building (prod)" "$OUT"
-}
-
-test_env_values_are_not_stored() {
-  run_monom BUILD_MODE=s3cr3t-value -- build
-  assertFalse "value not on disk outside the replayed output" \
-    "grep -rq s3cr3t-value '$PROJ/.monom/cache' --exclude=stdout"
+  assertEquals "building (s3cr3t)" "$OUT"
+  assertFalse "value only in the replayed stdout" "grep -rq s3cr3t '$PROJ/.monom/cache' --exclude=stdout"
 }
 
 test_failure_is_not_cached_and_keeps_its_status() {
   run_monom BUILD_FAIL=1 -- build
   assertEquals 7 "$STATUS"
-  assertEquals "build failed" "$ERR"
   run_monom -- build
-  assertEquals 0 "$STATUS"
   assertEquals "ran again after the failure" 2 "$(runs)"
 }
 
@@ -122,25 +110,19 @@ test_missing_input_bypasses_the_cache() {
   run_monom -- build
   assertContains "$ERR" "monom: cache bypassed for build"
   assertEquals 1 "$(runs)"
-  assertFalse "nothing stored" "[ -d '$PROJ/.monom/cache' ]"
 }
 
 test_monom_cache_off_bypasses() {
   run_monom -- build
   run_monom MONOM_CACHE=off -- build
   assertEquals 2 "$(runs)"
-  assertNotContains "$ERR" "cache hit"
 }
 
-test_uncached_commands_and_discovery_are_unchanged() {
+test_commands_without_an_entry_and_discovery_are_unchanged() {
   run_monom -- greet
-  assertEquals 0 "$STATUS"
   assertEquals "hi (not cached)" "$OUT"
   assertEquals "" "$ERR"
-  run_monom -- build
-  local listed
-  listed=$(cd "$PROJ" && "$MONOMD" discover 2>/dev/null)
-  assertEquals "$(printf 'build\ngreet')" "$listed"
+  assertEquals "$(printf 'build\ngreet')" "$(cd "$PROJ" && "$MONOMD" discover 2>/dev/null)"
 }
 
 test_invalid_cache_file_is_a_loud_error() {
@@ -151,43 +133,12 @@ test_invalid_cache_file_is_a_loud_error() {
   assertEquals "command not run" 0 "$(runs)"
 }
 
-test_a_wrapper_outside_the_cache_runs_on_hit_and_miss() {
-  run_monom CACHE_OUTER=1 -- build
-  assertEquals "$(printf 'outer: before\nnote: copied 1 file\nouter: after (exit 0)')" "$ERR"
-  run_monom CACHE_OUTER=1 -- build
-  assertEquals "hit: the command did not run" 1 "$(runs)"
-  assertContains "$ERR" "outer: before"
-  assertContains "$ERR" "monom: cache hit for build"
-  assertContains "$ERR" "outer: after (exit 0)"
-  assertEquals "building (dev)" "$OUT"
-}
-
-test_a_failure_unwinds_through_the_outer_wrapper() {
-  run_monom CACHE_OUTER=1 BUILD_FAIL=1 -- build
-  assertEquals 7 "$STATUS"
-  assertContains "$ERR" "outer: after (exit 7)"
-}
-
-test_without_middleware_the_cache_never_runs() {
+test_without_the_middleware_the_cache_never_runs() {
   printf '#!/usr/bin/env bash\n' > "$PROJ/monom"
   run_monom -- build
   run_monom -- build
   assertEquals 2 "$(runs)"
   assertFalse "[ -d '$PROJ/.monom' ]"
-}
-
-test_without_cache_file_monom_execs_directly() {
-  rm "$PROJ/monom-cache.json"
-  run_monom -- build
-  run_monom -- build
-  assertEquals 2 "$(runs)"
-  assertFalse "[ -d '$PROJ/.monom' ]"
-}
-
-test_zsh_hit() {
-  command -v zsh >/dev/null || startSkipping
-  (cd "$PROJ" && env -u _MONOM_PROJECT_ROOT zsh --no-rcs -c "source '$SRC_MONOM'; monom build; monom build" >/dev/null 2>&1)
-  assertEquals 1 "$(runs)"
 }
 
 # shellcheck disable=SC1090

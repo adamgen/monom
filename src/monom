@@ -33,20 +33,12 @@ _monom_log() {
 # every hook call behaves as an absent hook: exit 0, no output. Running such a
 # file would make the shell execute declaration lines as commands.
 _monom_cfg() {
-  _monom_is_hook_script || return 0
-  "$_MONOM_USER_CONFIG" "$@"
-}
-
-# _monom_is_hook_script — true when the config is a hook script: an
-# executable file whose first line is a shebang.
-_monom_is_hook_script() {
   local first_line=""
-  [ -f "$_MONOM_USER_CONFIG" ] && [ -x "$_MONOM_USER_CONFIG" ] || return 1
+  [ -f "$_MONOM_USER_CONFIG" ] && [ -x "$_MONOM_USER_CONFIG" ] || return 0
   IFS= read -r first_line < "$_MONOM_USER_CONFIG"
   case "$first_line" in
-    '#!'*) return 0 ;;
+    '#!'*) "$_MONOM_USER_CONFIG" "$@" ;;
   esac
-  return 1
 }
 
 # _monom_complete — prints every command path of the project, slash-delimited,
@@ -187,27 +179,20 @@ monom() {
 
   if [ "$pack_status" -eq 0 ]; then
     rm -f "$pack_err"
-    # Run middleware: only a hook script can have a `middleware` hook, so
-    # other projects skip this (no subprocess) and keep the plain exec below.
-    # mnmd middleware runs the hook with the resolved command and prints the
-    # chain, one argv word per line, already validated; on failure it prints
-    # why and nothing runs.
-    if _monom_is_hook_script; then
-      local mw_out mw_status _mw_word
-      local -a mw_chain
-      mw_chain=()
-      mw_out=$(mnmd middleware "$pack_out")
-      mw_status=$?
-      [ "$mw_status" -eq 0 ] || return "$mw_status"
-      if [ -n "$mw_out" ]; then
-        while IFS= read -r _mw_word; do
-          mw_chain+=("$_mw_word")
-        done <<< "$mw_out"
-        # First middleware outermost; each gets the rest of the chain as its
-        # argv and passes through (exec), wraps (runs it), or short-circuits.
+    # Run middleware: only an executable config can have a `middleware` hook,
+    # so other projects skip straight to the plain exec. mnmd middleware
+    # prints the chain, one argv word per line, or says why it can't.
+    if [ -x "$_MONOM_USER_CONFIG" ]; then
+      local mw_out _mw_word
+      local -a mw_chain=()
+      mw_out=$(mnmd middleware "$pack_out") || return
+      while IFS= read -r _mw_word; do
+        [ -z "$_mw_word" ] || mw_chain+=("$_mw_word")
+      done <<< "$mw_out"
+      if [ ${#mw_chain[@]} -gt 0 ]; then
+        # mw1 … /abs/cmd: each middleware gets the rest as its argv.
         (
-          export MONOM_COMMAND="$pack_out"
-          export MONOM_COMMAND_PATH="${pack_out#"$_MONOM_PROJECT_ROOT"/}"
+          export MONOM_COMMAND="$pack_out" MONOM_COMMAND_PATH="${pack_out#"$_MONOM_PROJECT_ROOT"/}"
           exec "${mw_chain[@]}" "$pack_out"
         )
         return

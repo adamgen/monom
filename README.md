@@ -87,7 +87,6 @@ discover.strip-suffix = false
      │ mnmd filter <pfx>   │    │ mnmd pack       │   ← Go binary
      └─────────────────────┘    └───────┬────────┘
                                         │
-                         (middleware chain, if any)
                                   exec resolved path
 ```
 
@@ -100,30 +99,15 @@ The optional config file (`monom` at the project root) is the seam between monom
 
 ## Run middleware
 
-A hook script's optional `middleware` hook puts executables in front of a command when it runs: never on Tab or discovery. It gets the command's project path and prints the chain, outermost first. Each middleware is called as `mw <next...>` and can pass through (`exec "$@"`), wrap (run `"$@"` and act on its status), or short-circuit (exit without running it):
+A hook script's optional `middleware` hook names executables to run in front of a command (never on Tab). Each is called as `mw <next...>` and passes through (`exec "$@"`), wraps (runs `"$@"`, acts on its status), or short-circuits. `mnmd cache` is the built-in local cache:
 
 ```bash
-#!/usr/bin/env bash
-# monom
 case "$1" in
-  middleware)
-    case "$2" in
-      build) echo tools/mw/timer; echo mnmd cache ;;   # timer outside the cache
-    esac
-    ;;
+  middleware) [ "$2" = build ] && printf '%s\n' tools/timer "mnmd cache" ;;   # timer wraps the cache
 esac
 ```
 
-```bash
-#!/usr/bin/env bash
-# tools/mw/timer: any language works; this one wraps
-start=$(date +%s)
-"$@"; status=$?
-echo "$MONOM_COMMAND_PATH took $(( $(date +%s) - start ))s (exit $status)" >&2
-exit "$status"
-```
-
-`mnmd cache` is the built-in local cache middleware: commands listed in `monom-cache.json` with explicit `inputs`, `outputs` and `env` are replayed instead of re-run when nothing they declare changed. See [architecture.md](architecture.md#run-middleware) for the full contract.
+See [architecture.md](architecture.md#run-middleware).
 
 ## Project Status
 

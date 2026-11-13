@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Wraps: acts before and after the rest of the chain, and passes its status on.
-label=outer
-if [ "${1:-}" = --label ]; then label=$2; shift 2; fi
+# Wraps; its first argument (from the hook line) is a label.
+label=$1; shift
 echo "$label: before"
 "$@"
 status=$?

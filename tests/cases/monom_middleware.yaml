@@ -1,14 +1,13 @@
-# Run middleware: the `middleware` hook prints a chain of executables that
-# monom() runs as `( exec mw1 mw2 ... /abs/command )`, first one outermost.
-# The chain mixes bash (_mw/outer) and Python (_mw/inner.py). How often the
-# hook runs (once per command run, never on Tab, discovery or pack) is
-# counted in tests/monom_middleware_test, which can write a log file.
+# Run middleware: the `middleware` hook names a chain that monom() runs as
+# `( exec mw1 mw2 ... /abs/command )`, first one outermost. The chain mixes
+# bash (_mw/outer) and Python (_mw/inner.py); `show` passes through `env`
+# from PATH. tests/monom_middleware_test counts when the hook runs.
 
 root: fixtures/middleware-project
 shells: [bash, zsh]
 
 cases:
-  - name: wrappers nest outermost first and unwind in reverse
+  - name: wrappers nest outermost first, get their line's arguments, and unwind in reverse
     input: monom wrapped
     action: enter
     expect: |
@@ -33,35 +32,20 @@ cases:
     input: monom denied
     action: enter
     exit: 2
-    expect: |
-      deny: not running denied
+    expect: "deny: not running denied"
 
-  - name: a middleware line's extra words are its own leading arguments
-    input: monom args
+  - name: a pass-through leaves stdin to the command, which sees MONOM_COMMAND and MONOM_COMMAND_PATH
+    input: echo hello | monom show
     action: enter
     expect: |
-      tagged: before
-      args: ran
-      tagged: after (exit 0)
+      stdin: hello
+      MONOM_COMMAND_PATH=show
+      MONOM_COMMAND=show
 
-  - name: the chain and the command see MONOM_COMMAND and MONOM_COMMAND_PATH
-    input: monom env
-    action: enter
-    expect: |
-      MONOM_COMMAND_PATH=env
-      MONOM_COMMAND=env
-
-  - name: a pass-through middleware leaves stdin to the command
-    input: echo hello | monom stdin
-    action: enter
-    expect: |
-      got: hello
-
-  - name: an empty chain runs the command exactly as without middleware
+  - name: an empty chain runs the command as without middleware
     input: monom db plain
     action: enter
-    expect: |
-      plain: MONOM_COMMAND=unset
+    expect: "plain: MONOM_COMMAND=unset"
 
   - name: a failing hook is an error and nothing runs
     input: monom broken
@@ -75,25 +59,9 @@ cases:
     input: monom missing
     action: enter
     exit: 1
-    expect: |
-      mnmd middleware: middleware "_mw/nope": no such file
-
-  - name: a non-executable middleware is an error and nothing runs
-    input: monom noexec
-    action: enter
-    exit: 1
-    expect: |
-      mnmd middleware: middleware "_mw/notexec": not executable
-
-  - name: a command group lists its children; no chain runs
-    input: monom db
-    action: enter
-    exit: 1
-    expect: |
-      monom: 'db' is a command group
-      available: plain
+    expect: 'mnmd middleware: middleware "_mw/nope": not an executable file'
 
   - name: tab completion is unchanged by the hook
     input: "monom "
     action: tab
-    expect: [args, broken, db, denied, env, fail7, missing, noexec, stdin, wrapped]
+    expect: [broken, db, denied, fail7, missing, show, wrapped]

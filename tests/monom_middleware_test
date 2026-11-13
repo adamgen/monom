@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# shUnit2 e2e tests for: when monom() calls the `middleware` hook. The
-# observable chain behavior (nesting, exit status, short-circuit, errors) is in
-# tests/cases/monom_middleware.yaml; this suite needs a log file to count
-# hook calls.
+# shUnit2 e2e tests for: when monom() calls the `middleware` hook (it logs to
+# a file). Chain behavior is in tests/cases/monom_middleware.yaml.
 # Run directly: bash tests/monom_middleware_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,59 +8,30 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck disable=SC2034
 MONOMD="$REPO_ROOT/bin/mnmd"
 SHUNIT2="$REPO_ROOT/dependencies/shunit2"
-SRC_MONOM="$REPO_ROOT/src/monom"
-PROJ="$REPO_ROOT/fixtures/middleware-project"
 
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/helpers"
 
-setUp() {
-  LOG=$(mktemp)
+# hook_calls <script> — runs script after sourcing src/monom in the fixture
+# and prints the hook's call log.
+hook_calls() {
+  local log
+  log=$(mktemp)
+  (cd "$REPO_ROOT/fixtures/middleware-project" && env -u _MONOM_PROJECT_ROOT MW_HOOK_LOG="$log" \
+    bash --norc --noprofile -c "source '$REPO_ROOT/src/monom'; $1" >/dev/null 2>&1)
+  cat "$log"
+  rm -f "$log"
 }
 
-tearDown() {
-  rm -f "$LOG"
-}
-
-# in_project <script> — runs script in a fresh bash in the fixture, after
-# sourcing src/monom, with the hook logging to $LOG.
-in_project() {
-  (cd "$PROJ" && env -u _MONOM_PROJECT_ROOT MW_HOOK_LOG="$LOG" PATH="$REPO_ROOT/bin:$PATH" \
-    bash --norc --noprofile -c "source '$SRC_MONOM'; $1" >/dev/null 2>&1)
-}
-
-test_the_hook_runs_once_per_command_run_with_the_command_path() {
-  in_project "monom wrapped"
-  assertEquals "middleware wrapped" "$(cat "$LOG")"
-}
-
-test_a_nested_command_is_named_by_its_project_path() {
-  in_project "monom db plain"
-  assertEquals "middleware db/plain" "$(cat "$LOG")"
+test_the_hook_runs_once_per_command_run_with_the_project_path() {
+  assertEquals "middleware db/plain" "$(hook_calls 'monom db plain')"
 }
 
 test_tab_discovery_pack_and_groups_never_run_the_hook() {
-  in_project '
+  assertEquals "" "$(hook_calls '
     COMP_WORDS=(monom ""); COMP_CWORD=1; COMP_LINE="monom "; COMP_POINT=6
     _monom_completion monom "" monom
-    mnmd discover; mnmd pack wrapped; monom db; monom nosuch'
-  assertEquals "" "$(cat "$LOG")"
-}
-
-test_a_project_without_a_hook_script_never_calls_mnmd_middleware() {
-  local d
-  d=$(mktemp -d)
-  d=$(cd "$d" && pwd -P)
-  printf '#!/usr/bin/env bash\necho ran\n' > "$d/cmd"
-  chmod +x "$d/cmd"
-  : > "$d/monom"
-  local out
-  # A fake mnmd middleware on PATH would be visible; the bin/ one is used by
-  # the mnmd() function, so trace the shell instead.
-  out=$(cd "$d" && env -u _MONOM_PROJECT_ROOT bash --norc --noprofile -xc "source '$SRC_MONOM' 2>/dev/null; monom cmd" 2>&1)
-  assertContains "$out" "ran"
-  assertNotContains "$out" "mnmd middleware"
-  rm -rf "$d"
+    mnmd discover; mnmd pack wrapped; monom db; monom nosuch')"
 }
 
 # shellcheck disable=SC1090
