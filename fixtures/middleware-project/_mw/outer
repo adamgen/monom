@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Wraps: acts before and after the rest of the chain, and passes its status on.
+label=outer
+if [ "${1:-}" = --label ]; then label=$2; shift 2; fi
+echo "$label: before"
+"$@"
+status=$?
+echo "$label: after (exit $status)"
+exit "$status"

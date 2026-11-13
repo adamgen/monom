@@ -275,26 +275,28 @@ A missing or unparsable map file is a loud error (exit 1, stderr): a config that
 
 ---
 
-### `mnmd cache run <path> [arg...]`
+### `mnmd middleware <command-path>`
 
-The **run middleware**: what `monom()` calls instead of `exec` when the project root has a `monom-cache.json`. Projects without that file never reach it (one `[ -f ]` in the shell), so their execution is unchanged. For a command with no entry in the file, or with `MONOM_CACHE=off`, it `exec`s the command, so nothing stays resident.
+Prints the [run middleware](#run-middleware) chain for one resolved command (an absolute path, as `pack` printed it), one argv word per line, for `monom()` to put in front of the command. It runs the [`middleware` hook](#hook-middleware--run-middleware-chain) with the command's project-relative path and resolves each middleware's executable (see the hook). Prints nothing when the config is not a hook script or the hook prints nothing. Exits 1 without printing a chain when the hook fails or a middleware is missing or not executable; `monom()` then runs nothing.
 
-Today it has one middleware, the local **run cache** (`internal/runcache`), opt-in per command file:
+### `mnmd cache <next...>`
+
+The local **run cache**, as an ordinary run middleware (`internal/runcache` decides and stores; `internal/proc` runs the child). A project enables it by printing `mnmd cache` from its `middleware` hook, and opts commands in per command file in `monom-cache.json` at the root:
 
 ```json
 { "build": { "inputs": ["src"], "outputs": ["dist"], "env": ["BUILD_MODE"] } }
 ```
 
-Keys are root-relative command *file* paths (what `pack` resolved). `inputs` (required, files or directories, walked recursively) and `outputs` (files or directories) are root-relative; `env` names variables. Unknown keys, paths escaping the root or pointing into `.monom/`, and an empty `inputs` make the file invalid: `mnmd cache run` then exits 1 without running anything.
+Keys are project-relative command file paths (`MONOM_COMMAND_PATH`). `inputs` (required, files or directories, walked recursively) and `outputs` (files or directories) are project-relative; `env` names variables. Unknown keys, paths escaping the root or pointing into `.monom/`, and an empty `inputs` make the file invalid: `mnmd cache` then exits 1 without calling next.
 
-The middleware has two phases around the command:
+| Situation | `mnmd cache` does |
+| --- | --- |
+| No `MONOM_COMMAND_PATH` (not run by `monom()`), `MONOM_CACHE=off`, no `monom-cache.json`, or no entry for the command | `exec`s next. Nothing stays resident. |
+| Key can't be computed (missing input, non-regular file) | Prints `monom: cache bypassed …` and `exec`s next. |
+| **Hit** | Short-circuits: restores each output (replacing what is there), prints `monom: cache hit for <file>` to stderr, writes the stored stdout, then the stored stderr, and exits 0. Next is not called. |
+| **Miss** | Runs next with stdin inherited and stdout/stderr teed to the terminal and to memory, relaying SIGINT, SIGTERM, SIGHUP and SIGQUIT to it. Exit 0 with every output present → stored atomically (`.monom/cache/.tmp-*` renamed to `.monom/cache/<key>`), then exits 0. Otherwise exits with next's status (128+n for a signal) and stores nothing; a missing output or failed store prints `monom: not cached: …`. |
 
-| Phase | Does | On trouble |
-| --- | --- | --- |
-| **before** | Hashes a key from the command file's content, its args, every input file's path, content and execute bit, each declared env var (set/unset and a sha256 of the value), and the entry itself. A hit **short-circuits**: restores each output (replacing what is there), writes the stored stdout, then the stored stderr, prints `monom: cache hit for <file>` to stderr, and exits 0. The command does not run. | A key that can't be computed (missing input, non-regular file) prints `monom: cache bypassed …` and runs the command uncached. A damaged entry is a miss. |
-| **after** | Runs the command with stdin inherited and stdout/stderr teed to the terminal and to memory, then sees its exit status. Exit 0 with every output present → stored atomically (written to `.monom/cache/.tmp-*`, renamed to `.monom/cache/<key>`). | Non-zero exit: nothing stored, the status is returned unchanged (a signal is 128+n). A missing output or failed store prints `monom: not cached: …`; the command's status is still returned. |
-
-Only successful runs are stored. Env values are never written to disk (only their hashes enter the key), but stdout and stderr are stored as printed. There is no remote cache and no eviction: delete `.monom/` to clear it.
+The key hashes the command file's content, next's argv (the inner chain and the command), every input file's path, content and execute bit, each declared env var (set/unset and a sha256 of the value), and the entry itself. Env values are never written to disk; stdout and stderr are stored as printed. No remote cache, no eviction: delete `.monom/` to clear it.
 
 ### `mnmd install`
 
@@ -459,6 +461,25 @@ monom db migrate
 
 Useful for: aliasing, namespace remapping, project-specific routing where the surface command tree differs from the file tree. This is also the sanctioned way to make a **command group runnable** — see [`mnmd pack`](#mnmd-pack-word) exit code 3.
 
+### Hook: `middleware` — run middleware chain
+
+Takes one argument, the resolved command's project-relative file path (`db/migrate.py`); prints that command's [run middleware](#run-middleware) chain, one middleware per line, outermost first. Called only on the execution path, after `run` and `pack` have resolved a command, never on Tab, `mnmd discover`, `mnmd pack`, or a command group. Absent or empty → no middleware: the command is exec'd exactly as without the hook.
+
+Each non-blank line is whitespace-separated words (no quoting, like the `run` hook's output): the first names the executable, the rest are that middleware's own leading arguments. The first word resolves as:
+
+- `mnmd` → the running `mnmd` binary, so built-ins like `mnmd cache` work whether or not `mnmd` is on `$PATH`;
+- containing a `/` → a path, relative to the project root unless absolute;
+- otherwise → looked up on `$PATH`.
+
+| Hook result | `monom()` does |
+| --- | --- |
+| exit 0, empty stdout | No middleware. |
+| exit 0, lines | Runs the chain in front of the command. |
+| non-zero exit | `mnmd middleware: middleware hook failed (exit N)` plus the hook's stderr; returns 1 and runs nothing. |
+| a middleware missing or not executable | `mnmd middleware: middleware "<word>": <reason>`; returns 1 and runs nothing. |
+
+The hook's stderr is shown only when it fails, as for `run`. Cost: one `mnmd middleware` and one hook process per command run, only for hook-script configs.
+
 ### Hook: `debug` — project-local debug log path
 
 Lets a project route debug logging to its own file — including turning logging on for itself while the global switch is off. Takes no input; prints a single absolute file path on stdout, or nothing.
@@ -480,6 +501,28 @@ Cost: one unconditional subprocess spawn per invocation, plus one writability ch
 
 ---
 
+## Run Middleware
+
+A run middleware is any executable placed in front of a resolved command. `monom()` resolves the command once (`run` hook, then `pack`), asks [`mnmd middleware`](#mnmd-middleware-command-path) for the chain, and runs
+
+```sh
+( export MONOM_COMMAND=/abs/cmd MONOM_COMMAND_PATH=rel/cmd; exec mw1 [args] mw2 [args] … /abs/cmd )
+```
+
+so each middleware receives the rest of the chain — ending in the command — as its trailing argv (`mw <next...>`, like `env`, `nice`, or `direnv exec`). The first middleware is the outermost. A middleware chooses one of three shapes:
+
+| Shape | How | Effect |
+| --- | --- | --- |
+| **Pass through** | `exec "$@"` (after any setup, e.g. `export`) | Steps out of the way. The terminal, stdio, and signals reach what follows exactly as without middleware; env it set reaches the command. |
+| **Wrap** | run `"$@"`, wait, act on its exit status, exit | Stays resident: acts before and after, sees the status. It owns signal relaying and decides the status it passes up (normally the same one). |
+| **Short-circuit** | exit without running `"$@"` | Nothing inside it runs; its exit status is the command's. |
+
+Exit statuses unwind from the innermost to the outermost, so the outermost wrapper's "after" runs last. Without a chain, `monom()` takes the original path (`( exec "$pack_out" )`) and sets no `MONOM_COMMAND*` variables. The chain runs in the same subshell the command always ran in, so neither a middleware nor the command can change the user's shell (cwd, env), with or without middleware. Commands take no arguments yet (every typed word is part of the path), so nothing follows the command. `_MONOM_PROJECT_ROOT` is exported to the chain as it is to every command.
+
+Built-in middleware: [`mnmd cache`](#mnmd-cache-next). Rationale and limits: `internal/middleware/TRADEOFFS.md`.
+
+---
+
 ## Environment Variables
 
 These variables are internal shell↔Go plumbing. They are set by `src/monom` and read by `mnmd`. CLI authors and CLI users do not need to set or know these variables during normal use. The one public affordance is that a user MAY pre-set `$_MONOM_PROJECT_ROOT` to skip automatic project root discovery (useful when working outside a project tree or in a custom wrapper).
@@ -495,7 +538,9 @@ These variables are internal shell↔Go plumbing. They are set by `src/monom` an
 | `_MONOM_PROJECT_ROOT`   | `_setup_monom()` via `mnmd root` discovery, or user       | Path to the currently active monom project root. Pre-setting this skips auto-discovery. All call sites read this via the `mnmd root` algorithm.                                       |
 | `_MONOM_USER_CONFIG`    | `_setup_monom()`                                          | Path to the monom config file — `$_MONOM_PROJECT_ROOT/monom`, which may not exist. Shell scripts run its hooks via `_monom_cfg`, which only executes a hook script. |
 | `MONOM_CHECK_ROOT_CONTENTS` | user (optional) | User-level default severity (`warning` or `error`) for `mnmd check`'s `root-contents` check. A project's `check.root-contents` setting overrides it. Intentionally unprefixed: user-facing. |
-| `MONOM_CACHE`           | user (optional)                                           | `off` makes `mnmd cache run` exec every command uncached, ignoring `monom-cache.json` entries. |
+| `MONOM_CACHE`           | user (optional)                                           | `off` makes the `mnmd cache` middleware pass every command through uncached. |
+| `MONOM_COMMAND`         | `monom()`, only when a run middleware chain runs           | Absolute path of the resolved command, for the chain and the command. |
+| `MONOM_COMMAND_PATH`    | `monom()`, only when a run middleware chain runs           | The command's path relative to the project root (`db/migrate.py`). |
 | `MONOM_DEBUG_LOG`       | user (optional), or `_setup_monom()` via the `debug` hook | If set to a file path, `mnmd` and shell functions append timestamped debug lines to that file. Intentionally unprefixed: it is a user-facing diagnostic, not internal plumbing. A project may override the global value via the [`debug` hook](#hook-debug--project-local-debug-log-path) when the hook path is valid (single-line) and writable. |
 
 
@@ -524,7 +569,9 @@ user runs: monom <args...>
     → (optional) _monom_cfg run <args...>   [user hook — transforms args; falls back when it exits 0 with no output;
                                              exit 3 → shell renders the command-group listing, returns 1]
     → mnmd pack <args...>                   [Go — discovers root, joins with /, resolves to absolute path]
-    → exit 0 → shell exec's the resolved path in a subshell
+    → exit 0 → hook script config? mnmd middleware <path>   [Go — runs the middleware hook; error → return 1]
+               chain → shell exec's `mw1 … <path>` in a subshell, MONOM_COMMAND* set
+               none  → shell exec's the resolved path in a subshell
       exit 3 → shell renders the command-group listing, returns 1
       other  → shell forwards pack's stderr, returns 1
 ```

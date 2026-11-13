@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Passes through: replaces itself with the rest of the chain.
+exec "$@"

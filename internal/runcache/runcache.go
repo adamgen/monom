@@ -1,7 +1,8 @@
-// Package runcache is monom's local, opt-in, input-based command cache: the
-// first run middleware. A project opts a command in by naming its file in
-// monom-cache.json at the project root, with explicit inputs, outputs and
-// env vars:
+// Package runcache is the decision and storage half of monom's local,
+// opt-in, input-based command cache; cmd/mnmd's `mnmd cache` runs it as an
+// ordinary run middleware (internal/proc runs the child). A project opts a
+// command in by naming its file in monom-cache.json at the project root,
+// with explicit inputs, outputs and env vars:
 //
 //	{
 //	  "build/compile.sh": {
@@ -11,14 +12,9 @@
 //	  }
 //	}
 //
-// Around a cached command the middleware has two phases. before computes a
-// key from the command file, its args, every declared input file's content
-// and mode, the declared env vars, and the entry itself; on a hit it
-// short-circuits: it restores the outputs, replays stdout and stderr, and
-// exits 0 without running the command. after sees the command's exit status
-// and stores only a successful run whose declared outputs all exist,
-// atomically. Anything it cannot do safely bypasses the cache and runs the
-// command normally.
+// Key hashes what a result depends on, Lookup and Restore serve a hit, and
+// Store saves only a successful run whose declared outputs all exist,
+// atomically.
 package runcache
 
 import (

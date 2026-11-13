@@ -4,7 +4,8 @@
 // The file takes one of three shapes, decided by its first line and mode:
 //
 //   - a hook script: an executable file whose first line is a shebang. monom
-//     runs it for hooks (complete, run, debug, config) and never parses it.
+//     runs it for hooks (complete, run, config, debug, middleware) and never
+//     parses it.
 //   - a declarative file: any file whose first line is not a shebang,
 //     including an empty file. monom parses it line by line and never runs it.
 //   - absent: zero-config. Equivalent to an empty declarative file.
@@ -256,11 +257,12 @@ func HasShebang(p string) bool {
 	return n == 2 && buf[0] == '#' && buf[1] == '!'
 }
 
-// RunHook runs the hook script with one subcommand and returns its stdout. A
-// non-zero exit is an error that carries the script's stderr, if any.
-func RunHook(script, hook string) ([]byte, error) {
+// RunHook runs the hook script with one subcommand (and its args) and returns
+// its stdout. A non-zero exit is an error that carries the script's stderr, if
+// any.
+func RunHook(script, hook string, args ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(script, hook)
+	cmd := exec.Command(script, append([]string{hook}, args...)...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# monom user config for the cache-project fixture: every command runs through
+# the built-in cache middleware, which execs commands monom-cache.json has no
+# entry for (greet). CACHE_OUTER=1 adds a wrapper outside it.
+case "$1" in
+  middleware)
+    [ "${CACHE_OUTER:-}" != 1 ] || echo _mw/outer
+    echo mnmd cache
+    ;;
+esac

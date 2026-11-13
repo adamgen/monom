@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# shUnit2 e2e tests for: the run cache middleware (monom-cache.json,
-# `mnmd cache run`) through the real monom() function.
+# shUnit2 e2e tests for: the cache as a run middleware (`mnmd cache` in the
+# chain fixtures/cache-project's middleware hook prints, monom-cache.json)
+# through the real monom() function.
 # Run directly: bash tests/monom_cache_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -148,6 +149,31 @@ test_invalid_cache_file_is_a_loud_error() {
   assertEquals 1 "$STATUS"
   assertContains "$ERR" "inputs must list at least one path"
   assertEquals "command not run" 0 "$(runs)"
+}
+
+test_a_wrapper_outside_the_cache_runs_on_hit_and_miss() {
+  run_monom CACHE_OUTER=1 -- build
+  assertEquals "$(printf 'outer: before\nnote: copied 1 file\nouter: after (exit 0)')" "$ERR"
+  run_monom CACHE_OUTER=1 -- build
+  assertEquals "hit: the command did not run" 1 "$(runs)"
+  assertContains "$ERR" "outer: before"
+  assertContains "$ERR" "monom: cache hit for build"
+  assertContains "$ERR" "outer: after (exit 0)"
+  assertEquals "building (dev)" "$OUT"
+}
+
+test_a_failure_unwinds_through_the_outer_wrapper() {
+  run_monom CACHE_OUTER=1 BUILD_FAIL=1 -- build
+  assertEquals 7 "$STATUS"
+  assertContains "$ERR" "outer: after (exit 7)"
+}
+
+test_without_middleware_the_cache_never_runs() {
+  printf '#!/usr/bin/env bash\n' > "$PROJ/monom"
+  run_monom -- build
+  run_monom -- build
+  assertEquals 2 "$(runs)"
+  assertFalse "[ -d '$PROJ/.monom' ]"
 }
 
 test_without_cache_file_monom_execs_directly() {

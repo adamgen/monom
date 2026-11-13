@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# A wrapper outside the cache: it runs on hits and misses alike.
+echo "outer: before" >&2
+"$@"
+status=$?
+echo "outer: after (exit $status)" >&2
+exit "$status"
