@@ -1,7 +1,0 @@
-{
-  "build": {
-    "inputs": ["src"],
-    "outputs": ["dist"],
-    "env": ["BUILD_MODE"]
-  }
-}

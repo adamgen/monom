@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shUnit2 e2e tests for: the cache as a run middleware (`mnmd cache` in
-# fixtures/cache-project's chain, monom-cache.json), through monom().
+# fixtures/cache-project's chain, cache.* settings in its monom config),
+# through monom().
 # Run directly: bash tests/monom_cache_test
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,9 +18,10 @@ setUp() {
   PROJ=$(mktemp -d)
   PROJ=$(cd "$PROJ" && pwd -P)
   cp -Rp "$REPO_ROOT/fixtures/cache-project/." "$PROJ/"
+  RUNS_FILE=$(mktemp)
 }
 
-tearDown() { rm -rf "$PROJ"; }
+tearDown() { rm -rf "$PROJ" "$RUNS_FILE"; }
 
 # run_monom [VAR=value...] -- <words...> — `monom <words>` in a fresh shell
 # ($SH, default bash) in the project: stdout to $OUT, stderr to $ERR, status
@@ -30,16 +32,34 @@ run_monom() {
   shift
   local sh=(bash --norc --noprofile)
   [ "${SH:-bash}" = bash ] || sh=(zsh --no-rcs)
-  OUT=$(cd "$PROJ" && env -u _MONOM_PROJECT_ROOT -u MONOM_CACHE "${env[@]}" "${sh[@]}" -c \
-    "source '$SRC_MONOM'; monom $*" 2>"$PROJ/.err")
+  OUT=$(cd "$PROJ" && env -u _MONOM_PROJECT_ROOT -u MONOM_CACHE RUNS_FILE="$RUNS_FILE" "${env[@]}" "${sh[@]}" -c \
+    "source '$SRC_MONOM'; monom $*" 2>"$RUNS_FILE.err")
   STATUS=$?
-  ERR=$(cat "$PROJ/.err")
-  rm -f "$PROJ/.err"
+  ERR=$(cat "$RUNS_FILE.err")
+  rm -f "$RUNS_FILE.err"
 }
 
-runs() { if [ -f "$PROJ/.runs" ]; then wc -l < "$PROJ/.runs" | tr -d ' '; else echo 0; fi; }
+runs() { wc -l < "$RUNS_FILE" | tr -d ' '; }
 
-test_cold_run_then_hit_skips_the_command_and_replays_output_and_outputs() {
+# set_config <cache settings...> — replace the fixture's config hook output.
+# shellcheck disable=SC2016 # writes a script
+set_config() {
+  {
+    echo '#!/usr/bin/env bash'
+    echo 'if [ "$1" = middleware ]; then echo mnmd cache; fi'
+    echo 'if [ "$1" = config ]; then cat <<"EOF"'
+    printf '%s\n' "$@" EOF 'fi'
+  } > "$PROJ/monom"
+}
+
+# git_init — make the project a git repo with everything committed
+# (dist/ is ignored by the fixture's .gitignore).
+git_init() {
+  (cd "$PROJ" && git init -q && git add -A &&
+    git -c user.name=t -c user.email=t@t commit -qm init)
+}
+
+test_non_git_hit_skips_the_command_and_replays_stdout_and_stderr_only() {
   run_monom -- build
   assertEquals 0 "$STATUS"
   assertEquals "building (dev)" "$OUT"
@@ -51,7 +71,7 @@ test_cold_run_then_hit_skips_the_command_and_replays_output_and_outputs() {
   assertEquals "building (dev)" "$OUT"
   assertContains "$ERR" "monom: cache hit for build"
   assertContains "$ERR" "note: copied 1 file"
-  assertEquals "dist restored" "hello" "$(cat "$PROJ/dist/greeting.txt")"
+  assertFalse "no git: files are not stored" "[ -e '$PROJ/dist' ]"
 }
 
 test_zsh_hit() {
@@ -62,15 +82,16 @@ test_zsh_hit() {
   assertContains "$ERR" "cache hit"
 }
 
-test_changed_or_added_input_misses() {
+test_inputs_command_output_change_misses() {
   run_monom -- build
   echo bye > "$PROJ/src/greeting.txt"
   run_monom -- build
-  assertEquals 2 "$(runs)"
-  assertEquals "bye" "$(cat "$PROJ/dist/greeting.txt")"
-  echo x > "$PROJ/src/extra.txt"
-  run_monom -- build
-  assertEquals 3 "$(runs)"
+  assertEquals "changed input" 2 "$(runs)"
+  run_monom BUILD_MODE=prod -- build
+  assertEquals "env read by the inputs command" 3 "$(runs)"
+  run_monom BUILD_MODE=prod -- build
+  assertEquals "same inputs hit" 3 "$(runs)"
+  assertEquals "building (prod)" "$OUT"
 }
 
 test_changed_command_file_misses() {
@@ -80,14 +101,15 @@ test_changed_command_file_misses() {
   assertEquals 2 "$(runs)"
 }
 
-test_declared_env_is_part_of_the_key_but_its_value_is_not_stored() {
+test_failing_inputs_command_runs_uncached() {
+  set_config 'cache.inputs.build = cat missing.txt'
   run_monom -- build
-  run_monom BUILD_MODE=s3cr3t -- build
-  assertEquals "set vs unset misses" 2 "$(runs)"
-  run_monom BUILD_MODE=s3cr3t -- build
-  assertEquals "same value hits" 2 "$(runs)"
-  assertEquals "building (s3cr3t)" "$OUT"
-  assertFalse "value only in the replayed stdout" "grep -rq s3cr3t '$PROJ/.monom/cache' --exclude=stdout"
+  assertEquals 0 "$STATUS"
+  assertContains "$ERR" "monom: cache bypassed for build: inputs command failed"
+  run_monom BUILD_FAIL=1 -- build
+  assertEquals "real status" 7 "$STATUS"
+  assertEquals 2 "$(runs)"
+  assertFalse "nothing stored" "[ -d '$PROJ/.monom' ]"
 }
 
 test_failure_is_not_cached_and_keeps_its_status() {
@@ -97,19 +119,28 @@ test_failure_is_not_cached_and_keeps_its_status() {
   assertEquals "ran again after the failure" 2 "$(runs)"
 }
 
-test_missing_declared_output_is_not_cached() {
-  run_monom BUILD_NO_OUTPUT=1 -- build
-  assertEquals 0 "$STATUS"
-  assertContains "$ERR" "monom: not cached: declared output dist is missing"
-  run_monom BUILD_NO_OUTPUT=1 -- build
-  assertEquals 2 "$(runs)"
+test_explicit_outputs_are_restored() {
+  set_config 'cache.inputs.build = cat src/*' 'cache.outputs.build = dist stamp.txt'
+  run_monom -- build
+  rm -rf "$PROJ/dist"
+  echo stale > "$PROJ/stamp.txt"
+  run_monom -- build
+  assertEquals 1 "$(runs)"
+  assertEquals "hello" "$(cat "$PROJ/dist/greeting.txt")"
+  assertEquals "built" "$(cat "$PROJ/stamp.txt")"
 }
 
-test_missing_input_bypasses_the_cache() {
-  rm -rf "$PROJ/src"
+test_git_default_restores_ignored_created_modified_and_deleted_files() {
+  command -v git >/dev/null || startSkipping
+  git_init
   run_monom -- build
-  assertContains "$ERR" "monom: cache bypassed for build"
+  (cd "$PROJ" && rm -rf dist && git checkout -q -- stamp.txt old.txt)
+  run_monom -- build
   assertEquals 1 "$(runs)"
+  assertEquals "ignored file created" "hello" "$(cat "$PROJ/dist/greeting.txt")"
+  assertEquals "tracked file modified" "built" "$(cat "$PROJ/stamp.txt")"
+  assertFalse "tracked file deleted" "[ -e '$PROJ/old.txt' ]"
+  assertFalse "the cache does not store itself" "ls -R '$PROJ/.monom/cache' | grep -q '^files.*\.monom'"
 }
 
 test_monom_cache_off_bypasses() {
@@ -118,19 +149,32 @@ test_monom_cache_off_bypasses() {
   assertEquals 2 "$(runs)"
 }
 
-test_commands_without_an_entry_and_discovery_are_unchanged() {
+test_commands_without_settings_and_discovery_are_unchanged() {
   run_monom -- greet
   assertEquals "hi (not cached)" "$OUT"
   assertEquals "" "$ERR"
   assertEquals "$(printf 'build\ngreet')" "$(cd "$PROJ" && "$MONOMD" discover 2>/dev/null)"
 }
 
-test_invalid_cache_file_is_a_loud_error() {
-  echo '{"build": {"inputs": []}}' > "$PROJ/monom-cache.json"
+test_invalid_cache_setting_is_a_loud_error() {
+  set_config 'cache.inputs.build/ = true'
   run_monom -- build
   assertEquals 1 "$STATUS"
-  assertContains "$ERR" "inputs must list at least one path"
+  assertContains "$ERR" "cache.inputs.build/"
   assertEquals "command not run" 0 "$(runs)"
+}
+
+test_settings_come_only_from_the_monom_config() {
+  set_config
+  echo '{"build": {"inputs": ["src"]}}' > "$PROJ/monom-cache.json"
+  run_monom -- build
+  run_monom -- build
+  assertEquals "no cache.inputs in the monom config: not cached" 2 "$(runs)"
+  assertFalse "[ -d '$PROJ/.monom' ]"
+  printf 'cache.inputs.build = cat src/*\ncache.outputs.build = dist\n' > "$PROJ/monom"
+  (cd "$PROJ" && "$MONOMD" check >/dev/null 2>"$RUNS_FILE.err")
+  assertEquals "declarative cache settings pass mnmd check" 0 $?
+  assertNotContains "$(cat "$RUNS_FILE.err")" "cache"
 }
 
 test_without_the_middleware_the_cache_never_runs() {

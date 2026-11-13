@@ -69,11 +69,28 @@ const KeyDiscoverHide = "discover.hide"
 // unset.
 const KeyStripSuffix = "discover.strip-suffix"
 
+// Cache keys are per command file: the key's remainder is the command's
+// project-relative path, e.g. `cache.inputs.db/migrate.py = git ls-files -s db`.
+// inputs is a shell command whose stdout keys the `mnmd cache` middleware;
+// outputs lists the paths to store, space-separated (default: what git sees
+// change). See internal/runcache.
+const (
+	KeyCacheInputs  = "cache.inputs."
+	KeyCacheOutputs = "cache.outputs."
+)
+
+// CacheRule is one command's cache settings.
+type CacheRule struct {
+	Inputs  string
+	Outputs []string
+}
+
 // Settings holds the recognised config keys. A zero value field means unset.
 type Settings struct {
-	RootContents string   // SeverityWarning, SeverityError, or "" when unset
-	Hide         []string // discover.hide patterns, normalized, in order
-	StripSuffix  *bool    // discover.strip-suffix, or nil when unset
+	RootContents string               // SeverityWarning, SeverityError, or "" when unset
+	Hide         []string             // discover.hide patterns, normalized, in order
+	StripSuffix  *bool                // discover.strip-suffix, or nil when unset
+	Cache        map[string]CacheRule // by command file path
 }
 
 // StripsSuffix reports whether default discovery strips file suffixes: the
@@ -171,6 +188,9 @@ func (s Settings) Merge(over Settings) Settings {
 	if over.StripSuffix != nil {
 		s.StripSuffix = over.StripSuffix
 	}
+	for cmd, r := range over.Cache {
+		s.setCache(cmd, func(c *CacheRule) { *c = r })
+	}
 	return s
 }
 
@@ -202,9 +222,40 @@ func (s *Settings) set(key, value string) string {
 		}
 		s.StripSuffix = &v
 		return ""
-	default:
-		return fmt.Sprintf("unknown setting %q", key)
 	}
+	for _, prefix := range []string{KeyCacheInputs, KeyCacheOutputs} {
+		cmd, ok := strings.CutPrefix(key, prefix)
+		if !ok {
+			continue
+		}
+		if decl, ok := normalizeDeclaration(cmd); !ok || decl != cmd || value == "" {
+			return fmt.Sprintf("invalid %s: want %s<command file path> = <value>", key, prefix)
+		}
+		if prefix == KeyCacheInputs {
+			s.setCache(cmd, func(c *CacheRule) { c.Inputs = value })
+		} else {
+			outs := strings.Fields(value)
+			for _, o := range outs {
+				if d, ok := normalizeDeclaration(o); !ok || d != o {
+					return fmt.Sprintf("invalid output %q for %s: want a clean path inside the project root", o, key)
+				}
+			}
+			s.setCache(cmd, func(c *CacheRule) { c.Outputs = outs })
+		}
+		return ""
+	}
+	return fmt.Sprintf("unknown setting %q", key)
+}
+
+func (s *Settings) setCache(cmd string, f func(*CacheRule)) {
+	m := make(map[string]CacheRule, len(s.Cache)+1)
+	for k, v := range s.Cache {
+		m[k] = v
+	}
+	r := m[cmd]
+	f(&r)
+	m[cmd] = r
+	s.Cache = m
 }
 
 // ParseSeverity validates a severity value.
@@ -272,6 +323,24 @@ func RunHook(script, hook string, args ...string) ([]byte, error) {
 		return nil, err
 	}
 	return stdout.Bytes(), nil
+}
+
+// StrictSettings returns the project's own settings like ProjectSettings,
+// but an invalid line or a failing config hook is an error.
+func (f *File) StrictSettings() (Settings, error) {
+	problems := f.Problems
+	settings := f.Settings
+	if f.Kind == Script {
+		out, err := RunHook(f.Path, "config")
+		if err != nil {
+			return Settings{}, fmt.Errorf("config hook failed: %w", err)
+		}
+		_, settings, problems = Parse(bytes.NewReader(out), false)
+	}
+	if len(problems) > 0 {
+		return Settings{}, fmt.Errorf("%s: %s", f.Path, strings.Join(problems, "; "))
+	}
+	return settings, nil
 }
 
 // ProjectSettings returns the project's own settings: a declarative file's,

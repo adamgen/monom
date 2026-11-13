@@ -213,3 +213,20 @@ func TestProjectSettings_ReadsTheConfigHookLeniently(t *testing.T) {
 		t.Error("a failing config hook must contribute nothing")
 	}
 }
+
+func TestParse_CacheSettingsAreKeyedByCommandPath(t *testing.T) {
+	input := "cache.inputs.tools/build = git ls-files -s src | sha256sum\ncache.outputs.tools/build = dist out/a.txt\n"
+	_, settings, problems := Parse(strings.NewReader(input), false)
+	if len(problems) != 0 {
+		t.Fatalf("problems: %v", problems)
+	}
+	want := CacheRule{Inputs: "git ls-files -s src | sha256sum", Outputs: []string{"dist", "out/a.txt"}}
+	if got := settings.Cache["tools/build"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	for _, bad := range []string{"cache.inputs.../x = true", "cache.inputs.build =", "cache.outputs.build = ../dist", "cache.inputs = true"} {
+		if _, _, problems := Parse(strings.NewReader(bad+"\n"), false); len(problems) != 1 {
+			t.Errorf("%q: problems %v, want one", bad, problems)
+		}
+	}
+}

@@ -1,18 +1,20 @@
-// Package runcache is monom's local, opt-in, input-based command cache, run
-// as the `mnmd cache` middleware. monom-cache.json at the project root opts
-// command files in, with explicit inputs, outputs and env vars:
+// Package runcache is monom's local, opt-in command cache, run as the
+// `mnmd cache` middleware. A command is cached when the monom config sets
 //
-//	{ "build": { "inputs": ["src"], "outputs": ["dist"], "env": ["MODE"] } }
+//	cache.inputs.<command file> = <shell command>
 //
-// A hit restores the outputs and replays stdout then stderr without calling
-// next; a miss runs next and stores only an exit-0 run whose outputs exist.
+// The inputs command runs from the project root; its stdout, the command
+// file, the rest of the chain and the cache settings form the key. A hit
+// restores the stored files and replays stdout then stderr without calling
+// next; a miss runs next and stores an exit-0 run. Stored files are the
+// cache.outputs paths when set, otherwise the files git sees the run create,
+// change or delete (ignored files included). Without git: stdout/stderr only.
 package runcache
 
 import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,108 +22,23 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
+
+	"github.com/adamgen/monom/internal/config"
 )
 
-// FileName is the cache config at the project root; Dir holds entries.
-const (
-	FileName = "monom-cache.json"
-	Dir      = ".monom/cache"
-)
+// Dir holds the entries, relative to the project root.
+const Dir = ".monom/cache"
 
-// Entry declares how one command is cached. Nothing is inferred.
-type Entry struct {
-	Inputs  []string `json:"inputs"`
-	Outputs []string `json:"outputs"`
-	Env     []string `json:"env"`
-}
-
-// Load reads monom-cache.json; a missing file is (nil, nil).
-func Load(root string) (map[string]Entry, error) {
-	b, err := os.ReadFile(filepath.Join(root, FileName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-	var f map[string]Entry
-	if err := dec.Decode(&f); err != nil {
-		return nil, fmt.Errorf("%s: %w", FileName, err)
-	}
-	for cmd, e := range f {
-		if len(e.Inputs) == 0 {
-			return nil, fmt.Errorf("%s: %q: inputs must list at least one path", FileName, cmd)
-		}
-		for _, p := range append(append([]string{cmd}, e.Inputs...), e.Outputs...) {
-			if p == "" || path.IsAbs(p) || path.Clean(p) != p || p == ".." || strings.HasPrefix(p, "../") || strings.HasPrefix(p, ".monom") {
-				return nil, fmt.Errorf("%s: %q: %q must be a clean relative path inside the project, outside .monom", FileName, cmd, p)
-			}
-		}
-	}
-	return f, nil
-}
-
-// Key hashes what a result depends on: the command file, next's argv (the
-// inner chain and the command), every input file's path, content and execute
-// bit, each declared env var (only a hash of its value), and the entry. A
-// missing input is an error: the caller bypasses the cache.
-func Key(root, cmd string, next []string, e Entry) (string, error) {
-	h := sha256.New()
-	put := func(parts ...string) { fmt.Fprintf(h, "%s\n", strings.Join(parts, "\x00")) }
-	entry, _ := json.Marshal(e)
-	put("monom-cache v1", cmd, string(entry))
-	put(next...)
-	files := []string{cmd}
-	for _, in := range e.Inputs {
-		err := filepath.WalkDir(filepath.Join(root, in), func(p string, d fs.DirEntry, err error) error {
-			if err == nil && !d.IsDir() {
-				rel, _ := filepath.Rel(root, p)
-				files = append(files, rel)
-			}
-			return err
-		})
-		if err != nil {
-			return "", fmt.Errorf("input %q: %w", in, err)
-		}
-	}
-	sort.Strings(files)
-	for _, f := range files {
-		b, err := os.ReadFile(filepath.Join(root, f))
-		if err != nil {
-			return "", err
-		}
-		info, _ := os.Stat(filepath.Join(root, f))
-		sum := sha256.Sum256(b)
-		put("file", f, fmt.Sprint(info.Mode()&0o111 != 0), hex.EncodeToString(sum[:]))
-	}
-	env := append([]string{}, e.Env...)
-	sort.Strings(env)
-	for _, n := range env {
-		v, ok := os.LookupEnv(n)
-		sum := sha256.Sum256([]byte(v))
-		put("env", n, fmt.Sprint(ok), hex.EncodeToString(sum[:]))
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// Middleware is `mnmd cache <next...>`. It returns the exit status to use;
-// a nil-error pass-through never returns (it execs next).
-func Middleware(root, cmd string, next []string) (int, error) {
-	entries, err := Load(root)
-	if err != nil {
-		return 1, err
-	}
-	e, ok := entries[cmd]
-	if !ok || os.Getenv("MONOM_CACHE") == "off" {
+// Middleware is `mnmd cache <next...>` for a command with a cache rule. It
+// returns the exit status to use; a pass-through execs next and never returns.
+func Middleware(root, cmd string, rule config.CacheRule, next []string) (int, error) {
+	if os.Getenv("MONOM_CACHE") == "off" {
 		return 1, Exec(next)
 	}
-	key, err := Key(root, cmd, next, e)
+	key, err := Key(root, cmd, rule, next)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "monom: cache bypassed for %s: %v\n", cmd, err)
 		return 1, Exec(next)
@@ -129,7 +46,7 @@ func Middleware(root, cmd string, next []string) (int, error) {
 	dir := filepath.Join(root, Dir, key)
 	if out, err := os.ReadFile(filepath.Join(dir, "stdout")); err == nil {
 		errb, _ := os.ReadFile(filepath.Join(dir, "stderr"))
-		if err := copyPaths(filepath.Join(dir, "outputs"), root, e.Outputs); err == nil {
+		if err := restore(root, dir); err == nil {
 			fmt.Fprintf(os.Stderr, "monom: cache hit for %s (%s)\n", cmd, key[:12])
 			os.Stdout.Write(out)
 			os.Stderr.Write(errb)
@@ -137,20 +54,118 @@ func Middleware(root, cmd string, next []string) (int, error) {
 		}
 		os.RemoveAll(dir) // damaged: a miss that replaces it
 	}
+	before, git := snapshot(root, nil)
+	if len(rule.Outputs) > 0 {
+		git = false
+	}
 	var out, errb bytes.Buffer
 	status, err := Run(next, io.MultiWriter(os.Stdout, &out), io.MultiWriter(os.Stderr, &errb))
-	if err == nil && status == 0 {
-		if err := store(root, dir, e.Outputs, out.Bytes(), errb.Bytes()); err != nil {
-			fmt.Fprintf(os.Stderr, "monom: not cached: %v\n", err)
+	if err != nil || status != 0 {
+		return status, err
+	}
+	files, replace, deleted := rule.Outputs, rule.Outputs, []string(nil)
+	if git {
+		files, deleted = changes(root, before)
+	}
+	if err := store(root, dir, files, replace, deleted, out.Bytes(), errb.Bytes()); err != nil {
+		fmt.Fprintf(os.Stderr, "monom: not cached: %v\n", err)
+	}
+	return 0, nil
+}
+
+// Key hashes the inputs command's stdout with the command file, next's argv
+// and the rule. A failing inputs command is an error: the caller runs the
+// command uncached.
+func Key(root, cmd string, rule config.CacheRule, next []string) (string, error) {
+	c := exec.Command("sh", "-c", rule.Inputs)
+	c.Dir = root
+	var stderr bytes.Buffer
+	c.Stderr = &stderr
+	inputs, err := c.Output()
+	if err != nil {
+		return "", fmt.Errorf("inputs command failed (%v) %s", err, strings.TrimSpace(stderr.String()))
+	}
+	body, err := os.ReadFile(filepath.Join(root, cmd))
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	for _, part := range append([]string{"monom-cache v2", cmd, string(body), rule.Inputs, strings.Join(rule.Outputs, " "), string(inputs)}, next...) {
+		fmt.Fprintf(h, "%d:%s", len(part), part)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// snapshot fingerprints (size, mtime, mode) every path `git status` lists
+// under root (modified, untracked and ignored files, one by one), plus the
+// extra paths, skipping .monom/. ok is false outside a git work tree.
+func snapshot(root string, extra []string) (map[string]string, bool) {
+	top, err := exec.Command("git", "-C", root, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return nil, false
+	}
+	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "-z", "--untracked-files=all", "--ignored", "--", ".").Output()
+	if err != nil {
+		return nil, false
+	}
+	fps := map[string]string{}
+	add := func(rel string) {
+		if rel != ".monom" && !strings.HasPrefix(rel, ".monom/") {
+			fps[rel] = fingerprint(filepath.Join(root, rel))
 		}
 	}
-	return status, err
+	recs := strings.Split(string(out), "\x00")
+	for i := 0; i < len(recs); i++ {
+		if len(recs[i]) < 4 {
+			continue
+		}
+		abs := filepath.Join(strings.TrimSpace(string(top)), recs[i][3:])
+		if rel, err := filepath.Rel(root, abs); err == nil && !strings.HasPrefix(rel, "..") {
+			add(filepath.ToSlash(rel))
+		}
+		if recs[i][0] == 'R' || recs[i][0] == 'C' {
+			i++ // the rename's source path
+		}
+	}
+	for _, p := range extra {
+		add(p)
+	}
+	return fps, true
+}
+
+func fingerprint(p string) string {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return "missing"
+	}
+	return fmt.Sprint(fi.Size(), fi.ModTime().UnixNano(), fi.Mode())
+}
+
+// changes compares a fresh snapshot with before: paths whose fingerprint
+// changed and still exist are files to store; the rest were deleted.
+func changes(root string, before map[string]string) (files, deleted []string) {
+	var known []string
+	for p := range before {
+		known = append(known, p)
+	}
+	after, _ := snapshot(root, known)
+	for p, fp := range after {
+		switch {
+		case fp == before[p]:
+		case fp == "missing":
+			deleted = append(deleted, p)
+		default:
+			files = append(files, p)
+		}
+	}
+	return files, deleted
 }
 
 // store writes an entry into a temp dir and renames it into place, so a
-// reader never sees half of one. stdout is written last: its presence marks
-// a complete entry.
-func store(root, dir string, outputs []string, out, errb []byte) error {
+// reader never sees half of one; stdout, written last, marks it complete.
+// replace lists paths restore removes before copying files back; deleted
+// lists paths restore removes.
+func store(root, dir string, files, replace, deleted []string, out, errb []byte) error {
 	base := filepath.Join(root, Dir)
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		return err
@@ -160,16 +175,22 @@ func store(root, dir string, outputs []string, out, errb []byte) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	for _, o := range outputs {
-		if _, err := os.Lstat(filepath.Join(root, o)); err != nil {
-			return fmt.Errorf("declared output %s is missing", o)
+	for _, f := range files {
+		if _, err := os.Lstat(filepath.Join(root, f)); err != nil {
+			return fmt.Errorf("declared output %s is missing", f)
+		}
+		if err := copyTree(filepath.Join(root, f), filepath.Join(tmp, "files", f)); err != nil {
+			return err
 		}
 	}
-	if err := copyPaths(root, filepath.Join(tmp, "outputs"), outputs); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(tmp, "stderr"), errb, 0o644); err != nil {
-		return err
+	for name, b := range map[string][]byte{
+		"replace": []byte(strings.Join(replace, "\x00")),
+		"deleted": []byte(strings.Join(deleted, "\x00")),
+		"stderr":  errb,
+	} {
+		if err := os.WriteFile(filepath.Join(tmp, name), b, 0o644); err != nil {
+			return err
+		}
 	}
 	if err := os.WriteFile(filepath.Join(tmp, "stdout"), out, 0o644); err != nil {
 		return err
@@ -177,42 +198,56 @@ func store(root, dir string, outputs []string, out, errb []byte) error {
 	return os.Rename(tmp, dir)
 }
 
-// copyPaths replaces each path under dst with its copy from src: regular
-// files and directories only, permission bits kept.
-func copyPaths(src, dst string, paths []string) error {
-	for _, p := range paths {
-		if err := os.RemoveAll(filepath.Join(dst, p)); err != nil {
+// restore replays an entry's file effects: remove the replaced paths, copy
+// the stored files back, remove the deleted paths.
+func restore(root, dir string) error {
+	list := func(name string) []string {
+		b, _ := os.ReadFile(filepath.Join(dir, name))
+		return strings.FieldsFunc(string(b), func(r rune) bool { return r == 0 })
+	}
+	for _, p := range list("replace") {
+		if err := os.RemoveAll(filepath.Join(root, p)); err != nil {
 			return err
 		}
-		err := filepath.WalkDir(filepath.Join(src, p), func(s string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			rel, _ := filepath.Rel(src, s)
-			t := filepath.Join(dst, rel)
-			info, err := d.Info()
-			switch {
-			case err != nil:
-				return err
-			case d.IsDir():
-				return os.MkdirAll(t, info.Mode().Perm()|0o700)
-			case !d.Type().IsRegular():
-				return fmt.Errorf("%s is not a regular file or directory", s)
-			}
-			b, err := os.ReadFile(s)
-			if err == nil {
-				err = os.MkdirAll(filepath.Dir(t), 0o755)
-			}
-			if err == nil {
-				err = os.WriteFile(t, b, info.Mode().Perm())
-			}
-			return err
-		})
-		if err != nil {
+	}
+	if err := copyTree(filepath.Join(dir, "files"), root); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	for _, p := range list("deleted") {
+		if err := os.RemoveAll(filepath.Join(root, p)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// copyTree copies a regular file or a directory of them, keeping permission
+// bits; anything else is refused.
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(s string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, s)
+		t := filepath.Join(dst, rel)
+		info, err := d.Info()
+		switch {
+		case err != nil:
+			return err
+		case d.IsDir():
+			return os.MkdirAll(t, info.Mode().Perm()|0o700)
+		case !d.Type().IsRegular():
+			return fmt.Errorf("%s is not a regular file or directory", s)
+		}
+		b, err := os.ReadFile(s)
+		if err == nil {
+			err = os.MkdirAll(filepath.Dir(t), 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(t, b, info.Mode().Perm())
+		}
+		return err
+	})
 }
 
 // Run runs argv with stdin inherited, relaying SIGINT, SIGTERM, SIGHUP and
