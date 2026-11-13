@@ -1,0 +1,67 @@
+# Run middleware: the `middleware` hook names a chain that monom() runs as
+# `( exec mw1 mw2 ... /abs/command )`, first one outermost. The chain mixes
+# bash (_mw/outer) and Python (_mw/inner.py); `show` passes through `env`
+# from PATH. tests/monom_middleware_test counts when the hook runs.
+
+root: fixtures/middleware-project
+shells: [bash, zsh]
+
+cases:
+  - name: wrappers nest outermost first, get their line's arguments, and unwind in reverse
+    input: monom wrapped
+    action: enter
+    expect: |
+      outer: before
+      inner: before
+      wrapped: ran
+      inner: after (exit 0)
+      outer: after (exit 0)
+
+  - name: the command's exit status unwinds through every wrapper
+    input: monom fail7
+    action: enter
+    exit: 7
+    expect: |
+      outer: before
+      inner: before
+      fail7: ran
+      inner: after (exit 7)
+      outer: after (exit 7)
+
+  - name: a middleware that does not call next short-circuits with its own status
+    input: monom denied
+    action: enter
+    exit: 2
+    expect: "deny: not running denied"
+
+  - name: a pass-through leaves stdin to the command, which sees MONOM_COMMAND and MONOM_COMMAND_PATH
+    input: echo hello | monom show
+    action: enter
+    expect: |
+      stdin: hello
+      MONOM_COMMAND_PATH=show
+      MONOM_COMMAND=show
+
+  - name: an empty chain runs the command as without middleware
+    input: monom db plain
+    action: enter
+    expect: "plain: MONOM_COMMAND=unset"
+
+  - name: a failing hook is an error and nothing runs
+    input: monom broken
+    action: enter
+    exit: 1
+    expect: |
+      mnmd middleware: middleware hook failed (exit 4)
+      middleware hook: boom
+
+  - name: a missing middleware is an error and nothing runs
+    input: monom missing
+    action: enter
+    exit: 1
+    expect: 'mnmd middleware: middleware "_mw/nope": not an executable file'
+
+  - name: tab completion is unchanged by the hook
+    input: "monom "
+    action: tab
+    expect: [broken, db, denied, fail7, missing, show, wrapped]

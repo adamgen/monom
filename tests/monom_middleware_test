@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# shUnit2 e2e tests for: when monom() calls the `middleware` hook (it logs to
+# a file). Chain behavior is in tests/cases/monom_middleware.yaml.
+# Run directly: bash tests/monom_middleware_test
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck disable=SC2034
+MONOMD="$REPO_ROOT/bin/mnmd"
+SHUNIT2="$REPO_ROOT/dependencies/shunit2"
+
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/helpers"
+
+# hook_calls <script> — runs script after sourcing src/monom in the fixture
+# and prints the hook's call log.
+hook_calls() {
+  local log
+  log=$(mktemp)
+  (cd "$REPO_ROOT/fixtures/middleware-project" && env -u _MONOM_PROJECT_ROOT MW_HOOK_LOG="$log" \
+    bash --norc --noprofile -c "source '$REPO_ROOT/src/monom'; $1" >/dev/null 2>&1)
+  cat "$log"
+  rm -f "$log"
+}
+
+test_the_hook_runs_once_per_command_run_with_the_project_path() {
+  assertEquals "middleware db/plain" "$(hook_calls 'monom db plain')"
+}
+
+test_tab_discovery_pack_and_groups_never_run_the_hook() {
+  assertEquals "" "$(hook_calls '
+    COMP_WORDS=(monom ""); COMP_CWORD=1; COMP_LINE="monom "; COMP_POINT=6
+    _monom_completion monom "" monom
+    mnmd discover; mnmd pack wrapped; monom db; monom nosuch')"
+}
+
+# shellcheck disable=SC1090
+. "$SHUNIT2"

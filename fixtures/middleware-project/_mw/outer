@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Wraps; its first argument (from the hook line) is a label.
+label=$1; shift
+echo "$label: before"
+"$@"
+status=$?
+echo "$label: after (exit $status)"
+exit "$status"

@@ -108,3 +108,15 @@ The precedence — a valid local path overrides the global value, an invalid one
 **Why.** The config can now be absent, empty, or declarative. Running an absent one fails with 127, which `monom()` would report as a failing `run` hook. Worse, bash and zsh run a shebang-less executable file as a shell script, so a declarative config with the execute bit set would have each declared path executed as a command. Go cannot make this decision without adding a subprocess to every hook call (`_setup_monom` short-circuits and never calls `mnmd` when the root is pinned), so the check is two builtins: a test and a `read`. `internal/config` applies the same rule, so the shell and `mnmd check` agree on what a hook script is.
 
 **What it costs.** One file read per hook call. A hook script must start with a shebang, which every runnable script already does.
+
+---
+
+## Run middleware is an exec chain
+
+**Chosen:** a middleware is any executable that gets the rest of the chain as argv, and `monom()` runs `( exec mw1 mw2 … cmd )`.
+
+**Rejected:** `pre-run` / `post-run` event hooks; shell functions sourced into `monom()`; a Go interface inside `mnmd`.
+
+**Why:** events can't replace the command (no cache hit), sourced functions are bash/zsh-only, and an in-process interface shuts out authors' own middleware. The chain is how commands already run: a pass-through middleware keeps the terminal, stdio and signals exactly as before.
+
+**What it costs:** a wrapping middleware stays resident and must relay signals (a terminal Ctrl-C can then reach the command twice); one that captures output turns stdio into pipes. Each command run with an executable config costs one `mnmd middleware` process and one hook call.

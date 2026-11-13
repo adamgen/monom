@@ -179,6 +179,25 @@ monom() {
 
   if [ "$pack_status" -eq 0 ]; then
     rm -f "$pack_err"
+    # Run middleware: only an executable config can have a `middleware` hook,
+    # so other projects skip straight to the plain exec. mnmd middleware
+    # prints the chain, one argv word per line, or says why it can't.
+    if [ -x "$_MONOM_USER_CONFIG" ]; then
+      local mw_out _mw_word
+      local -a mw_chain=()
+      mw_out=$(mnmd middleware "$pack_out") || return
+      while IFS= read -r _mw_word; do
+        [ -z "$_mw_word" ] || mw_chain+=("$_mw_word")
+      done <<< "$mw_out"
+      if [ ${#mw_chain[@]} -gt 0 ]; then
+        # mw1 … /abs/cmd: each middleware gets the rest as its argv.
+        (
+          export MONOM_COMMAND="$pack_out" MONOM_COMMAND_PATH="${pack_out#"$_MONOM_PROJECT_ROOT"/}"
+          exec "${mw_chain[@]}" "$pack_out"
+        )
+        return
+      fi
+    fi
     # Run via exec in a subshell so the user's interactive session is not replaced.
     ( exec "$pack_out" )
     return

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# cache-project: every command runs through the cache middleware; only build
+# has cache settings, so greet passes straight through.
+case "$1" in
+  middleware) echo mnmd cache ;;
+  config) cat <<'EOF' ;;
+cache.inputs.build = cat src/*; echo "mode=${BUILD_MODE-}"
+EOF
+esac

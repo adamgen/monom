@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# A cached command: reads src/, writes dist/ and stamp.txt, deletes old.txt.
+# Every real run appends to $RUNS_FILE (outside the project), so tests can
+# count executions.
+set -eu
+cd "$(dirname "$0")"
+echo run >> "${RUNS_FILE:-/dev/null}"
+[ "${BUILD_FAIL:-}" != 1 ] || { echo "build failed" >&2; exit 7; }
+echo "building (${BUILD_MODE:-dev})"
+echo "note: copied 1 file" >&2
+mkdir -p dist
+cp src/greeting.txt dist/greeting.txt
+echo built > stamp.txt
+rm -f old.txt

@@ -97,6 +97,21 @@ There are two roles:
 
 The optional config file (`monom` at the project root) is the seam between monom's engine and the author's project. As a hook script it can expose `complete` (list all command paths, replacing default discovery) and `run` (rewrite args before path resolution), among other hooks. Without it, monom's default discovery (`mnmd discover`) supplies the command tree.
 
+## Run middleware
+
+A hook script's optional `middleware` hook names executables to run in front of a command (never on Tab). Each is called as `mw <next...>` and passes through (`exec "$@"`), wraps (runs `"$@"`, acts on its status), or short-circuits. `mnmd cache` is the built-in local cache, keyed by the stdout of an inputs command you write; with no `cache.outputs`, it restores stdout/stderr and the files git sees the command change:
+
+```bash
+case "$1" in
+  middleware) [ "$2" = build ] && printf '%s\n' tools/timer "mnmd cache" ;;   # timer wraps the cache
+  config) echo 'cache.inputs.build = git ls-files -s src package.json' ;;     # optional: cache.outputs.build = dist
+esac
+```
+
+All configuration lives in this one `monom` file; monom adds no other config files.
+
+See [architecture.md](architecture.md#run-middleware).
+
 ## Project Status
 
 monom is in **early development**. This is the second attempt at building it — the first stalled out. The binding constraint is very little available time, so the approach leans heavily on AI-assisted development.

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# middleware-project: the `middleware` hook prints each command's chain,
+# outermost first. MW_HOOK_LOG, when set, records each call (for
+# tests/monom_middleware_test).
+case "$1" in
+  middleware)
+    [ -z "${MW_HOOK_LOG:-}" ] || echo "middleware $2" >> "$MW_HOOK_LOG"
+    case "$2" in
+      wrapped | fail7) printf '%s\n' "_mw/outer outer" _mw/inner.py ;;
+      denied) echo _mw/deny ;;
+      show) echo env ;; # a pass-through found on PATH
+      broken) echo "middleware hook: boom" >&2; exit 4 ;;
+      missing) echo _mw/nope ;;
+    esac
+    ;;
+esac

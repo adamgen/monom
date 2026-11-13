@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Short-circuits: never calls the rest of the chain.
+echo "deny: not running $MONOM_COMMAND_PATH" >&2
+exit 2
